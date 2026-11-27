@@ -15,6 +15,14 @@ const change = (tx: Tx): void => {
   tx.deleteRange(key(2));
 };
 
+/** A run that makes the change, then ends as `end` does. */
+const changing =
+  (end: () => Promise<void>) =>
+  (tx: Tx): Promise<void> => {
+    change(tx);
+    return end();
+  };
+
 interface Held {
   first: Gate;
   arrived: string[];
@@ -95,6 +103,18 @@ const CASES: Cases = {
     const rejection: unknown = await storage.transact(locks(1), () => Promise.reject(thrown)).catch((error: unknown) => error);
     await storage.transact(locks(1), numbered(settled));
     return { got: [rejection, await everyKey(storage)], want: [thrown, [`${RUNS}0`]] };
+  },
+
+  "[REL-8] a run that throws saves none of the writes that a run that returns saves": async (make) => {
+    const storage = await make();
+    await put(storage, [key(1), key(21), key(22)]);
+    const thrown = storage.transact(
+      locks(1),
+      changing(() => Promise.reject(new Error(key(9)))),
+    );
+    const afterThrow = await thrown.catch(() => everyKey(storage));
+    await storage.transact(locks(1), changing(settled));
+    return { got: [afterThrow, await everyKey(storage)], want: [[key(1), key(21), key(22)], [key(3)]] };
   },
 
   "[REL-2] a transaction resolves with what its run returned": async (make) => {

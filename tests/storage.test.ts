@@ -10,6 +10,7 @@ const TITLES = [
   "[REL-7] the writes of a transaction are saved together, and none shows before",
   "[REL-7] a run reads only committed rows, never its own writes, which are saved in the order it made them",
   "[REL-8] a transaction rejects with what its run threw, and the next run on its lock goes on",
+  "[REL-8] a run that throws saves none of the writes that a run that returns saves",
   "[REL-2] a transaction resolves with what its run returned",
   "[COMMON-4] a scan returns the keys under its prefix in code point order, up to its limit",
   "[COMMON-4] a scan after a key returns only what comes beyond it, whether or not the key exists",
@@ -95,21 +96,6 @@ const withKeys = async (): Promise<Storage> => {
   });
   return storage;
 };
-
-test("[REL-8] the memory storage saves nothing of a run that throws", async () => {
-  const storage = await withKeys();
-  const before = await storage.scan({ prefix: "", limit: 9 });
-  const thrown = new Error("The run failed.");
-  const failing = storage.transact(["lock"], (tx) => {
-    tx.put("c", {});
-    tx.delete("a");
-    tx.deleteRange("b/");
-    return Promise.reject(thrown);
-  });
-
-  await expect(failing).rejects.toBe(thrown);
-  expect(await storage.scan({ prefix: "", limit: 9 })).toStrictEqual(before);
-});
 
 test("[REL-7] the memory storage saves the writes of a run in the order the run made them", async () => {
   const storage = await withKeys();
