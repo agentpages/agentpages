@@ -201,6 +201,13 @@ export const readingType = (n: number): { typeId: string } => ({ typeId: typeId(
 /** The content of a page of type `n`. */
 export const typed = (n: number, typeVersion: number): PageContent => ({ kind: "type", typeId: typeId(n), typeVersion });
 
+/** Publishes page `n` of agent 1 and gives it this access. It returns the link of the page. */
+export const linkOf = async (driver: Driver, [n, access]: [number, string]): Promise<string> => {
+  const alice = actingAs(driver, agent(1));
+  await alice.ok(PUBLISH, page(n, 0));
+  return (await alice.ok(SET_ACCESS, sharing(n, access))).url;
+};
+
 /** `params` with one field given another value. */
 export const having = (params: object, [name, value]: [string, unknown]): unknown => ({ ...params, [name]: value });
 

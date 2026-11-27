@@ -1,6 +1,6 @@
 import type { Actor, Viewer } from "@agentpages/protocol";
 import { base64url, type Bytes, bytesOf, joined, sha256 } from "../pipeline/digest.js";
-import type { Principal, Visitor } from "./principal.js";
+import type { Principal } from "./principal.js";
 
 const MIN_KEY_BYTES = 32;
 const BLOCK_BYTES = 64;
@@ -18,8 +18,8 @@ const hmac = async (key: Bytes, message: Bytes): Promise<Bytes> => {
 };
 
 /** Who makes a request, and the page the request names when it names one. */
-interface Seen<Who extends Principal = Principal> {
-  principal: Who;
+interface Seen {
+  principal: Principal;
   pageId: string | undefined;
 }
 
@@ -30,8 +30,11 @@ interface Seen<Who extends Principal = Principal> {
 export interface Actors {
   /** Who a commit or a log record names. */
   actorOf(seen: Seen): Promise<Actor>;
-  /** A viewer as `identity/get` shows them: under the id of their `Actor`, with their name if they have one. */
-  viewerOf(seen: Seen<Visitor>): Promise<Viewer | null>;
+  /**
+   * A viewer as `identity/get` and the entries of a thread show them: under the id of their `Actor`, with their name
+   * if they have one. Anyone else is nobody.
+   */
+  viewerOf(seen: Seen): Promise<Viewer | null>;
 }
 
 const named = ({ name }: { name?: string }): { name?: string } => (name === undefined ? {} : { name });

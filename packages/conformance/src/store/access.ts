@@ -13,6 +13,7 @@ import {
   html,
   LINK_READ,
   LINK_WRITE,
+  linkOf,
   LIST,
   markup,
   openFails,
@@ -23,7 +24,6 @@ import {
   PUBLISH,
   reading,
   refusedOpenId,
-  type Session,
   SET_ACCESS,
   sharing,
   times,
@@ -38,21 +38,14 @@ import { after, COMMIT, COMMITS, committing, doc, listing, mine, STATE_GET, STAT
 
 const ACCESSES = [PRIVATE, LINK_READ, LINK_WRITE];
 
-/** Page `n` of agent 1, with one version and this access. It returns the link of the page. */
-const shared = async (alice: Session, [n, access]: [number, string]): Promise<string> => {
-  await alice.ok(PUBLISH, page(n, 0));
-  return (await alice.ok(SET_ACCESS, sharing(n, access))).url;
-};
-
 /**
  * What a signed-in link holder, an anonymous one, and the owner as a viewer with a link that is not current get, on
  * a page of each access.
  */
 const acrossAccesses = (driver: Driver, ask: (surface: Surface) => Promise<unknown>): Promise<unknown[][]> => {
-  const alice = actingAs(driver, agent(1));
   return Promise.all(
     ACCESSES.map(async (access, n) => {
-      const url = await shared(alice, [n, access]);
+      const url = await linkOf(driver, [n, access]);
       return Promise.all([viewer(2, url), anonymous(url), viewer(1, `${url}x`)].map((visit) => ask(viewOf(driver, visit))));
     }),
   );
@@ -102,7 +95,7 @@ export const ACCESS_CASES: Cases = {
   "[ACCESS-1] the owner does everything through the tools, whatever the access": async (driver) => {
     const alice = actingAs(driver, agent(1));
     const done = ACCESSES.map(async (access, n) => {
-      await shared(alice, [n, access]);
+      await linkOf(driver, [n, access]);
       const read = [(await alice.ok(GET, reading(n))).access, (await alice.ok(PUBLISH, page(n, 1))).version];
       const { versions } = await alice.ok(VERSIONS, reading(n));
       return [...read, versions.length, await alice.ok(DELETE, deleting(n)), await alice.fails(GET, reading(n))];
@@ -120,7 +113,7 @@ export const ACCESS_CASES: Cases = {
   "[ACCESS-2] any other MCP principal is refused, whatever the access": async (driver) => {
     const [alice, bob] = [actingAs(driver, agent(1)), actingAs(driver, agent(2))];
     const refused = ACCESSES.map(async (access, n) => {
-      await shared(alice, [n, access]);
+      await linkOf(driver, [n, access]);
       const read = [bob.fails(GET, reading(n)), bob.fails(VERSIONS, reading(n))];
       const changed = [bob.fails(PUBLISH, page(n, 1)), bob.fails(DELETE, deleting(n)), bob.fails(SET_ACCESS, sharing(n, LINK_WRITE))];
       const errors = await Promise.all([...read, ...changed]);

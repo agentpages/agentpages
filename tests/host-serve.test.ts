@@ -1,5 +1,7 @@
-import { type Answer, EXTENSION_ID, ID_PATTERN, type JsonRpcMessage, methodNotFound, toJsonRpcError } from "@agentpages/protocol";
+import { type Answer, EXTENSION_ID, type Port, ID_PATTERN, type JsonRpcMessage, methodNotFound, toJsonRpcError } from "@agentpages/protocol";
+import { serve } from "@agentpages/host";
 import { expect, test } from "vitest";
+import { counter, manualTimers } from "./support/bridge.ts";
 import {
   answer,
   CAPABILITY,
@@ -16,6 +18,7 @@ import {
   PROBED,
   request,
   settle,
+  SHOWN,
   subject,
   type Subject,
   tick,
@@ -192,6 +195,35 @@ test("[REL-17] a host closed while the Store answers its view asks nothing more 
   timers.advance(10 * TIMEOUT_MS);
   await settle();
   expect([views.length, hosts.length, events, timers.waiting()]).toStrictEqual([1, 1, [], 0]);
+});
+
+test("[RPC-4] [REL-17] a host closed while the Store answers its view posts nothing when the answer comes", async () => {
+  const slow = gate<Answer>();
+  const posted: unknown[] = [];
+  const asked: string[] = [];
+  const hear: ((data: unknown) => void)[] = [];
+  const port: Port = {
+    post: (message) => {
+      posted.push(message);
+    },
+    listen: (receive) => {
+      hear.push(receive);
+      return () => {};
+    },
+  };
+  const view = ({ method }: { method: string }): Promise<Answer> => {
+    asked.push(method);
+    return slow.promise;
+  };
+  const link = { host: () => Promise.resolve(heads()), view };
+  const mounted = serve({ url: LINK, version: SHOWN, capability: CAPABILITY, link, on: () => {} }, { port, timers: manualTimers(), id: counter("host-") });
+  hear.forEach((receive) => {
+    receive(request(1, { method: "agentpages/identity/get" }));
+  });
+  await mounted.close();
+  slow.open({ kind: "result", result: { viewer: null } });
+  await settle();
+  expect([asked, posted]).toStrictEqual([["agentpages/identity/get"], []]);
 });
 
 test("[REL-17] a closed host hears its view no longer and asks the Store nothing more", async () => {
