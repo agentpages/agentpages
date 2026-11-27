@@ -6,7 +6,7 @@ import { noComments } from "./lint/no-comments.ts";
 const suppressions = { "ts-expect-error": true, "ts-ignore": true, "ts-nocheck": true };
 
 export default defineConfig(
-  { ignores: ["**/dist/**", "**/node_modules/**", "**/*.config.*", ".dependency-cruiser.cjs", "reports/**"] },
+  { ignores: ["**/dist/**", "**/node_modules/**", "reports/**"] },
   js.configs.recommended,
   tseslint.configs.strictTypeChecked,
   {

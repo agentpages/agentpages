@@ -2,7 +2,19 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "types": ["node"],
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "isolatedDeclarations": false,
+    "declaration": false,
+    "allowJs": true,
+    "checkJs": true
   },
-  "include": ["scripts", "lint", "tests"]
+  "include": [
+    "scripts",
+    "lint",
+    "tests",
+    "*.config.ts",
+    "*.config.js",
+    ".dependency-cruiser.mjs",
+    "packages/*/tsdown.config.ts"
+  ]
 }

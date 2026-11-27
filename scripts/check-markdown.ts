@@ -8,6 +8,8 @@ const allowedPlaces = [
   /^(.+\/)?README\.md$/,
   /^packages\/[a-z-]+\/CHANGELOG\.md$/,
   /^\.changeset\/[^/]+\.md$/,
+  /^\.github\/pull_request_template\.md$/,
+  /^packages\/[a-z-]+\/[a-z-]+\.api\.md$/,
 ];
 
 const isInDocsFolder = (file: string): boolean => file.split("/").includes("docs");
