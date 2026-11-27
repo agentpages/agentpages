@@ -51,9 +51,11 @@ An operation declares its target, the access it needs and its checks, and brings
 
 A storage that fails, or a rate limiter whose promise rejects, makes the answer `Unavailable`. A stored record that is not what the Store saved, such as a page without an owner, is a defect. Anything else that is thrown is a defect: the answer is `Internal`, and the log record names the cause.
 
-## Sweep
+## Files
 
 A files operation is declared once, as a state operation is. A file is two rows under its page: its `FileInfo`, and its bytes as the storage takes them, so a list reads no bytes and deleting the page deletes its files with it. `maxFileBytes` is the largest value the storage must take. A put decodes the `blob` once, and what the Store remembers of it is the `FileInfo` alone. The Store keeps `name` and `mimeType` as they came and serves no file by URL.
+
+## Sweep
 
 `sweep(limit)` deletes what is past its retention: the requests the Store remembers, `requestTimeoutMs` after `opRetentionSeconds`, and the commits of its logs, `requestTimeoutMs` after `commitRetentionSeconds`. Nothing else expires. No request triggers it and it is not a tool: the deployment calls it on a timer. It clears at most `limit` of each of the two kinds, the oldest first, and resolves with how many it cleared: 0 means nothing is past retention now. A `limit` that is not a positive safe integer throws a `RangeError`. Any number of processes may call it at any time. When it rejects, the storage failed: call it again.
 
