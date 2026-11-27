@@ -8,6 +8,7 @@ export interface Limits {
   maxSchemaBytes: number;
   opRetentionSeconds: number;
   commitRetentionSeconds: number;
+  maxThreadEntries: number;
 }
 
 export interface StateLimits {

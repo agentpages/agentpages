@@ -103,7 +103,7 @@ test("a tool, host operation or view method the Store does not have yet is the J
   const target = world();
   const later = [...FILE_TOOLS, ...COMMENT_TOOLS, "pages_render", "pages_export"];
   const notTools = [...later, "pages_open", "comments_start", "agentpages/state/get", "pages", "toString", "constructor", ""];
-  const operations = ["comments_start", ...PAGE_TOOLS, ...TYPE_TOOLS, ...STATE_TOOLS, ...later, "toString", ""];
+  const operations = ["comments_start", "pages_heads", ...PAGE_TOOLS, ...TYPE_TOOLS, ...STATE_TOOLS, ...later, "toString", ""];
   const notMethods = [...FILE_METHODS, ...TO_THE_VIEW, ...STATE_TOOLS, "pages_get", "pages_open", "agentpages/state", "toString", "constructor", ""];
   const answers = [
     ...notTools.map((tool) => call(target, [tool, { pageId: PAGE }])),
@@ -167,6 +167,18 @@ test("[REL-2] a repeat that carries a field the spec does not know is the same r
 
   expect(repeat).toStrictEqual(first);
   expect(first.kind).toBe("result");
+});
+
+/** More bytes than an array of the engine holds numbers. */
+const HUGE_BYTES = 2 ** 27;
+
+test("[REL-2] a request whose params are larger than any array of numbers is applied once and gets the first result again", async () => {
+  const target = world({ config: { capability: { ...ADVERTISED, limits: { ...limits, maxHtmlBytes: HUGE_BYTES } } } });
+  const request: [string, unknown] = ["pages_publish", { ...publishing({ page: 1, baseVersion: 0, op: 1 }), content: { kind: "html", html: "x".repeat(HUGE_BYTES) } }];
+  const first = await call(target, request);
+
+  expect(await call(target, request)).toStrictEqual(first);
+  expect(resultOf(TOOL_SCHEMAS.pages_publish.result, first).version).toBe(1);
 });
 
 const withCsp = (hosts: unknown): [string, unknown] => [

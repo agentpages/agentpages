@@ -18,6 +18,8 @@ if (malformed) return failure({ ...malformed, requestId });
 
 Rules that depend on a Store's limits are separate checks that take those limits. `commitProblem` belongs to the first check of a request. `commitLimitProblem`, `fileProblem`, `htmlProblem` and `viewportProblem` belong to the last.
 
+`toBase64` and `fromBase64` turn the bytes of a file into its `blob` and back.
+
 ## Schemas
 
 A `Schema<T>` is a [Standard Schema](https://standardschema.dev), so it works wherever one is accepted. `toolInputSchema(tool)` is the JSON Schema a Store advertises as a tool's `inputSchema`. In it, JSON objects the protocol does not interpret and maps keyed by id are plain objects.

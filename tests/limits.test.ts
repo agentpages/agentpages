@@ -20,6 +20,7 @@ const LIMITS: Limits = {
   maxSchemaBytes: 1,
   opRetentionSeconds: 1,
   commitRetentionSeconds: 1,
+  maxThreadEntries: 1,
 };
 
 const texts = fc.string({ unit: fc.constantFrom("a", "é", "\u{1F600}", '"'), maxLength: 6 });

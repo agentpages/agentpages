@@ -97,13 +97,19 @@ test("the registry has exactly the tools of the spec's tables and of its state a
   expect(new Set(toolRows.map((row) => row.tag)).size).toBe(toolRows.length);
 });
 
-test("the registry has exactly the host operations of the spec's table, and none of them is a tool", () => {
+const HOST_SECTIONS = ["5.6 Host operations", "5.6 Host operations", "5.6 Host operations"];
+const COMMENTS_SECTIONS = ["5.4 Comments", "5.4 Comments", "5.4 Comments"];
+
+test("the registry has exactly the host operations of the spec, and only its comments tools are among them", () => {
   const operationsOfSpec = hostRows.map((row) => [row.name, { mutates: row.params.includes("opId") }]);
 
-  expect(hostRows.map((row) => row.section)).toStrictEqual(["5.6 Host operations", "5.6 Host operations"]);
+  const commentsTools = ["comments_list", "comments_reply", "comments_resolve"];
+
+  expect(hostRows.map((row) => row.section)).toStrictEqual([...HOST_SECTIONS, ...COMMENTS_SECTIONS]);
+  expect(spec).toContain("with `url` in place of `pageId`");
   expect(Object.entries(HOST_OPERATIONS)).toStrictEqual(operationsOfSpec);
   expect(Object.keys(HOST_OPERATION_SCHEMAS)).toStrictEqual(Object.keys(HOST_OPERATIONS));
-  expect(Object.keys(TOOLS).filter((name) => name in HOST_OPERATIONS)).toStrictEqual([]);
+  expect(Object.keys(HOST_OPERATIONS).filter((name) => name in TOOLS)).toStrictEqual(commentsTools);
   expect(spec).toContain("They are not MCP tools");
 });
 
