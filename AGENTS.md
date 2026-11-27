@@ -18,13 +18,20 @@ A fact is written once, next to what it describes. Link to it; do not restate it
 
 1. **Spec first.** Behavior changes land in the spec before or with the code. Code that disagrees with the spec is a bug.
 2. **One way per task.** One owner per piece of state, one API per job. No second path "just in case".
-3. **No fallbacks.** No guards, retries, swallowed errors or defaults that hide a state the design says cannot happen. If a workaround seems necessary, the design is wrong: redesign it.
+3. **No fallbacks.** No guards, swallowed errors or defaults that hide a state the design says cannot happen. If a workaround seems necessary, the design is wrong: redesign it. Failures of the network or another process are real states: handle them exactly as the spec's reliability section says, and nowhere else.
 4. **Fix root causes.** A change integrates as if it had been there from day one. No compatibility shims, no throwaway intermediate states.
 5. **Data shapes before logic.** Make illegal states unrepresentable in types. Validate at package boundaries, trust types inside.
 6. **Subtract before adding.** Prefer the smallest diff, and deletion over addition.
 7. **Safe retries.** Retrying a request never duplicates its effect. Callers choose ids.
 8. **Self-documenting code.** Small functions with plain names. No comments except public API docs and links to an external constraint. No lint or type suppressions.
 9. **Enforce, don't remind.** A rule gets an automated check in the change that introduces it. Review covers only what cannot be checked.
+
+## Structure
+
+- **Defined once.** Every wire type, schema and constant lives in `protocol`. Other packages import it and never redeclare it. No helper or type exists twice anywhere.
+- **Shared code moves down.** Code needed by two files lives in the nearest folder that contains both. Code needed by two packages lives in the lowest package both may depend on.
+- **One entry, one folder per concern.** A package exports only through `src/index.ts`. Inside, each concern (`state`, `pages`, `files`, `comments`, `types`) has its own folder.
+- **Services behind interfaces.** Store behavior is a set of services that depend only on interfaces for storage, identity, time and logging. A new database or login system is a new implementation of an interface. A new artifact type is published data. Neither changes existing code.
 
 ## Tests
 
@@ -41,6 +48,7 @@ A test states a requirement from the spec, names its tag (`STATE-3`) in the titl
 | Package layering, no import cycles | `pnpm lint` |
 | Tests import only a package's entry point | `pnpm lint` |
 | No unused code or dependencies | `pnpm lint:unused` |
+| No duplicated code | `pnpm lint:duplicates` |
 | Strict types, no casts, no `any`, no suppressions | `pnpm typecheck`, `pnpm lint` |
 | No comments beyond API docs and external links, no inline suppressions | `pnpm lint:source` |
 | No guards for states the types rule out | `pnpm lint` |

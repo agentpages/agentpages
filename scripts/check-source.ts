@@ -1,6 +1,6 @@
-import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { parseSync } from "oxc-parser";
+import { failOn, trackedFiles } from "./shared.ts";
 
 interface Comment {
   type: string;
@@ -47,16 +47,6 @@ const findingsIn = (file: string): string[] => {
   );
 };
 
-const sourceFiles = (): string[] =>
-  execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "*.ts", "*.js", "*.mjs"], {
-    encoding: "utf8",
-  })
-    .split("\n")
-    .filter((file) => file !== "");
+const problems = trackedFiles("*.ts", "*.js", "*.mjs").flatMap(findingsIn);
 
-const problems = sourceFiles().flatMap(findingsIn);
-
-problems.forEach((problem) => {
-  console.error(problem);
-});
-process.exitCode = problems.length === 0 ? 0 : 1;
+failOn(problems);
