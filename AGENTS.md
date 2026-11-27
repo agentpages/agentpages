@@ -67,7 +67,7 @@ A test states a requirement from the spec, names its tag (`STATE-3`) in the titl
 | Pull request description within 250 words | CI |
 | Design rules 1 to 7 | review |
 
-`pnpm check` runs every command above except `check:upstream`, locally and in CI.
+`pnpm check` runs every command above except `check:upstream`. CI runs the same commands, with mutation testing split into parallel shards.
 
 ## Roles
 

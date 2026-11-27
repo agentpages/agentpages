@@ -15,7 +15,7 @@
     "lint:api": "pnpm -r exec api-extractor run",
     "api:update": "pnpm -r exec api-extractor run --local",
     "check:upstream": "bash scripts/check-upstream.sh",
-    "test:mutation": "stryker run",
+    "test:mutation": "node scripts/mutate.ts",
     "lint": "oxlint --deny-warnings",
     "lint:source": "node scripts/check-source.ts",
     "lint:duplicates": "jscpd",
@@ -23,7 +23,8 @@
     "lint:packages": "pnpm -r exec publint --strict && pnpm -r exec attw --pack . --profile esm-only",
     "lint:unused": "knip",
     "size": "size-limit",
-    "check": "pnpm build && pnpm typecheck && pnpm lint && pnpm lint:source && pnpm lint:duplicates &&pnpm test && pnpm test:mutation && pnpm lint:packages && pnpm lint:unused && pnpm lint:docs && pnpm lint:spec && pnpm lint:api && pnpm size",
+    "check:quick": "pnpm build && pnpm typecheck && pnpm lint && pnpm lint:source && pnpm lint:duplicates && pnpm test && pnpm lint:packages && pnpm lint:unused && pnpm lint:docs && pnpm lint:spec && pnpm lint:api && pnpm size",
+    "check": "pnpm check:quick && pnpm test:mutation",
     "changeset": "changeset",
     "release": "pnpm build && changeset publish"
   },
