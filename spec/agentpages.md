@@ -188,7 +188,9 @@ interface TreeNode {
 - `index` matches `^[0-9A-Za-z]*[1-9A-Za-z]$`. Any other value returns `InvalidParams`. `[TREE-2]`
 - Siblings are ordered by `index`, ascending by code point, then by `id`. `[TREE-3]`
 - A commit that would leave a tree document with a missing parent, or would create a cycle, returns `Conflict`. `[TREE-4]`
-- Deleting a tree document also deletes all its descendants in the same commit. Each is a `Change`. `[TREE-5]`
+- Deleting a tree document also deletes all its descendants in the same commit. Each is a `Change`. Descendants are those in the state after all the ops, so a document the commit moves out of a deleted document stays, and one it puts under a deleted document has a missing parent. `[TREE-5]`
+- `changes` are in op order. A delete is followed by its descendants, a parent before its children, siblings by `id`. `[TREE-7]`
+- A commit whose changes, descendants included, number more than `maxOpsPerCommit` returns `LimitExceeded`. It is decided after the other tree rules. `[TREE-8]`
 - Tree rules are checked once, after all the ops of a commit, and only for the documents that commit changes. `[TREE-6]`
 
 A client moves a node by putting it with a new `parent` or `index`. To insert between two siblings, it picks an `index` that sorts between theirs; because no `index` ends in `0`, one always exists. A client SHOULD end a new `index` with a few random characters so that two clients inserting at the same place do not pick the same one. If two siblings do share an `index`, a client inserting between them gives one of them a new `index` in the same commit.
