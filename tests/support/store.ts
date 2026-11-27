@@ -25,6 +25,7 @@ export const ADVERTISED: Omit<Capability, "version"> = {
     maxSchemaBytes: 200,
     opRetentionSeconds: 3600,
     commitRetentionSeconds: 7200,
+    maxThreadEntries: 3,
   },
   state: { maxDocumentBytes: 1024, maxOpsPerCommit: 10, maxTreeDepth: 4, liveChanges: true },
   identity: {},

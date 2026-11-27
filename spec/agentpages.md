@@ -63,7 +63,8 @@ The extension is `io.github.agentpages/agentpages`, following the MCP extension 
       "maxHtmlBytes": 1048576,
       "maxSchemaBytes": 65536,
       "opRetentionSeconds": 86400,
-      "commitRetentionSeconds": 604800
+      "commitRetentionSeconds": 604800,
+      "maxThreadEntries": 1000
     },
     "state": { "maxDocumentBytes": 262144, "maxOpsPerCommit": 100, "maxTreeDepth": 64, "liveChanges": true },
     "identity": {},
@@ -242,6 +243,7 @@ interface FileInfo {
 - `get` of a missing file returns `NotFound`. `[FILES-8]`
 - `delete` of a missing file succeeds. `[FILES-9]`
 - `list` orders by `id`, ascending by code point. `[FILES-10]`
+- A file may be empty. A Store does not interpret `name` or `mimeType`, and serves no file by URL: a view builds a `blob:` or `data:` URL from `get`. `[FILES-11]`
 
 ### 4.5 Requests to the view
 
@@ -406,6 +408,12 @@ interface Entry {
 - `comments_list` orders threads by the `createdAt` of their first entry, oldest first. `[COMMENTS-5]`
 - `comments_resolve` on a resolved thread succeeds. `[COMMENTS-6]`
 - The `id` of an entry added by `comments_reply` is its `opId`. `[COMMENTS-7]`
+- `comments_reply` adds one entry and sets `status` to `open`. `[COMMENTS-8]`
+- A `threadId` the page does not have returns `NotFound`, decided where section 2.1 decides an `InvalidParams` that depends on what the Store holds. `[COMMENTS-9]`
+- A thread has at most `maxThreadEntries` entries. A `comments_reply` beyond that returns `LimitExceeded`. `[COMMENTS-10]`
+- An anonymous viewer who starts, answers or resolves a thread gets `Unauthenticated`. `[COMMENTS-11]`
+- Threads with equal `createdAt` are ordered by `id`, ascending by code point. With `status`, `comments_list` returns only the threads of that status. `[COMMENTS-12]`
+- A `comments_start` whose `opId` is already the `id` of a thread of the page, or a `comments_reply` whose `opId` is already the `id` of an entry of the thread, returns `InvalidParams`, decided as an `opId` reused with different params is (section 7.1). `[COMMENTS-13]`
 
 ### 5.5 Rendering
 
@@ -508,17 +516,28 @@ interface Opened {
   view: TypeContent;
   type?: TypeInfo;
 }
+
+interface Heads {
+  version: number;
+  seq: number;
+  viewerSeq?: number;
+  comments: number;
+}
 ```
+
+`url` is the URL the viewer presented. `version` is the page's current version, `seq` the current `seq` of its `page` scope, and `viewerSeq` that of the viewer's `viewer` scope, present for a signed-in viewer. `comments` increases by 1 with every `comments_start`, `comments_reply` and `comments_resolve`.
 
 | Id | Operation | Input | Output |
 |---|---|---|---|
 | `[HOST-1]` | `pages_open` | `{ url }` | `Opened` |
-| `[HOST-2]` | `comments_start` | `{ opId, pageId, quote?, body }` | `Thread` |
+| `[HOST-2]` | `comments_start` | `{ opId, url, quote?, body }` | `Thread` |
+| `[HOST-7]` | `pages_heads` | `{ url }` | `Heads` |
 
 - `view` is what the host renders: the page's own `html`, `csp` and `permissions`, or those of its type version. `type` is present for a typed page. `[HOST-3]`
 - `pages_open` with a `url` that names no page returns `NotFound`. A `url` that is not current, presented by anyone but the owner, returns `Forbidden`. `[HOST-4]`
 - `comments_start` records the page's current version. The `id` of the thread and of its first entry is the `opId`. `[HOST-5]`
-- A host also uses `comments_list`, `comments_reply` and `comments_resolve` for a viewer, under the access rules of section 5.1, with the viewer as `author`. `[HOST-6]`
+- A host also uses `comments_list`, `comments_reply` and `comments_resolve` for a viewer, with `url` in place of `pageId`, under the access rules of section 5.1, with the viewer as `author`. `[HOST-6]`
+- A host learns of every change to a page it shows by calling `pages_heads`. On a new `version` it reloads the view. On `NotFound` or `Forbidden` it closes it. On a new `seq` or `viewerSeq` it fetches `commits` from the last `seq` it sent the view. On a new `comments` it lists the threads again. `[HOST-8]`
 
 ## 6. Types
 
@@ -669,3 +688,4 @@ A receiver MUST ignore fields it does not know. Such fields are not part of the 
 7. **Looking before publishing.** An agent must publish a version before it can render it, so viewers can briefly see a broken one. Rendering unpublished content is not specified.
 8. **Deleted documents.** A revision counter outlives its document, so a Store keeps a small record of every document ever deleted.
 9. **History of typed pages.** The commit log records every change, but restoring a typed page to an earlier point is not specified.
+10. **Quotas.** 0.1 sets no limit on how many files, documents or threads a page holds. A Store's rate limit (section 7.6) is the only control.

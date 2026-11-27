@@ -64,8 +64,13 @@ const isForHost = (row: Exchange): boolean => row.section.includes("Host operati
 
 export const toolRows: Exchange[] = exchanges.filter((row) => isOperation(row) && !isForHost(row));
 
-/** Section 5.6: what a host asks of its Store. These are not tools. */
-export const hostRows: Exchange[] = exchanges.filter((row) => isOperation(row) && isForHost(row));
+const forViewer = (row: Exchange): Exchange => ({ ...row, params: row.params.replace("pageId", "url") });
+
+/** Section 5.6: what a host asks of its Store, and the comments tools with `url` in place of `pageId`. These are not tools. */
+export const hostRows: Exchange[] = [
+  ...exchanges.filter((row) => isOperation(row) && isForHost(row)),
+  ...toolRows.filter((row) => row.section.includes("Comments")).map(forViewer),
+];
 
 const errorOf = ({ cells }: Row): ErrorRow => {
   const [name = "", code = "", retryable = "", meaning = ""] = cells;

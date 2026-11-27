@@ -3,11 +3,13 @@ import {
   BODY_PATTERN,
   CapabilitySchema,
   DESCRIPTION_PATTERN,
+  fromBase64,
   ID_PATTERN,
   NAME_PATTERN,
   PDF_FORMAT,
   type Schema,
   TIMESTAMP_PATTERN,
+  toBase64,
   TREE_INDEX_PATTERN,
   UUID_PATTERN,
   VERSION_PATTERN,
@@ -103,6 +105,33 @@ test("[COMMON-7] body and instructions are at most 65536 characters", () => {
 test("[COMMON-8] base64 uses the standard alphabet with padding, in canonical form", () => {
   expect(patternBreaking(BASE64_PATTERN, RULES.base64)).toBeNull();
   expect(fieldBreaking(RULES.base64)).toBeNull();
+});
+
+test("[COMMON-8] bytes are written as canonical base64, whatever their number", () => {
+  const large = Uint8Array.from({ length: 100_001 }, (_, index) => (index * 7) % 256);
+
+  fc.assert(
+    fc.property(fc.uint8Array({ maxLength: 12 }), (bytes) => {
+      expect(toBase64(bytes)).toBe(Buffer.from(bytes).toString("base64"));
+    }),
+  );
+  expect(toBase64(large)).toBe(Buffer.from(large).toString("base64"));
+});
+
+test("[COMMON-8] canonical base64 is read as its bytes, and any other text is refused", () => {
+  const texts = RULES.base64.near.filter(isString);
+
+  fc.assert(
+    fc.property(texts.filter(RULES.base64.accepts), (text) => {
+      expect([...fromBase64(text)]).toStrictEqual([...Buffer.from(text, "base64")]);
+    }),
+  );
+  fc.assert(
+    fc.property(texts.filter((text) => !RULES.base64.accepts(text)), (text) => {
+      expect(() => fromBase64(text)).toThrow(new RangeError("blob must be canonical base64."));
+    }),
+  );
+  expect(fromBase64("")).toBeInstanceOf(Uint8Array);
 });
 
 test("a tree index matches ^[0-9A-Za-z]*[1-9A-Za-z]$", () => {
