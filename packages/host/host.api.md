@@ -4,9 +4,73 @@
 
 ```ts
 
-import { PROTOCOL_VERSION } from '@agentpages/protocol';
+import { Answer } from '@agentpages/protocol';
+import { Capability } from '@agentpages/protocol';
+import { HostRequest } from '@agentpages/protocol';
+import { Port } from '@agentpages/protocol';
+import { Timers } from '@agentpages/protocol';
+import { ViewRequest } from '@agentpages/protocol';
 
-export { PROTOCOL_VERSION }
+// @public
+export interface Frame {
+    // (undocumented)
+    readonly contentWindow: {
+        postMessage(message: unknown, targetOrigin: string): void;
+    } | null;
+    readonly src: string;
+}
+
+// @public
+export type HostEvent = {
+    kind: "version";
+    version: number;
+} | {
+    kind: "closed";
+    error: "NotFound" | "Forbidden";
+} | {
+    kind: "comments";
+    comments: number;
+} | {
+    kind: "unresponsive";
+};
+
+// @public (undocumented)
+export interface HostPorts {
+    id: () => string;
+    port: Port;
+    // (undocumented)
+    timers: Timers;
+}
+
+// @public
+export interface Link {
+    host(request: HostRequest): Promise<Answer>;
+    view(request: ViewRequest): Promise<Answer>;
+}
+
+// @public
+export const mount: (input: Serving & {
+    frame: Frame;
+}) => Mounted;
+
+// @public (undocumented)
+export interface Mounted {
+    close(): Promise<void>;
+}
+
+// @public
+export const serve: (serving: Serving, ports: HostPorts) => Mounted;
+
+// @public (undocumented)
+export interface Serving {
+    capability: Capability;
+    intervalMs?: number;
+    // (undocumented)
+    link: Link;
+    on: (event: HostEvent) => void;
+    url: string;
+    version: number;
+}
 
 // (No @packageDocumentation comment for this package)
 

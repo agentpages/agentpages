@@ -11,6 +11,9 @@ importers:
       '@agentpages/conformance':
         specifier: workspace:*
         version: link:packages/conformance
+      '@agentpages/host':
+        specifier: workspace:*
+        version: link:packages/host
       '@agentpages/protocol':
         specifier: workspace:*
         version: link:packages/protocol

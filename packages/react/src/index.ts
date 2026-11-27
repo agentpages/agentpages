@@ -1,1 +1,1 @@
-export { PROTOCOL_VERSION } from "@agentpages/host";
+export type { Mounted } from "@agentpages/host";
