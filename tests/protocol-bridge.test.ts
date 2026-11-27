@@ -7,6 +7,7 @@ import {
   methodNotFound,
   type Peer,
   type PeerHandlers,
+  type Port,
   type Reply,
   type Served,
   validate,
@@ -23,6 +24,7 @@ interface Heard {
 
 interface Subject {
   peer: Peer;
+  port: Port;
   other: Scripted;
   timers: ManualTimers;
   requests: Heard[];
@@ -46,23 +48,40 @@ const subject = (serve: (message: Heard) => Promise<Served> = echo): Subject => 
       notifications.push(message);
     },
   };
-  return { peer: createPeer({ port, timers, id: counter() }, handlers), other, timers, requests, notifications };
+  return { peer: createPeer({ port, timers, id: counter() }, handlers), port, other, timers, requests, notifications };
 };
 
 const idOf = (message: JsonRpcMessage): unknown => ("id" in message ? message.id : undefined);
 
 const PENDING = Symbol("pending");
 
-/** What a promise resolved with, or `PENDING` when it has not. */
+const nextTurn = (): Promise<void> =>
+  new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+
 const settled = (promise: Promise<Reply>): Promise<Reply | typeof PENDING> =>
-  Promise.race([
-    promise,
-    new Promise<typeof PENDING>((resolve) => {
-      setImmediate(() => {
-        resolve(PENDING);
+  Promise.race([promise, nextTurn().then((): typeof PENDING => PENDING)]);
+
+interface Held {
+  answer: Promise<Served>;
+  release: (served: Served) => void;
+}
+
+const held = (): Held => {
+  const releases: Held["release"][] = [];
+  const answer = new Promise<Served>((resolve) => {
+    releases.push(resolve);
+  });
+  return {
+    answer,
+    release: (served) => {
+      releases.forEach((release) => {
+        release(served);
       });
-    }),
-  ]);
+    },
+  };
+};
 
 const named = (name: string): PeerHandlers => ({
   request: ({ method }) => Promise.resolve({ result: `${name} answers ${method}` }),
@@ -142,13 +161,13 @@ test("a notification reaches its handler and gets no answer", async () => {
   ]);
 });
 
-const MARK = { jsonrpc: "2.0", method: "mark" };
+const MARK: JsonRpcMessage = { jsonrpc: "2.0", method: "mark" };
 
 const NOTHING = { requests: [], notifications: [], posted: MARK };
 
 /** What the handlers of a peer were called with, and the first thing it posted that no test took, up to a mark. */
-const heardAndSaid = async ({ peer, other, requests, notifications }: Subject): Promise<unknown> => {
-  peer.notify({ method: MARK.method });
+const heardAndSaid = async ({ port, other, requests, notifications }: Subject): Promise<unknown> => {
+  port.post(MARK);
   return { requests, notifications, posted: await other.next() };
 };
 
@@ -220,6 +239,22 @@ test("a closed peer resolves every pending request closed, stops their timers an
   expect(await Promise.all(pending)).toStrictEqual([{ kind: "closed" }, { kind: "closed" }]);
   expect([timers.waiting(), timers.staleCancels()]).toStrictEqual([0, 0]);
   expect(await heardAndSaid(target)).toStrictEqual(NOTHING);
+});
+
+test("[RPC-4] a closed peer sends nothing more: no answer to the request it was serving, no request and no notification", async () => {
+  const serving = held();
+  const target = subject(() => serving.answer);
+  const { peer, other, timers } = target;
+  await other.send({ jsonrpc: "2.0", id: 9, method: "held" });
+  peer.close();
+  serving.release({ result: "after the close" });
+  await nextTurn();
+  peer.notify({ method: "told" });
+  const asked = await peer.request({ method: "asked", timeoutMs: 1000 });
+
+  expect(asked).toStrictEqual({ kind: "closed" });
+  expect(timers.waiting()).toBe(0);
+  expect(await heardAndSaid(target)).toStrictEqual({ ...NOTHING, requests: [{ method: "held", params: undefined }] });
 });
 
 const HOST_INFO = { name: "host", version: "1.0.0" };

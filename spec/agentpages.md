@@ -91,6 +91,7 @@ All messages are JSON-RPC 2.0 over the MCP Apps `postMessage` transport.
 - The sender of a request chooses its `id`, and each direction has its own ids. An answer carries the `id` of its request. `[RPC-1]`
 - A message that is not a JSON-RPC 2.0 request, notification or answer is dropped. `[RPC-2]`
 - An answer to a request that is no longer pending is ignored. `[RPC-3]`
+- A closed side sends nothing more. `[RPC-4]`
 
 ### 4.1 State
 
