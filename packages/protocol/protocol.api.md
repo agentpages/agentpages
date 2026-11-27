@@ -103,13 +103,11 @@ export interface CommentsResolveParams {
 }
 
 // @public (undocumented)
-export interface CommentsStartParams {
+export interface CommentsStartParams extends Presented {
     // (undocumented)
     body: string;
     // (undocumented)
     opId: string;
-    // (undocumented)
-    pageId: string;
     // (undocumented)
     quote?: string;
 }
@@ -443,10 +441,33 @@ export interface FilesPutResult {
 }
 
 // @public
+export interface ForViewer<T extends keyof CommentsTools> {
+    // (undocumented)
+    params: Omit<CommentsTools[T]["params"], "pageId"> & Presented;
+    // (undocumented)
+    result: CommentsTools[T]["result"];
+}
+
+// @public
+export const fromBase64: (blob: string) => Uint8Array;
+
+// @public
 export const fromJsonRpcError: (input: unknown) => Failure | undefined;
 
 // @public
 export const hasFeature: (capability: Capability, feature: Feature) => boolean;
+
+// @public
+export interface Heads {
+    // (undocumented)
+    comments: number;
+    // (undocumented)
+    seq: number;
+    // (undocumented)
+    version: number;
+    // (undocumented)
+    viewerSeq?: number;
+}
 
 // @public (undocumented)
 export const HOST_OPERATION_SCHEMAS: ExchangeSchemas<HostOperations>;
@@ -466,13 +487,24 @@ export type HostOperationName = keyof HostOperations;
 // @public
 export interface HostOperations {
     // (undocumented)
+    comments_list: ForViewer<"comments_list">;
+    // (undocumented)
+    comments_reply: ForViewer<"comments_reply">;
+    // (undocumented)
+    comments_resolve: ForViewer<"comments_resolve">;
+    // (undocumented)
     comments_start: {
         params: CommentsStartParams;
         result: Thread;
     };
     // (undocumented)
+    pages_heads: {
+        params: Presented;
+        result: Heads;
+    };
+    // (undocumented)
     pages_open: {
-        params: PagesOpenParams;
+        params: Presented;
         result: Opened;
     };
 }
@@ -547,6 +579,8 @@ export interface Limits {
     maxHtmlBytes: number;
     // (undocumented)
     maxSchemaBytes: number;
+    // (undocumented)
+    maxThreadEntries: number;
     // (undocumented)
     opRetentionSeconds: number;
     // (undocumented)
@@ -777,12 +811,6 @@ export interface PagesListResult {
 }
 
 // @public (undocumented)
-export interface PagesOpenParams {
-    // (undocumented)
-    url: string;
-}
-
-// @public (undocumented)
 export interface PagesPublishParams {
     // (undocumented)
     baseVersion: number;
@@ -885,6 +913,12 @@ export interface Place {
     selector: string;
     // (undocumented)
     text?: string;
+}
+
+// @public
+export interface Presented {
+    // (undocumented)
+    url: string;
 }
 
 // @public
@@ -1151,6 +1185,9 @@ export interface Thread {
 
 // @public
 export const TIMESTAMP_PATTERN: RegExp;
+
+// @public
+export const toBase64: (bytes: Uint8Array) => string;
 
 // @public (undocumented)
 export const toJsonRpcError: (input: Failure) => JsonRpcError;

@@ -16,6 +16,7 @@ export const CapabilitySchema: Schema<Capability> = sealed(
       maxSchemaBytes: CountSchema,
       opRetentionSeconds: CountSchema,
       commitRetentionSeconds: CountSchema,
+      maxThreadEntries: CountSchema,
     }),
     state: v.exactOptional(
       v.object({
