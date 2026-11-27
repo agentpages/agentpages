@@ -160,3 +160,28 @@ test.each(REVISIONS)("[PAGES-16] a version that is not html, is missing or is an
   expect(refused).toStrictEqual([...uris, mine].map((uri) => ({ code: -32_602, message: `Resource not found: ${uri}`, data: { uri } })));
   await expect(alice.readResource({ uri: mine })).resolves.toMatchObject({ contents: [{ uri: mine, text: HTML }] });
 });
+
+test.each(REVISIONS)("[REL-8] a resource the storage fails to read is the Unavailable error, which can be retried, and no missing resource, over MCP %s", async (_, connect) => {
+  const target = world();
+  const client = await connect({ target });
+  await calling(client, PUBLISHED);
+  const uri = pageResourceUri({ pageId: PAGE, version: 1 });
+  target.failAt("get");
+  const failed = await refusal(client.readResource({ uri }));
+
+  expect(failed).toStrictEqual({ code: -32_055, message: expect.any(String) as unknown, data: { requestId: expect.any(String) as unknown, message: expect.any(String) as unknown, retryable: true } });
+  await expect(client.readResource({ uri })).resolves.toMatchObject({ contents: [{ uri, text: HTML }] });
+});
+
+const BROKEN = { id: (): string => { throw new Error("the password is hunter2"); }, secret: (): string => "secret" };
+
+test.each(REVISIONS)("[REL-28] a Store that throws is an internal error that says nothing of what it threw, over MCP %s", async (_, connect) => {
+  const client = await connect({ target: world({ ports: { ids: BROKEN } }) });
+  const uri = pageResourceUri({ pageId: PAGE, version: 1 });
+  const refused = [await refusal(calling(client, PUBLISHED)), await refusal(client.readResource({ uri }))];
+
+  expect(refused).toStrictEqual([
+    { code: -32_603, message: "Internal error", data: undefined },
+    { code: -32_603, message: "Internal error", data: undefined },
+  ]);
+});

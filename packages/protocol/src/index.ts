@@ -14,7 +14,6 @@ export type * from "./errors/types.js";
 export * from "./extension/constants.js";
 export * from "./extension/features.js";
 export * from "./extension/names.js";
-export * from "./extension/request-cap.js";
 export * from "./extension/schemas.js";
 export type * from "./extension/types.js";
 export * from "./files/limits.js";

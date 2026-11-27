@@ -6,6 +6,7 @@ import {
   CountSchema,
   DescriptionSchema,
   IdSchema,
+  NoArraySchema,
   ofPage,
   type Optional,
   pagingEntries,
@@ -52,7 +53,7 @@ export const ThreadsSchema: Raw<CommentsListResult> = v.object({
 });
 
 export const COMMENTS_TOOL_PARAMS: { readonly [T in keyof CommentsTools]: Raw<CommentsTools[T]["params"]> } = {
-  comments_list: ofPage(COMMENTS_ENTRIES.comments_list),
+  comments_list: v.pipe(NoArraySchema, ofPage(COMMENTS_ENTRIES.comments_list)),
   comments_reply: ofPage(COMMENTS_ENTRIES.comments_reply),
   comments_resolve: ofPage(COMMENTS_ENTRIES.comments_resolve),
 };

@@ -71,15 +71,25 @@ test("a Store is not created with a capability that is not one of section 3, or 
 const tools = (features: object): readonly string[] => world({ config: { capability: { limits, ...features } } }).tools;
 
 test("[TOOLS-3] the Store lists a tool exactly when it advertises the features the tool requires", () => {
-  const { state, files, render } = ADVERTISED;
+  const { state, files } = ADVERTISED;
   const always = [...PAGE_TOOLS, ...COMMENT_TOOLS, ...TYPE_TOOLS];
 
-  expect(new Set(world().tools)).toStrictEqual(new Set([...always, ...STATE_TOOLS, ...FILE_TOOLS, "pages_render", "pages_export"]));
+  expect(new Set(world().tools)).toStrictEqual(new Set([...always, ...STATE_TOOLS, ...FILE_TOOLS]));
   expect(new Set(tools({}))).toStrictEqual(new Set(always));
   expect(new Set(tools({ state }))).toStrictEqual(new Set([...always, ...STATE_TOOLS]));
   expect(new Set(tools({ files }))).toStrictEqual(new Set([...always, ...FILE_TOOLS]));
-  expect(new Set(tools({ render }))).toStrictEqual(new Set([...always, "pages_render"]));
-  expect(new Set(tools({ render, files }))).toStrictEqual(new Set([...always, ...FILE_TOOLS, "pages_render", "pages_export"]));
+});
+
+const withRequest = (maxRequestBytes: number, files: object): object => ({ config: { capability: { limits: { ...limits, maxRequestBytes }, ...files } } });
+
+test("[STORE-7] a Store whose maxRequestBytes is below its html or the base64 of its files is refused", () => {
+  const refused = new RangeError("maxRequestBytes must be at least maxHtmlBytes and the base64 length of maxFileBytes.");
+
+  expect(() => world(withRequest(399, {}))).toThrow(refused);
+  expect(() => world(withRequest(1367, { files: { maxFileBytes: 1024 } }))).toThrow(refused);
+  expect(world(withRequest(400, {})).driver.capability.limits.maxRequestBytes).toBe(400);
+  expect(world(withRequest(1368, { files: { maxFileBytes: 1024 } })).driver.capability.limits.maxRequestBytes).toBe(1368);
+  expect(world(withRequest(400, { files: { maxFileBytes: 299 } })).driver.capability.files).toStrictEqual({ maxFileBytes: 299 });
 });
 
 test("[REL-30] a repeat with the same params gets its first result before the limits, even ones the Store has lowered since", async () => {

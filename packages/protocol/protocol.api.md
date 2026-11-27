@@ -21,6 +21,9 @@ export type Answer = Settled | {
 };
 
 // @public
+export const base64Length: (bytes: number) => number;
+
+// @public
 export const base64Size: (blob: string) => number;
 
 // @public
@@ -581,6 +584,8 @@ export interface Limits {
     // (undocumented)
     maxHtmlBytes: number;
     // (undocumented)
+    maxRequestBytes: number;
+    // (undocumented)
     maxSchemaBytes: number;
     // (undocumented)
     maxThreadEntries: number;
@@ -634,9 +639,6 @@ export const MAX_DIAGNOSTICS = 50;
 
 // @public (undocumented)
 export const MAX_LIMIT = 100;
-
-// @public
-export const maxRequestBytes: (capability: Capability) => number;
 
 // @public
 export type McpUiCsp = JsonObject;
@@ -764,16 +766,10 @@ export interface PageInfo {
 }
 
 // @public
-export const pageOfResourceUri: (uri: string) => {
-    pageId: string;
-    version: number;
-} | undefined;
+export const pageOfResourceUri: (uri: string) => PageVersion | undefined;
 
 // @public
-export const pageResourceUri: (input: {
-    pageId: string;
-    version: number;
-}) => string;
+export const pageResourceUri: (input: PageVersion) => string;
 
 // @public (undocumented)
 export interface PagesDeleteParams {
@@ -907,6 +903,14 @@ export interface PagesVersionsResult {
 }
 
 // @public (undocumented)
+export interface PageVersion {
+    // (undocumented)
+    pageId: string;
+    // (undocumented)
+    version: number;
+}
+
+// @public (undocumented)
 export interface Paging {
     // (undocumented)
     cursor?: string;
@@ -1011,9 +1015,6 @@ export interface RenderTools {
         result: RenderResult;
     };
 }
-
-// @public
-export const REQUEST_CAP_SLACK_BYTES = 1048576;
 
 // @public
 export const RETRY_BASE_MS = 250;

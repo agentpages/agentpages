@@ -1,5 +1,5 @@
 import { type Driver, type FaultPoint, faulty, type Plan, type Viewing } from "@agentpages/conformance";
-import { type Answer, type Capability, type Failure, type LogRecord, type Schema, TOOL_SCHEMAS, validate } from "@agentpages/protocol";
+import { type Answer, type Failure, type LogRecord, type Schema, TOOL_SCHEMAS, validate } from "@agentpages/protocol";
 import {
   ajvSchemaCompiler,
   createMemoryStorage,
@@ -16,7 +16,7 @@ import { createHmac } from "node:crypto";
 export const BASE_URL = "https://pages.test/p/";
 
 /** Small limits, so that a test reaches them quickly. */
-export const ADVERTISED: Omit<Capability, "version"> = {
+export const ADVERTISED: StoreConfig["capability"] = {
   limits: {
     requestTimeoutMs: 30_000,
     syncIntervalMs: 30_000,
@@ -26,11 +26,11 @@ export const ADVERTISED: Omit<Capability, "version"> = {
     opRetentionSeconds: 3600,
     commitRetentionSeconds: 7200,
     maxThreadEntries: 3,
+    maxRequestBytes: 16_777_216,
   },
   state: { maxDocumentBytes: 1024, maxOpsPerCommit: 10, maxTreeDepth: 4, liveChanges: true },
   identity: {},
   files: { maxFileBytes: 1024 },
-  render: { maxWidth: 1920, maxHeight: 1080, maxDocumentHeight: 8000, settleTimeoutMs: 1000 },
 };
 
 /** The key of every Store of a test that does not choose another. */

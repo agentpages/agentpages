@@ -1,7 +1,5 @@
 import {
-  type Capability,
   isToolName,
-  maxRequestBytes,
   pageOfResourceUri,
   pageResourceUri,
   TOOL_DESCRIPTIONS,
@@ -12,7 +10,6 @@ import {
 import * as fc from "fast-check";
 import { expect, test } from "vitest";
 import { TOOL_NAMES } from "./support/subjects.ts";
-import { ADVERTISED } from "./support/store.ts";
 
 const quoted = (text: string): string[] => [...text.matchAll(/`([^`]+)`/gu)].map((match) => match[1] ?? "");
 
@@ -108,29 +105,36 @@ test("[TOOLS-3] a name is a tool name exactly when the registry has it", () => {
 
 const versions = fc.tuple(fc.uuid(), fc.nat()).map(([pageId, version]) => ({ pageId, version }));
 
-test("[PAGES-16] the version of a resource URI is read back from it, and no other URI names one", () => {
-  const page = "3f2b8c1e-9a4d-4e7b-8c2a-5d6f7a8b9c0d";
-  const others = [`xui://agentpages/${page}/1`, `ui://agentpages/${page}/1/2`, `ui://agentpages/${page}/1x`, `ui://agentpages/${page}/x`, `ui://agentpages/${page}/`, "ui://agentpages//1", `ui://agentpages/a/${page}/1`, `ui://other/${page}/1`];
+const NAMED = "ui://agentpages/3f2b8c1e-9a4d-4e7b-8c2a-5d6f7a8b9c0d";
 
+const NOT_RESOURCES = [
+  `x${NAMED}/1`,
+  `${NAMED}/1/2`,
+  `${NAMED}/1x`,
+  `${NAMED}/x`,
+  `${NAMED}/`,
+  NAMED,
+  `${NAMED}/007`,
+  `${NAMED}/-1`,
+  `${NAMED}/1.5`,
+  `${NAMED}/1e3`,
+  `${NAMED}/9007199254740993`,
+  `${NAMED}/%31`,
+  `${NAMED.toUpperCase()}/1`,
+  `${NAMED.replace("3f", "3F")}/1`,
+  `${NAMED.replace("3f", "%33f")}/1`,
+  "ui://agentpages//1",
+  "ui://agentpages/a/1",
+  `ui://other/${NAMED.slice(16)}/1`,
+  `UI://agentpages/${NAMED.slice(16)}/1`,
+];
+
+test("[PAGES-16] a URI names a version exactly when it is the resource URI of one", () => {
   fc.assert(
     fc.property(versions, (version) => {
       expect(pageOfResourceUri(pageResourceUri(version))).toStrictEqual(version);
     }),
   );
-  expect(pageOfResourceUri(`ui://agentpages/${page}/120`)).toStrictEqual({ pageId: page, version: 120 });
-  expect(others.filter((uri) => pageOfResourceUri(uri) !== undefined)).toStrictEqual([]);
-});
-
-const capabilityOf = (features: Partial<Capability>): Capability => ({ version: "0.1", limits: ADVERTISED.limits, ...features });
-
-test("[STORE-6] the request cap is a megabyte and twice the largest of the html, a file as base64 and a full commit", () => {
-  const state = { maxDocumentBytes: 1024, maxOpsPerCommit: 10, maxTreeDepth: 4, liveChanges: true };
-  const megabyte = 1_048_576;
-
-  expect(maxRequestBytes(capabilityOf({}))).toBe(megabyte + 2 * 400);
-  expect(maxRequestBytes(capabilityOf({ files: { maxFileBytes: 1024 } }))).toBe(megabyte + 2 * 1368);
-  expect(maxRequestBytes(capabilityOf({ files: { maxFileBytes: 299 } }))).toBe(megabyte + 2 * 400);
-  expect(maxRequestBytes(capabilityOf({ files: { maxFileBytes: 301 } }))).toBe(megabyte + 2 * 404);
-  expect(maxRequestBytes(capabilityOf({ state, files: { maxFileBytes: 1024 } }))).toBe(megabyte + 2 * 10_240);
-  expect(maxRequestBytes(capabilityOf({ state: { ...state, maxOpsPerCommit: 0 } }))).toBe(megabyte + 2 * 400);
+  expect([0, 120, Number.MAX_SAFE_INTEGER].map((version) => pageOfResourceUri(`${NAMED}/${version}`)?.version)).toStrictEqual([0, 120, Number.MAX_SAFE_INTEGER]);
+  expect(NOT_RESOURCES.filter((uri) => pageOfResourceUri(uri) !== undefined)).toStrictEqual([]);
 });

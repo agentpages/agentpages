@@ -4,6 +4,7 @@ import {
   CountSchema,
   EmptySchema,
   IdSchema,
+  JsonObjectSchema,
   NameSchema,
   ofPage,
   pagingEntries,
@@ -47,7 +48,7 @@ export const FILES_METHOD_SCHEMAS: ExchangeSchemas<FilesMethods> = {
 export const FILES_TOOL_PARAMS: { readonly [T in keyof FilesTools]: Raw<FilesTools[T]["params"]> } = {
   files_put: ofPage(put),
   files_get: ofPage(get),
-  files_list: ofPage(pagingEntries),
+  files_list: v.pipe(JsonObjectSchema, ofPage(pagingEntries)),
   files_delete: ofPage(remove),
 };
 

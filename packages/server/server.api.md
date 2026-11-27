@@ -148,7 +148,7 @@ export interface Store {
 export interface StoreConfig {
     actorKey: string;
     baseUrl: string;
-    capability: Omit<Capability, "version">;
+    capability: Omit<Capability, "version" | "render">;
 }
 
 // @public (undocumented)

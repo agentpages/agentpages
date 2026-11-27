@@ -1,4 +1,4 @@
-import { toolInputSchema } from "@agentpages/protocol";
+import { HOST_OPERATION_SCHEMAS, METHOD_SCHEMAS, type Schema, TOOL_SCHEMAS, toolInputSchema, validate } from "@agentpages/protocol";
 import * as fc from "fast-check";
 import { expect, test } from "vitest";
 import { isObject } from "./support/json.ts";
@@ -142,4 +142,34 @@ test.each(TOOL_NAMES)("[STORE-1] the input schema of %s is one object, as MCP as
 
   expect(schema.type).toBe("object");
   expect(new Set(Object.keys(schema))).toStrictEqual(new Set(["$schema", "properties", "required", "type"]));
+});
+
+const EXCHANGES: [string, Record<string, { params: Schema<unknown> }>][] = [
+  ["tool", TOOL_SCHEMAS],
+  ["host operation", HOST_OPERATION_SCHEMAS],
+  ["method", METHOD_SCHEMAS],
+];
+
+const PARAMS = EXCHANGES.flatMap(([kind, schemas]) => Object.entries(schemas).map(([name, { params }]): [string, Schema<unknown>] => [`${kind} ${name}`, params]));
+
+/** The params that start with a field which is not required: these refuse what is no JSON object before anything else. */
+const PAGED_FIRST = new Set(["tool pages_list", "tool types_list", "tool files_list", "method agentpages/files/list", "method agentpages/identity/get"]);
+
+/** The params whose first object has only fields that are not required: an array passes it and fails the next check. */
+const ARRAY_REFUSED = new Set([...PAGED_FIRST, "tool comments_list", "host operation comments_list"]);
+
+const firstIssue = (schema: Schema<unknown>, input: unknown): unknown => {
+  const checked = validate(schema, input);
+  return checked.ok ? "valid" : checked.issues[0];
+};
+
+const NO_JSON_OBJECT = { message: "Expected a JSON object", path: [] };
+
+test.each(PARAMS)("[COMMON-9] the params of the %s refuse what is no object with the first issue they always had", (name, schema) => {
+  const flat = [null, 1, "x"].map((input) => firstIssue(schema, input));
+  const array = firstIssue(schema, []);
+
+  expect(flat).toStrictEqual(flat.map(() => [{ message: "Expected Object", path: [] }, NO_JSON_OBJECT][Number(PAGED_FIRST.has(name))]));
+  expect([array].filter((issue) => JSON.stringify(issue) === JSON.stringify(NO_JSON_OBJECT))).toHaveLength(Number(ARRAY_REFUSED.has(name)));
+  expect(array).toMatchObject({ message: expect.stringMatching(/^Expected (?:a JSON object|"[A-Za-z]+")$/u) as unknown });
 });

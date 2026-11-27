@@ -18,7 +18,7 @@ if (malformed) return failure({ ...malformed, requestId });
 
 Rules that depend on a Store's limits are separate checks that take those limits. `commitProblem` belongs to the first check of a request. `commitLimitProblem`, `fileProblem`, `htmlProblem` and `viewportProblem` belong to the last.
 
-`toBase64` and `fromBase64` turn the bytes of a file into its `blob` and back. `maxRequestBytes(capability)` is the request cap of a Store: a transport refuses a larger body before the Store sees it. `pageResourceUri` names the MCP resource of an html version, and `pageOfResourceUri` reads it back.
+`toBase64` and `fromBase64` turn the bytes of a file into its `blob` and back. `pageResourceUri` names the MCP resource of an html version, and `pageOfResourceUri` reads it back.
 
 ## Schemas
 

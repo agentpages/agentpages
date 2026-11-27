@@ -1,6 +1,6 @@
 import * as v from "valibot";
 import { COMMENTS_ENTRIES, ThreadSchema, ThreadsSchema } from "../comments/schemas.js";
-import { BodySchema, CountSchema, DescriptionSchema, type Raw, UuidSchema } from "../common/schemas.js";
+import { BodySchema, CountSchema, DescriptionSchema, NoArraySchema, type Raw, UuidSchema } from "../common/schemas.js";
 import { exchange } from "../common/seal.js";
 import type { ExchangeSchemas } from "../common/validate.js";
 import { PageInfoSchema } from "../pages/schemas.js";
@@ -32,7 +32,7 @@ export const HOST_OPERATION_SCHEMAS: ExchangeSchemas<HostOperations> = {
       comments: CountSchema,
     }),
   ),
-  comments_list: exchange(presented(COMMENTS_ENTRIES.comments_list), ThreadsSchema),
+  comments_list: exchange(v.pipe(NoArraySchema, presented(COMMENTS_ENTRIES.comments_list)), ThreadsSchema),
   comments_reply: exchange(presented(COMMENTS_ENTRIES.comments_reply), ThreadSchema),
   comments_resolve: exchange(presented(COMMENTS_ENTRIES.comments_resolve), ThreadSchema),
 };

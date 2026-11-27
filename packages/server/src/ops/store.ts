@@ -1,5 +1,6 @@
 import {
   type Answer,
+  base64Length,
   type Capability,
   CapabilitySchema,
   hasFeature,
@@ -18,8 +19,8 @@ import { checksWith } from "../types/checks.js";
 import { HOST_HANDLERS, methodsOf, toolsOf } from "./operations.js";
 
 export interface StoreConfig {
-  /** The limits and the features the Store advertises. */
-  capability: Omit<Capability, "version">;
+  /** The limits and the features the Store advertises. It has no `render`: a Store does not render yet. */
+  capability: Omit<Capability, "version" | "render">;
   /** What every page `url` starts with: a URL, such as `https://pages.example/p/`. */
   baseUrl: string;
   /**
@@ -84,6 +85,10 @@ const lists =
 
 const listed = (capability: Capability): ToolName[] => Object.keys(TOOLS).filter(lists(capability));
 
+/** The bytes of the largest single field a request can carry: an html, or a file as base64. */
+const largestField = ({ limits, files }: Capability): number =>
+  Math.max(limits.maxHtmlBytes, base64Length(files?.maxFileBytes ?? 0));
+
 /** What the Store advertises, once it is known to be a capability of section 3 of the spec that a Store can keep. */
 const advertised = (config: StoreConfig): Capability => {
   const checked = validate(CapabilitySchema, { version: PROTOCOL_VERSION, ...config.capability });
@@ -91,6 +96,9 @@ const advertised = (config: StoreConfig): Capability => {
   const { opRetentionSeconds, commitRetentionSeconds } = checked.value.limits;
   if (commitRetentionSeconds < opRetentionSeconds) {
     throw new RangeError("commitRetentionSeconds must be at least opRetentionSeconds.");
+  }
+  if (checked.value.limits.maxRequestBytes < largestField(checked.value)) {
+    throw new RangeError("maxRequestBytes must be at least maxHtmlBytes and the base64 length of maxFileBytes.");
   }
   return checked.value;
 };
