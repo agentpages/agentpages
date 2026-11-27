@@ -1,6 +1,6 @@
 import { type Answer, METHOD_NOT_FOUND, PROTOCOL_VERSION, TOOL_SCHEMAS } from "@agentpages/protocol";
 import { expect, test } from "vitest";
-import { ADVERTISED, BASE_URL, call, declaring, errorOf, failureOf, HOST_REQUEST, HTML, op, open, PAGE, publishing, resultOf, saved, uuid, world, type World } from "./support/store.ts";
+import { ADVERTISED, ask, BASE_URL, call, committed, declaring, errorOf, failureOf, HOST_REQUEST, HTML, inTurn, op, open, PAGE, publishing, put, resultOf, saved, uuid, world, type World } from "./support/store.ts";
 
 const { limits } = ADVERTISED;
 
@@ -69,7 +69,7 @@ test("a Store is not created with a capability that is not one of section 3, or 
 
 const tools = (features: object): readonly string[] => world({ config: { capability: { limits, ...features } } }).tools;
 
-test("the Store lists a tool exactly when it advertises the features the tool requires", () => {
+test("[TOOLS-3] the Store lists a tool exactly when it advertises the features the tool requires", () => {
   const { state, files, render } = ADVERTISED;
   const always = [...PAGE_TOOLS, ...COMMENT_TOOLS, ...TYPE_TOOLS];
 
@@ -81,14 +81,33 @@ test("the Store lists a tool exactly when it advertises the features the tool re
   expect(new Set(tools({ render, files }))).toStrictEqual(new Set([...always, ...FILE_TOOLS, "pages_render", "pages_export"]));
 });
 
-test("a tool or host operation the Store does not have yet is the JSON-RPC method not found", async () => {
+test("[REL-30] a repeat with the same params gets its first result before the limits, even ones the Store has lowered since", async () => {
+  const roomy = world();
+  const requests: [string, unknown][] = [published(0), committed(2, [put("a", { title: "Quarterly plan" })])];
+  const first = await inTurn(requests, (request) => call(roomy, request));
+  const capability = { limits: { ...limits, maxHtmlBytes: 5 }, state: { maxDocumentBytes: 5, maxOpsPerCommit: 10, liveChanges: true } };
+  const strict = world({ ports: { storage: roomy.storage }, config: { capability } });
+  const repeated = await inTurn(requests, (request) => call(strict, request));
+  const others = [await call(strict, published(1)), await call(strict, committed(3, [put("b", { title: "Quarterly plan" })]))];
+
+  expect(repeated).toStrictEqual(first);
+  expect(first.map((answer) => answer.kind)).toStrictEqual(requests.map(() => "result"));
+  expect(others.map((answer) => errorOf(answer))).toStrictEqual(["LimitExceeded", "LimitExceeded"]);
+});
+
+const FILE_METHODS = ["agentpages/files/put", "agentpages/files/get", "agentpages/files/list", "agentpages/files/delete"];
+const TO_THE_VIEW = ["agentpages/view/reveal", "agentpages/view/export", "agentpages/state/committed"];
+
+test("a tool, host operation or view method the Store does not have yet is the JSON-RPC method not found", async () => {
   const target = world();
-  const later = [...STATE_TOOLS, ...FILE_TOOLS, ...COMMENT_TOOLS, "pages_render", "pages_export"];
-  const notTools = [...later, "pages_open", "comments_start", "pages", "toString", "constructor", ""];
-  const operations = ["comments_start", ...PAGE_TOOLS, ...TYPE_TOOLS, ...later, "toString", ""];
+  const later = [...FILE_TOOLS, ...COMMENT_TOOLS, "pages_render", "pages_export"];
+  const notTools = [...later, "pages_open", "comments_start", "agentpages/state/get", "pages", "toString", "constructor", ""];
+  const operations = ["comments_start", ...PAGE_TOOLS, ...TYPE_TOOLS, ...STATE_TOOLS, ...later, "toString", ""];
+  const notMethods = [...FILE_METHODS, ...TO_THE_VIEW, ...STATE_TOOLS, "pages_get", "pages_open", "agentpages/state", "toString", "constructor", ""];
   const answers = [
     ...notTools.map((tool) => call(target, [tool, { pageId: PAGE }])),
     ...operations.map((operation) => target.host({ operation, input: { pageId: PAGE }, principal: { kind: "anonymous" }, requestId: HOST_REQUEST })),
+    ...notMethods.map((method) => ask(target, { url: `${BASE_URL}${PAGE}/secret`, method, params: {} })),
   ];
 
   expect(await Promise.all(answers)).toStrictEqual(answers.map(() => UNKNOWN));

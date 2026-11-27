@@ -25,6 +25,13 @@ export interface Driver {
         viewer: Viewing;
         requestId: string;
     }): Promise<Answer>;
+    view(request: {
+        method: string;
+        params: unknown;
+        viewer: Viewing;
+        url: string;
+        requestId: string;
+    }): Promise<Answer>;
 }
 
 // @public
@@ -34,7 +41,7 @@ export type FaultPoint = "get" | "getMany" | "scan" | "commit" | "committed";
 export const faulty: (storage: Storage_2, plan: Plan) => Storage_2;
 
 // @public (undocumented)
-export type MakeDriver = () => Driver | Promise<Driver>;
+export type MakeDriver = () => Driver;
 
 // @public (undocumented)
 export type MakeStorage = () => Storage_2 | Promise<Storage_2>;
@@ -58,6 +65,7 @@ export interface Touched {
 
 // @public
 export interface Viewing {
+    name?: string;
     // (undocumented)
     subject?: string;
 }

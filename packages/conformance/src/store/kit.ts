@@ -27,6 +27,9 @@ export interface Check {
   want: unknown;
 }
 
+/** What a check is when the Store does what the spec says. A check with nothing in it is not one. */
+export const met = (check: Check): Check => ({ got: check.want, want: check.want });
+
 export type Cases = Record<string, (driver: Driver) => Promise<Check>>;
 
 /** A tool, with the schema of its result. */
@@ -48,7 +51,7 @@ export const TYPE_GET: Tool<TypesGetResult> = tool("types_get", TOOL_SCHEMAS.typ
 export const TYPE_LIST: Tool<TypesListResult> = tool("types_list", TOOL_SCHEMAS.types_list);
 
 /** An answer of any kind, with what the other kinds carry left out. */
-interface Loose {
+export interface Loose {
   kind: string;
   result?: unknown;
   failure?: Failure;
@@ -58,14 +61,14 @@ interface Loose {
  * The result of an answer, typed by the schema it must match, with every field the answer carried: a case that spells
  * out what it wants sees a field the spec does not know. An answer that failed gives its failure instead.
  */
-const resultIn = <R>(schema: Schema<R>, answer: Answer): R => {
+export const resultIn = <R>(schema: Schema<R>, answer: Answer): R => {
   const { result, failure }: Loose = answer;
   const verdict: { value?: R; issues?: unknown } = schema["~standard"].validate(result);
   return Object.assign({}, failure, verdict.value, result);
 };
 
 /** The error an answer failed with. Nothing when the failure does not say what was wrong. */
-const errorIn = (answer: Answer): string => {
+export const errorIn = (answer: Answer): string => {
   const { failure }: Loose = answer;
   const { error, message } = Object.assign({}, failure);
   return error.repeat(Math.sign(message.length));
@@ -125,7 +128,7 @@ export const pageId = (n: number): string => `00000000-0000-4000-8000-${numbered
 let issued = 0;
 
 /** An `opId` no request used before. */
-const opId = (): string => {
+export const opId = (): string => {
   issued += 1;
   return `11111111-1111-4111-8111-${numbered(issued)}`;
 };
@@ -231,6 +234,25 @@ export const withVersions = async (driver: Driver, count: number): Promise<Sessi
   return alice;
 };
 
+/** An object with one text, whose JSON has exactly `bytes` UTF-8 bytes. */
+export const objectOfBytes = (bytes: number): { description: string } => {
+  const empty = new TextEncoder().encode(JSON.stringify({ description: "" })).length;
+  return { description: ofBytes(bytes - empty) };
+};
+
+interface Paged {
+  limit: number;
+  cursor?: string | undefined;
+}
+
+/** The first three pages of a list, two items at a time. */
+export const inPagesOfTwo = async <R extends { nextCursor?: string }>(fetch: (paging: Paged) => Promise<R>): Promise<[R, R, R]> => {
+  const first = await fetch({ limit: 2 });
+  const second = await fetch({ limit: 2, cursor: first.nextCursor });
+  const third = await fetch({ limit: 2, cursor: second.nextCursor });
+  return [first, second, third];
+};
+
 /** A string of exactly `bytes` UTF-8 bytes and about half as many characters. */
 export const ofBytes = (bytes: number): string => `${"é".repeat(Math.floor(bytes / 2))}${"a".repeat(bytes % 2)}`;
 
@@ -238,6 +260,26 @@ export const ofBytes = (bytes: number): string => `${"é".repeat(Math.floor(byte
 export const ofLength = (count: number): string => String(1).repeat(count);
 
 export const timeOf = (timestamp: string): number => Date.parse(timestamp);
+
+const UINT32 = 4_294_967_296;
+
+/**
+ * Numbers from 0 up to 1 that look random, and are the same every time for the same `seed`. It is mulberry32, so
+ * that what a seed generates depends on no library.
+ */
+export const rng = (seed: number): (() => number) => {
+  const state = { a: seed };
+  return () => {
+    state.a = (state.a + 0x6d_2b_79_f5) >>> 0;
+    const mixed = Math.imul(state.a ^ (state.a >>> 15), 1 | state.a);
+    const again = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+    return ((again ^ (again >>> 14)) >>> 0) / UINT32;
+  };
+};
+
+/** One of `items`, each as likely as the next: the first of those from a place that `next` chooses. */
+export const pick = <T>(next: () => number, items: readonly T[]): T =>
+  items.slice(Math.floor(next() * items.length)).reduce((first) => first);
 
 /** `count` times the same error. */
 export const times = (count: number, error: ErrorName): ErrorName[] => Array.from({ length: count }, () => error);

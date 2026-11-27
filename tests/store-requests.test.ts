@@ -2,7 +2,7 @@ import { type Answer, ID_PATTERN, LogRecordSchema, type PageInfo, TOOL_SCHEMAS, 
 import type { Ports, RateRequest } from "@agentpages/server";
 import type { Storage, Value } from "@agentpages/storage";
 import { expect, test } from "vitest";
-import { ALICE, BASE_URL, BOB, call, declaring, errorOf, failureOf, HOST_REQUEST, HTML, op, open, PAGE, PUBLISHED, publishing, readingAs, resultOf, saved, START, uuid, world, type World } from "./support/store.ts";
+import { ALICE, BASE_URL, BOB, call, committed, declaring, errorOf, failureOf, HOST_REQUEST, HTML, op, open, PAGE, PUBLISHED, publishing, put, readingAs, resultOf, saved, START, uuid, viewerId, world, type World } from "./support/store.ts";
 
 const publish = async (target: World): Promise<PageInfo> =>
   resultOf(TOOL_SCHEMAS.pages_publish.result, await call(target, PUBLISHED));
@@ -42,14 +42,14 @@ test("[REL-24] the Store writes one log record for every request it handles, wha
   expect(target.logs.map((record) => validate(LogRecordSchema, record).ok)).toStrictEqual(target.logs.map(() => true));
 });
 
-test("[REL-24] a log record names a viewer by an id that is the same for the same person and never the subject", async () => {
+test("[REL-24] a log record names a viewer by the id they have on the page, which is the same for the same person and never the subject", async () => {
   const target = world();
   const { url } = await publish(target).then(() => share(target, 2));
   const openAs = (subject: string): Promise<Answer> => open(target, { url, subject });
   await openAs("carol@example.com").then(() => openAs("dave@example.com")).then(() => openAs("carol@example.com"));
   const [carol, dave, again] = target.logs.slice(2).map((record) => record.actor);
 
-  expect([carol, dave, again]).toStrictEqual(Array.from({ length: 3 }, () => ({ kind: "viewer", id: expect.stringMatching(/^[0-9a-f]{64}$/u) as unknown })));
+  expect([carol, dave, again]).toStrictEqual(["carol@example.com", "dave@example.com", "carol@example.com"].map((subject) => ({ kind: "viewer", id: viewerId({ subject, pageId: PAGE }) })));
   expect(again).toStrictEqual(carol);
   expect(dave).not.toStrictEqual(carol);
   expect(target.logs.map((record) => validate(LogRecordSchema, record).ok)).toStrictEqual([true, true, true, true, true]);
@@ -111,7 +111,8 @@ test("a principal whose text is not well-formed Unicode is malformed, and the re
     ...Array.from({ length: 4 }, () => ["InvalidParams", "principal: Expected well-formed Unicode."]),
     [undefined, undefined],
   ]);
-  expect(target.logs.slice(1).map((record) => record.error)).toStrictEqual(["InvalidParams", "InvalidParams", "InvalidParams", "InvalidParams", undefined]);
+  expect(target.logs.slice(1).filter((record) => record.outcome === "error").map((record) => record.error)).toStrictEqual(["InvalidParams", "InvalidParams", "InvalidParams", "InvalidParams"]);
+  expect(target.logs.slice(1).filter((record) => record.outcome === "ok")).toHaveLength(1);
   expect(JSON.stringify(stored)).toContain(uuid(3));
   expect(JSON.stringify(stored)).not.toContain(uuid(2));
 });
@@ -170,10 +171,15 @@ interface Damage {
 }
 
 /** A storage whose transactions read `damaged` for the keys that contain `under`. */
-const damaging = (storage: Storage, { under, damaged }: Damage): Storage =>
-  readingAs(storage, (tx) => ({
-    get: async (key) => (key.includes(under) && (await tx.get(key)) !== undefined ? damaged : tx.get(key)),
+const damaging = (storage: Storage, { under, damaged }: Damage): Storage => {
+  const spoiled = (key: string | undefined, stored: Value | undefined): Value | undefined =>
+    stored !== undefined && key?.includes(under) === true ? damaged : stored;
+  return readingAs(storage, (tx) => ({
+    get: async (key) => spoiled(key, await tx.get(key)),
+    getMany: async (keys) => (await tx.getMany(keys)).map((stored, index) => spoiled(keys[index], stored)),
+    scan: async (range) => (await tx.scan(range)).map(([key, stored]) => [key, spoiled(key, stored) ?? stored]),
   }));
+};
 
 const LINK = `${BASE_URL}${PAGE}/secret`;
 
@@ -182,6 +188,8 @@ const OWNERLESS_PAGE = { pageId: PAGE, title: "Page", version: 1, access: "link-
 const OWNERLESS_TYPE = { ...declaring("deck", 2), version: 1, updatedAt: "2026-01-01T00:00:00.000Z" };
 
 const getPage = (target: World): Promise<Answer> => call(target, ["pages_get", { pageId: PAGE }]);
+
+const IN_TASKS = { pageId: PAGE, scope: "page", collection: "tasks" };
 
 const DAMAGES: Damage[] = [
   { under: "/meta", damaged: new Uint8Array([1]), asking: "pages_get", ask: getPage, names: { pageId: PAGE } },
@@ -198,11 +206,18 @@ const DAMAGES: Damage[] = [
     names: {},
   },
   { under: "types/deck", damaged: OWNERLESS_TYPE, asking: "types_get", ask: (target) => call(target, ["types_get", { typeId: "deck" }]), names: {} },
+  { under: "/s/p/head", damaged: { seq: "1" }, asking: "state_commit", ask: (target) => call(target, committed(6, [put("b")])), names: { pageId: PAGE } },
+  { under: "/s/p/head", damaged: new Uint8Array([1]), asking: "state_list", ask: (target) => call(target, ["state_list", IN_TASKS]), names: { pageId: PAGE } },
+  { under: "/s/p/r/", damaged: { revision: "1" }, asking: "state_commit", ask: (target) => call(target, committed(6, [put("a")])), names: { pageId: PAGE } },
+  { under: "/s/p/d/", damaged: new Uint8Array([1]), asking: "state_get", ask: (target) => call(target, ["state_get", { ...IN_TASKS, id: "a" }]), names: { pageId: PAGE } },
+  { under: "/s/p/d/", damaged: { id: 7 }, asking: "state_list", ask: (target) => call(target, ["state_list", IN_TASKS]), names: { pageId: PAGE } },
+  { under: "/s/p/l/", damaged: { seq: "1" }, asking: "state_commits", ask: (target) => call(target, ["state_commits", { pageId: PAGE, scope: "page", since: 0 }]), names: { pageId: PAGE } },
 ];
 
 test.each(DAMAGES)("[REL-27] a record the storage damaged is an Internal error: $under as $damaged, read by $asking", async (damage) => {
   const target = world();
   await call(target, PUBLISHED).then(() => call(target, ["types_publish", declaring("deck", 2)]));
+  await call(target, committed(5, [put("a")]));
   const before = await saved(target.storage);
   const broken = world({ ports: { storage: damaging(target.storage, damage) } });
   const answer = await damage.ask(broken);

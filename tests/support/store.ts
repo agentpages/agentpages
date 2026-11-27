@@ -1,5 +1,5 @@
 import { type Driver, type FaultPoint, faulty, type Plan, type Viewing } from "@agentpages/conformance";
-import { type Answer, type Capability, type Failure, type LogRecord, type Schema, validate } from "@agentpages/protocol";
+import { type Answer, type Capability, type Failure, type LogRecord, type Schema, TOOL_SCHEMAS, validate } from "@agentpages/protocol";
 import {
   ajvSchemaCompiler,
   createMemoryStorage,
@@ -11,6 +11,7 @@ import {
   type Visitor,
 } from "@agentpages/server";
 import type { Reader, Storage, Tx } from "@agentpages/storage";
+import { createHmac } from "node:crypto";
 
 export const BASE_URL = "https://pages.test/p/";
 
@@ -31,6 +32,21 @@ export const ADVERTISED: Omit<Capability, "version"> = {
   render: { maxWidth: 1920, maxHeight: 1080, maxDocumentHeight: 8000, settleTimeoutMs: 1000 },
 };
 
+/** The key of every Store of a test that does not choose another. */
+export const ACTOR_KEY = "a key of exactly thirty-two bytes";
+
+export interface Seen {
+  subject: string;
+  /** The page the viewer is on. Nothing when their request names none. */
+  pageId?: string;
+  /** The key of the Store, when it is not `ACTOR_KEY`. */
+  key?: string;
+}
+
+/** The id a Store gives a viewer: what the HMAC-SHA-256 of node makes of the page and the subject, as base64url. */
+export const viewerId = ({ subject, pageId = "", key = ACTOR_KEY }: Seen): string =>
+  createHmac("sha256", key).update(`${pageId}/${subject}`).digest("base64url");
+
 export const START: number = Date.UTC(2026, 0, 1);
 
 /** A Store over real adapters that a test controls: its clock, its ids, its log and where its storage fails. */
@@ -41,6 +57,8 @@ export interface World {
   call: Store["call"];
   /** A host operation for any viewer. */
   host: Store["host"];
+  /** A method of a view, for any viewer. */
+  view: Store["view"];
   /** Stops the Store and starts it again over what it saved. */
   restart: () => void;
   /** The tools the Store lists. */
@@ -98,14 +116,15 @@ const portsOf = (state: State, { storage, logs }: Pick<World, "storage" | "logs"
   };
 };
 
-const principalOf = ({ subject }: Viewing): Visitor =>
-  subject === undefined ? { kind: "anonymous" } : { kind: "viewer", subject };
+const principalOf = ({ subject, ...named }: Viewing): Visitor =>
+  subject === undefined ? { kind: "anonymous" } : { kind: "viewer", subject, ...named };
 
 /** The Store as the suite sees it: agents by their subject, viewers by the link they hold. */
 const driverOf = (running: { store: Store }, advance: (ms: number) => void): Driver => ({
   capability: running.store.capability,
   call: ({ subject, ...request }) => running.store.call({ ...request, principal: { kind: "agent", subject } }),
   host: ({ viewer, ...request }) => running.store.host({ ...request, principal: principalOf(viewer) }),
+  view: ({ viewer, ...request }) => running.store.view({ ...request, principal: principalOf(viewer) }),
   advance,
 });
 
@@ -113,13 +132,14 @@ export const world = ({ ports = {}, config = {} }: WorldOptions = {}): World => 
   const kept = { storage: createMemoryStorage(), logs: [] };
   const state: State = { now: START, plan: calm };
   const all = { ...portsOf(state, kept), ...ports };
-  const start = (): Store => createStore(all, { capability: ADVERTISED, baseUrl: BASE_URL, ...config });
+  const start = (): Store => createStore(all, { capability: ADVERTISED, baseUrl: BASE_URL, actorKey: ACTOR_KEY, ...config });
   const running = { store: start() };
   return {
     ...kept,
     tools: running.store.tools,
     call: (request) => running.store.call(request),
     host: (request) => running.store.host(request),
+    view: (request) => running.store.view(request),
     restart: () => {
       running.store = start();
     },
@@ -213,6 +233,48 @@ export interface Opening extends Viewing {
 /** A host that opens `url` for a viewer. */
 export const open = (target: World, { url, ...viewer }: Opening): Promise<Answer> =>
   target.host({ operation: "pages_open", input: { url }, principal: principalOf(viewer), requestId: HOST_REQUEST });
+
+export interface Asking extends Opening {
+  method: string;
+  params: unknown;
+}
+
+/** A method of the view that shows `url` to a viewer. */
+export const ask = (target: World, { method, params, url, ...viewer }: Asking): Promise<Answer> =>
+  target.view({ method, params, url, principal: principalOf(viewer), requestId: HOST_REQUEST });
+
+/** A put of a document of the collection `tasks`. */
+export const put = (id: string, data: Record<string, unknown> = {}): Record<string, unknown> => ({ op: "put", collection: "tasks", id, data });
+
+/** The params of a commit of `ops` to the page scope. */
+export const committing = (opNumber: number, ops: unknown[]): Record<string, unknown> => ({ scope: "page", opId: op(opNumber), ops });
+
+/** A `state_commit` of alice's to the page scope of `PAGE`. */
+export const committed = (opNumber: number, ops: unknown[]): [string, unknown] => ["state_commit", { pageId: PAGE, ...committing(opNumber, ops) }];
+
+export const COMMIT = "agentpages/state/commit";
+
+/** The requests that make `PAGE` a page of the type `deck`, whose first version declares tasks of any shape. */
+export const TYPED_PAGE: [string, unknown][] = [
+  ["types_publish", { ...declaring("deck", 8), collections: { tasks: { schema: {} } } }],
+  ["pages_publish", { ...publishing({ page: 1, baseVersion: 0, op: 1 }), content: { kind: "type", typeId: "deck", typeVersion: 1 } }],
+];
+
+/** Tool calls of alice, one after the other. */
+export const callEach = (target: World, requests: [string, unknown][]): Promise<unknown> =>
+  requests.reduce<Promise<unknown>>((earlier, request) => earlier.then(() => call(target, request)), Promise.resolve());
+
+/** What `each` makes of every item, one after the other. */
+export const inTurn = <T, R>(items: T[], each: (item: T) => Promise<R>): Promise<R[]> =>
+  items.reduce<Promise<R[]>>(async (earlier, item) => [...(await earlier), await each(item)], Promise.resolve([]));
+
+/** A Store with `PAGE` published by alice and shared for writing, and the link of the page. */
+export const sharedPage = async (options: WorldOptions = {}): Promise<{ target: World; url: string }> => {
+  const target = world(options);
+  await call(target, PUBLISHED);
+  const shared = await call(target, ["pages_set_access", { opId: op(2), pageId: PAGE, access: "link-write" }]);
+  return { target, url: resultOf(TOOL_SCHEMAS.pages_set_access.result, shared).url };
+};
 
 interface Registered {
   name: string;

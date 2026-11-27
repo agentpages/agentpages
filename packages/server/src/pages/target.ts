@@ -42,13 +42,20 @@ export const existingPage =
   ({ pageId }) =>
     pageAt(pageId, { need, absent: missing });
 
-/** The page a `url` of this Store names, for a caller who presents that `url`. */
-export const linkedPage =
-  <P extends { url: string }>(need: Need): Target<P, Page> =>
-  ({ url }, { baseUrl }) => {
+/** The page a view shows: the one the link its host holds names, for a viewer who presents that link. */
+export const shownPage =
+  (url: string) =>
+  <P>(need: Need): Target<P, Page> =>
+  (_, { baseUrl }) => {
     const pageId = pageIdIn(url, baseUrl);
     return pageId === undefined ? undefined : pageAt(pageId, { need, link: url, absent: missing });
   };
+
+/** The page a `url` of this Store names, for a caller who presents that `url`. */
+export const linkedPage =
+  <P extends { url: string }>(need: Need): Target<P, Page> =>
+  (params, deps) =>
+    shownPage(params.url)<P>(need)(params, deps);
 
 /** The page of `pages_delete`, which may be gone already. */
 export const removablePage =

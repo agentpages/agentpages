@@ -3,21 +3,28 @@ import {
   type Capability,
   CapabilitySchema,
   hasFeature,
-  HOST_OPERATIONS,
   METHOD_NOT_FOUND,
   PROTOCOL_VERSION,
   TOOLS,
   validate,
 } from "@agentpages/protocol";
+import { actorsUnder } from "../access/actor.js";
 import type { Agent, Visitor } from "../access/principal.js";
 import type { Ports } from "../ports/ports.js";
-import { type HostOperationReady, OPERATIONS, type ToolReady } from "./operations.js";
+import type { Handler, Shown } from "../pipeline/index.js";
+import { checksWith } from "../types/checks.js";
+import { HOST_HANDLERS, methodsOf, toolsOf } from "./operations.js";
 
 export interface StoreConfig {
   /** The limits and the features the Store advertises. */
   capability: Omit<Capability, "version">;
   /** What every page `url` starts with: a URL, such as `https://pages.example/p/`. */
   baseUrl: string;
+  /**
+   * The secret the id of a viewer is made with: at least 32 bytes that nobody can guess. A Store with another key
+   * gives every viewer another id.
+   */
+  actorKey: string;
 }
 
 export interface ToolCall {
@@ -34,6 +41,16 @@ export interface HostCall {
   requestId: string;
 }
 
+export interface ViewCall {
+  method: string;
+  params: unknown;
+  /** The page link the host holds for the view. It names the page and is the link the viewer presents. */
+  url: string;
+  principal: Visitor;
+  /** The id the host chose for the request. */
+  requestId: string;
+}
+
 export interface Store {
   /** What the Store advertises under the extension identifier. */
   readonly capability: Capability;
@@ -43,12 +60,12 @@ export interface Store {
   call(request: ToolCall): Promise<Answer>;
   /** Answers an operation a host runs for a viewer. */
   host(request: HostCall): Promise<Answer>;
+  /** Answers a method a view calls on its host. A method of a feature the Store does not advertise is unknown. */
+  view(request: ViewCall): Promise<Answer>;
 }
 
-const isReadyTool = (tool: string): tool is ToolReady => Object.hasOwn(TOOLS, tool) && Object.hasOwn(OPERATIONS, tool);
-
-const isReadyHostOperation = (operation: string): operation is HostOperationReady =>
-  Object.hasOwn(HOST_OPERATIONS, operation) && Object.hasOwn(OPERATIONS, operation);
+/** Handlers by the name a request asks for them under. A name of `Object.prototype` is not one of them. */
+const byName = <H>(handlers: Record<string, H>): Map<string, H> => new Map(Object.entries(handlers));
 
 const unknownMethod = (): Promise<Answer> => Promise.resolve({ kind: "unknown-method", code: METHOD_NOT_FOUND });
 
@@ -68,21 +85,26 @@ const advertised = (config: StoreConfig): Capability => {
   return checked.value;
 };
 
-/** A Store over the given ports. All it keeps is in `ports.storage`. It throws when `config` is not valid. */
+/**
+ * A Store over the given ports. All it knows is in `ports.storage`: in memory it keeps only schemas it compiled. It
+ * throws when `config` is not valid.
+ */
 export const createStore = (ports: Ports, config: StoreConfig): Store => {
   const capability = advertised(config);
   if (!URL.canParse(config.baseUrl)) throw new TypeError("baseUrl must be a URL.");
-  const deps = { ...ports, capability, baseUrl: config.baseUrl };
+  const actors = actorsUnder(config.actorKey);
+  const deps = { ...ports, capability, baseUrl: config.baseUrl, actors, checks: checksWith(ports.compiler) };
+  const tools = byName<Handler<unknown, unknown, Agent>>(toolsOf(capability));
+  const operations = byName<Handler<unknown, unknown, Visitor>>(HOST_HANDLERS);
+  const methods = byName<Shown<unknown, unknown>>(methodsOf(capability));
   return {
     capability,
     tools: listed(capability),
     call: ({ tool, input, principal }) =>
-      isReadyTool(tool)
-        ? OPERATIONS[tool].answer({ deps, method: tool, input, principal, requestId: ports.ids.id() })
-        : unknownMethod(),
+      tools.get(tool)?.answer({ deps, method: tool, input, principal, requestId: ports.ids.id() }) ?? unknownMethod(),
     host: ({ operation, input, principal, requestId }) =>
-      isReadyHostOperation(operation)
-        ? OPERATIONS[operation].answer({ deps, method: operation, input, principal, requestId })
-        : unknownMethod(),
+      operations.get(operation)?.answer({ deps, method: operation, input, principal, requestId }) ?? unknownMethod(),
+    view: ({ method, params, url, principal, requestId }) =>
+      methods.get(method)?.(url).answer({ deps, method, input: params, principal, requestId }) ?? unknownMethod(),
   };
 };

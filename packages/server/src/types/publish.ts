@@ -45,13 +45,12 @@ const treeChange = (declared: Collections, published: Collections): string | und
 const refusal = ({ params, target }: Publishing, declared: Collections): Outcome<never> | undefined => {
   const current = target?.info.version ?? 0;
   const changed = treeChange(declared, params.collections);
-  if (params.baseVersion !== current) {
-    const message = `baseVersion ${params.baseVersion} is not the current version ${current}.`;
-    return refuse({ error: "Conflict", message });
+  if (changed !== undefined) {
+    return refuse({ error: "InvalidParams", message: `The collection ${changed} cannot stop or start being a tree.` });
   }
-  return changed === undefined
+  return params.baseVersion === current
     ? undefined
-    : refuse({ error: "InvalidParams", message: `The collection ${changed} cannot stop or start being a tree.` });
+    : refuse({ error: "Conflict", message: `baseVersion ${params.baseVersion} is not the current version ${current}.` });
 };
 
 const publish = async (context: Publishing, tx: Tx): Promise<Outcome<TypeInfo>> => {

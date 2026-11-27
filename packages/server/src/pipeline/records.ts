@@ -11,6 +11,18 @@ export const recordOf = (value: Value): JsonObject => {
   return value;
 };
 
+/** What a stored schema or record turns out to be when it is not what the Store saved. */
+export const corrupt = (): never => {
+  throw new CorruptRecord();
+};
+
+/** The count a record keeps under `field`. A record that was never saved counts 0. */
+export const countIn = (value: Value | undefined, field: string): number => {
+  if (value === undefined) return 0;
+  const count = recordOf(value)[field];
+  return typeof count === "number" ? count : corrupt();
+};
+
 /** `value` as the `T` it was stored as, without any field the schema does not know. */
 export const parsed = <T>(schema: Schema<T>, value: unknown): T => {
   const checked = validate(schema, value);

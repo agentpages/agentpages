@@ -1,3 +1,4 @@
+import type { Driver } from "../contract.js";
 import {
   actingAs,
   agent,
@@ -33,13 +34,68 @@ import {
   viewer,
   withPage,
 } from "./kit.js";
+import { after, COMMIT, COMMITS, committing, doc, listing, mine, STATE_GET, STATE_LIST, type Surface, viewOf } from "./surface.js";
 
 const ACCESSES = [PRIVATE, LINK_READ, LINK_WRITE];
 
-/** Page `n` of agent 1, with one version and this access. */
-const shared = async (alice: Session, [n, access]: [number, string]): Promise<void> => {
+/** Page `n` of agent 1, with one version and this access. It returns the link of the page. */
+const shared = async (alice: Session, [n, access]: [number, string]): Promise<string> => {
   await alice.ok(PUBLISH, page(n, 0));
-  await alice.ok(SET_ACCESS, sharing(n, access));
+  return (await alice.ok(SET_ACCESS, sharing(n, access))).url;
+};
+
+/**
+ * What a signed-in link holder, an anonymous one, and the owner as a viewer with a link that is not current get, on
+ * a page of each access.
+ */
+const acrossAccesses = (driver: Driver, ask: (surface: Surface) => Promise<unknown>): Promise<unknown[][]> => {
+  const alice = actingAs(driver, agent(1));
+  return Promise.all(
+    ACCESSES.map(async (access, n) => {
+      const url = await shared(alice, [n, access]);
+      return Promise.all([viewer(2, url), anonymous(url), viewer(1, `${url}x`)].map((visit) => ask(viewOf(driver, visit))));
+    }),
+  );
+};
+
+const reads = (surface: Surface): Promise<string[]> =>
+  Promise.all([surface.outcome(STATE_GET, doc("a")), surface.outcome(STATE_LIST, listing()), surface.outcome(COMMITS, after(0))]);
+
+const ownScope = (surface: Surface): Promise<string[]> =>
+  Promise.all([
+    surface.outcome(COMMIT, mine(committing([]))),
+    surface.outcome(STATE_GET, mine(doc("a"))),
+    surface.outcome(STATE_LIST, mine(listing())),
+    surface.outcome(COMMITS, mine(after(0))),
+  ]);
+
+export const STATE_ACCESS_CASES: Cases = {
+  "[STATE-1] reading the page scope needs read access: the owner as a viewer has it, and a link holder with either link setting": async (driver) => ({
+    got: await acrossAccesses(driver, reads),
+    want: [
+      [times(3, "Forbidden"), times(3, "Forbidden"), ["done", "done", "done"]],
+      [["done", "done", "done"], ["done", "done", "done"], ["done", "done", "done"]],
+      [["done", "done", "done"], ["done", "done", "done"], ["done", "done", "done"]],
+    ],
+  }),
+
+  "[STATE-3] a commit to the page scope needs write access: the owner as a viewer has it, and a link holder with link-write": async (driver) => ({
+    got: await acrossAccesses(driver, (surface) => surface.outcome(COMMIT, committing([]))),
+    want: [
+      ["Forbidden", "Forbidden", "done"],
+      ["Forbidden", "Forbidden", "done"],
+      ["done", "done", "done"],
+    ],
+  }),
+
+  "[ACCESS-6] a signed-in viewer with read access reads and writes their own viewer scope": async (driver) => ({
+    got: await acrossAccesses(driver, ownScope),
+    want: [
+      [times(4, "Forbidden"), times(4, "Forbidden"), ["done", "done", "done", "done"]],
+      [["done", "done", "done", "done"], times(4, "Unauthenticated"), ["done", "done", "done", "done"]],
+      [["done", "done", "done", "done"], times(4, "Unauthenticated"), ["done", "done", "done", "done"]],
+    ],
+  }),
 };
 
 export const ACCESS_CASES: Cases = {

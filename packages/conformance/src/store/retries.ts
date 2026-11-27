@@ -156,6 +156,18 @@ export const RETRY_CASES: Cases = {
     };
   },
 
+  "[REL-30] a repeat with the same params gets its first result, and an opId used again with other params is decided after the limits": async (driver) => {
+    const [alice, bob] = [actingAs(driver, agent(1)), actingAs(driver, agent(2))];
+    const publish = page(1, 0);
+    const tooLarge = having(publish, ["content", htmlOfBytes(driver.capability.limits.maxHtmlBytes + 1)]);
+    const first = await alice.ok(PUBLISH, publish);
+    await alice.ok(PUBLISH, page(1, 1));
+    return {
+      got: [await alice.ok(PUBLISH, publish), await alice.fails(PUBLISH, tooLarge), await alice.fails(PUBLISH, having(publish, ["title", text(2)])), await bob.fails(PUBLISH, tooLarge)],
+      want: [first, "LimitExceeded", "InvalidParams", "Forbidden"],
+    };
+  },
+
   "[REL-31] a request that failed is not remembered": async (driver) => {
     const alice = actingAs(driver, agent(1));
     const [stale, large] = [page(1, 3), page(2, 0)];

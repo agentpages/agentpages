@@ -25,12 +25,18 @@ import {
   tick,
   timeOf,
   times,
+  type,
+  TYPE_PUBLISH,
+  typed,
   versionOf,
   VERSIONS,
   viewer,
   withPage,
   withVersions,
 } from "./kit.js";
+
+/** The params that publish a version of page 2, which is a page of a type, with this content. */
+const typedPage = (baseVersion: number, content: unknown): unknown => having(page(2, baseVersion), ["content", content]);
 
 const titlesOf = async (session: Session): Promise<string[]> => (await session.ok(LIST, {})).pages.map((info) => info.title);
 
@@ -223,6 +229,38 @@ export const PAGES_CASES: Cases = {
     return {
       got: [refused, await alice.ok(DELETE, deleting(1)), await alice.ok(LIST, {})],
       want: [times(6, "NotFound"), {}, { pages: [] }],
+    };
+  },
+
+  "[PAGES-21] a page keeps its kind, and its typeId if it has one, in every version": async (driver) => {
+    const alice = actingAs(driver, agent(1));
+    await Promise.all([alice.ok(TYPE_PUBLISH, type(1, 0)), alice.ok(TYPE_PUBLISH, type(2, 0))]);
+    await alice.ok(TYPE_PUBLISH, type(1, 1));
+    await alice.ok(PUBLISH, page(1, 0));
+    await alice.ok(PUBLISH, typedPage(0, typed(1, 1)));
+    const changed = await Promise.all([
+      alice.fails(PUBLISH, having(page(1, 1), ["content", typed(1, 1)])),
+      alice.fails(PUBLISH, typedPage(1, html(2))),
+      alice.fails(PUBLISH, typedPage(1, typed(2, 1))),
+    ]);
+    const kept = [await alice.ok(PUBLISH, typedPage(1, typed(1, 2))), await alice.ok(PUBLISH, page(1, 1))];
+    return { got: [changed, kept.map((info) => info.version)], want: [times(3, "InvalidParams"), [2, 2]] };
+  },
+
+  "[COMMON-5] a change of kind is decided after what the request names and the limits, and before a conflict": async (driver) => {
+    const alice = actingAs(driver, agent(1));
+    await alice.ok(TYPE_PUBLISH, type(1, 0));
+    await alice.ok(PUBLISH, page(1, 0));
+    await alice.ok(PUBLISH, typedPage(0, typed(1, 1)));
+    const tooLarge = htmlOfBytes(driver.capability.limits.maxHtmlBytes + 1);
+    return {
+      got: await Promise.all([
+        alice.fails(PUBLISH, having(page(1, 1), ["content", typed(2, 1)])),
+        alice.fails(PUBLISH, typedPage(1, tooLarge)),
+        alice.fails(PUBLISH, typedPage(0, html(2))),
+        alice.fails(PUBLISH, typedPage(0, typed(1, 1))),
+      ]),
+      want: ["NotFound", "LimitExceeded", "InvalidParams", "Conflict"],
     };
   },
 

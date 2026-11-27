@@ -105,7 +105,7 @@ test("[COMMON-8] base64 uses the standard alphabet with padding, in canonical fo
   expect(fieldBreaking(RULES.base64)).toBeNull();
 });
 
-test("[TREE-2] a tree index matches ^[0-9A-Za-z]*[1-9A-Za-z]$", () => {
+test("a tree index matches ^[0-9A-Za-z]*[1-9A-Za-z]$", () => {
   expect(patternBreaking(TREE_INDEX_PATTERN, RULES.treeIndex)).toBeNull();
   expect(fieldBreaking(RULES.treeIndex)).toBeNull();
 });

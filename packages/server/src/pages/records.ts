@@ -1,4 +1,4 @@
-import { type PageInfo, type PagesGetResult, TOOL_SCHEMAS } from "@agentpages/protocol";
+import { type PageContent, type PageInfo, type PagesGetResult, TOOL_SCHEMAS } from "@agentpages/protocol";
 import { type Owned, owned, parsed, recordOf } from "../pipeline/index.js";
 import type { Reader, Tx, Value } from "@agentpages/storage";
 import { contentKey, metaKey, ownedKey } from "./keys.js";
@@ -22,6 +22,10 @@ export const readVersion = async ({ tx, page, version }: VersionRead): Promise<P
     ? undefined
     : parsed(TOOL_SCHEMAS.pages_get.result, { ...recordOf(stored), version, access, url, updatedAt });
 };
+
+/** What the current version of a page was published with. */
+export const currentContent = async (tx: Reader, page: Page): Promise<PageContent> =>
+  parsed(TOOL_SCHEMAS.pages_get.result, await readVersion({ tx, page, version: page.info.version })).content;
 
 /** What a page keeps from one version to the next. */
 export type Kept = Pick<PageInfo, "pageId" | "version" | "access" | "url" | "updatedAt">;

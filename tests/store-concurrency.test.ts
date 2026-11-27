@@ -2,7 +2,7 @@ import { type Answer, TOOL_SCHEMAS } from "@agentpages/protocol";
 import type { Storage } from "@agentpages/storage";
 import * as fc from "fast-check";
 import { expect, test } from "vitest";
-import { BOB, call, declaring, errorOf, op, PAGE, PUBLISHED, publishing, readingAs, resultOf, world, type World } from "./support/store.ts";
+import { BOB, call, callEach, committed, declaring, errorOf, op, PAGE, PUBLISHED, publishing, put, readingAs, resultOf, saved, TYPED_PAGE, world, type World } from "./support/store.ts";
 
 type Request = [string, unknown];
 
@@ -22,13 +22,18 @@ const interleaving = (requests: Request[], check: (answers: Answer[], target: Wo
   fc.assert(
     fc.asyncProperty(fc.scheduler(), async (scheduler) => {
       const target = world();
+      const sent = requests.filter((request) => request !== PUBLISHED_FIRST);
+      await Promise.all(requests.filter((request) => request === PUBLISHED_FIRST).map((request) => call(target, request)));
       target.plan((point) => scheduler.schedule(Promise.resolve(point)));
-      const answers = await scheduler.waitFor(Promise.all(requests.map((request) => call(target, request))));
+      const answers = await scheduler.waitFor(Promise.all(sent.map((request) => call(target, request))));
       target.plan(() => "go on");
       await check(answers, target);
     }),
-    { numRuns: 40 },
+    { numRuns: 40, seed: 2026 },
   );
+
+/** In the requests of `interleaving`: `PAGE` is published before the others are sent together. */
+const PUBLISHED_FIRST: Request = [...PUBLISHED];
 
 const versionsOf = async (target: World): Promise<number[]> =>
   resultOf(TOOL_SCHEMAS.pages_versions.result, await call(target, ["pages_versions", { pageId: PAGE }])).versions.map(
@@ -62,6 +67,19 @@ test("[TYPES-4] of the requests that publish a type from one version exactly one
     expect(deck).toMatchObject({ result: { version: 1 } });
   });
 });
+
+const expectingNone = [3, 4, 5].map((opNumber): Request => committed(opNumber, [{ ...put("a"), ifRevision: 0 }]));
+
+test("[STATE-17] of the commits that expect one revision of a document exactly one succeeds, however they interleave", async () => {
+  await interleaving([PUBLISHED_FIRST, ...expectingNone], async (answers, target) => {
+    const listed = resultOf(TOOL_SCHEMAS.state_list.result, await call(target, LIST));
+
+    expect(tally(answers)).toStrictEqual({ result: 1, Conflict: 2 });
+    expect([listed.seq, listed.documents.map((document) => document.revision)]).toStrictEqual([1, [1]]);
+  });
+});
+
+const LIST: Request = ["state_list", { pageId: PAGE, scope: "page", collection: "tasks" }];
 
 interface Pair {
   held: Request;
@@ -117,6 +135,58 @@ test("[REL-2] a request waits for the one before it on the same page", async () 
   release();
 
   expect(tally(await Promise.all(answers))).toStrictEqual({ result: 1, Conflict: 1 });
+});
+
+/** Sends one request, holds it in its transaction, sends the other behind it, and returns how the two ended. */
+const oneAfterTheOther = async (target: World, [first, second]: [Request, Request]): Promise<string[]> => {
+  const release = holdingFirst(target);
+  const answers = [call(target, first), call(target, second)];
+  release();
+  return (await Promise.all(answers)).map(outcomeOf);
+};
+
+const remove: Request = ["pages_delete", { opId: op(6), pageId: PAGE }];
+
+test.each([
+  { first: committed(3, [put("a")]), second: remove, outcomes: ["result", "result"] },
+  { first: remove, second: committed(3, [put("a")]), outcomes: ["result", "NotFound"] },
+])("[PAGES-6] a commit and a pages_delete of its page leave no state of the page, whichever comes first: $first.0", async ({ first, second, outcomes }) => {
+  const target = world();
+  await call(target, PUBLISHED);
+
+  expect(await oneAfterTheOther(target, [first, second])).toStrictEqual(outcomes);
+  expect(await saved(target.storage)).toStrictEqual([
+    [`gone/${PAGE}`, {}],
+    [expect.stringContaining(op(6)), expect.objectContaining({ result: {} })],
+  ]);
+});
+
+/** A second version of the type of `PAGE`, which asks more of a task than the first. */
+const stricter: Request = ["types_publish", { ...declaring("deck", 7), baseVersion: 1, collections: { tasks: { schema: { required: ["done"] } } } }];
+
+const moved: Request = ["pages_publish", { ...publishing({ page: 1, baseVersion: 1, op: 2 }), content: { kind: "type", typeId: "deck", typeVersion: 2 } }];
+
+test.each([
+  { first: committed(3, [put("a")]), second: moved, outcomes: ["result", "result"], seq: 1 },
+  { first: moved, second: committed(3, [put("a")]), outcomes: ["result", "InvalidParams"], seq: 0 },
+])("[TYPES-9] a commit is checked by the type version its page names when its turn comes: $first.0 first", async ({ first, second, outcomes, seq }) => {
+  const target = world();
+  await callEach(target, [...TYPED_PAGE, stricter]);
+
+  expect(await oneAfterTheOther(target, [first, second])).toStrictEqual(outcomes);
+  expect(resultOf(TOOL_SCHEMAS.state_list.result, await call(target, LIST)).seq).toBe(seq);
+});
+
+test("[STATE-18] a list waits for the commit before it on its page, and answers with all of it", async () => {
+  const target = world();
+  await call(target, PUBLISHED);
+  const release = holdingFirst(target);
+  const [committing, listing] = [call(target, committed(3, [put("a"), put("b")])), call(target, LIST)];
+  release();
+  const listed = resultOf(TOOL_SCHEMAS.state_list.result, await listing);
+
+  expect([listed.seq, listed.documents.map((document) => document.id)]).toStrictEqual([1, ["a", "b"]]);
+  expect(outcomeOf(await committing)).toBe("result");
 });
 
 /** `storage`, where `meanwhile` happens after every scan of a transaction, before the scan is answered. */
