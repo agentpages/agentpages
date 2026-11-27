@@ -80,7 +80,7 @@ test("a commit is malformed when it has too many ops or two on one document, and
 
   fc.assert(
     fc.property(ops, limits, (commit, chosen) => {
-      const check = { ops: commit, limits: { ...chosen, liveChanges: true } };
+      const check = { ops: commit, limits: { ...chosen, maxTreeDepth: 4, liveChanges: true } };
 
       expect(commitProblem(check)).toStrictEqual(expectedProblem(commit, chosen));
       expect(commitLimitProblem(check)).toStrictEqual(expectedLimitProblem(commit, chosen));
@@ -91,7 +91,7 @@ test("a commit is malformed when it has too many ops or two on one document, and
 
 test("a commit's problem names the limit it broke", () => {
   const big: Op = { op: "put", collection: "a", id: "x", data: { text: "four" } };
-  const limits = { maxOpsPerCommit: 1, maxDocumentBytes: 14, liveChanges: false };
+  const limits = { maxOpsPerCommit: 1, maxDocumentBytes: 14, maxTreeDepth: 4, liveChanges: false };
 
   expect(commitProblem({ ops: [big, big], limits })?.message).toContain("maxOpsPerCommit 1");
   expect(commitLimitProblem({ ops: [big], limits })?.message).toContain("maxDocumentBytes 14");

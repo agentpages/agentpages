@@ -100,9 +100,10 @@ test.each([
 ])("[TREE-4] a delete of a parent and a put of a child under it, each valid alone, end as one after the other does: $together.0.1.opId first", async ({ together, answered, seq }) => {
   await interleaving({ before: GROWN, together }, async (answers, target) => {
     const listed = resultOf(TOOL_SCHEMAS.state_list.result, await call(target, LIST));
-    const rows = await target.storage.scan({ prefix: `page/${PAGE}/s/p/t/`, limit: 9 });
+    await call(target, committed(6, [node("parent", null)]));
+    const again = changedOrError(await call(target, committed(7, [{ op: "delete", collection: "tasks", id: "parent" }])));
 
-    expect([answers.map(changedOrError), listed.seq, listed.documents, rows]).toStrictEqual([answered, seq, [], []]);
+    expect([answers.map(changedOrError), listed.seq, listed.documents, again]).toStrictEqual([answered, seq, [], ["parent"]]);
   });
 });
 

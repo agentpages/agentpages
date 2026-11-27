@@ -1,7 +1,7 @@
 import type { PageContent } from "@agentpages/protocol";
 import type { Driver } from "../contract.js";
 import { actingAs, agent, type Cases, collection, having, LINK_READ, objectOfBytes, page, PUBLISH, type Session, SET_ACCESS, sharing, text, type, TYPE_PUBLISH, typed, typeId, viewer } from "./kit.js";
-import { type Acting, type ActingCases, COMMIT, committing, doc, limitsOf, mine, onBoth, onlyIf, put, remove, revisionsOf, seqOf, STATE_GET, stored, toolsOf, viewOf, within } from "./surface.js";
+import { type Acting, type ActingCases, COMMIT, committing, doc, limitsOf, mine, onBoth, onlyIf, put, remove, retyped, revisionsOf, seqOf, STATE_GET, stored, toolsOf, viewOf, within } from "./surface.js";
 
 /** Documents whose title, when they have one, is a text, and that have nothing else. */
 const titled = { type: "object", properties: { title: { type: "string" } }, additionalProperties: false };
@@ -15,12 +15,9 @@ const ofTasks = async (alice: Session, n: number): Promise<PageContent> => {
   return typed(n, 1);
 };
 
-/** Publishes a second version of the type of the page, with other tasks and with notes, and moves the page to it. */
-const moved = async (driver: Driver, { page: n }: Acting): Promise<void> => {
-  const alice = actingAs(driver, agent(1));
-  await alice.ok(TYPE_PUBLISH, having(type(n, 1), ["collections", { tasks: collection(tracked), notes: collection({}) }]));
-  await alice.ok(PUBLISH, having(page(n, 1), ["content", typed(n, 2)]));
-};
+/** Moves the page to a second version of its type, with other tasks and with notes. */
+const moved = (driver: Driver, { page: n }: Acting): Promise<void> =>
+  retyped(driver, { page: n, collections: { tasks: collection(tracked), notes: collection({}) } });
 
 /** A collection no type of these cases declares. */
 const undeclared = typeId(9);

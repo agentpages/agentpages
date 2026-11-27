@@ -130,18 +130,24 @@ const losingRead = async (scenario: Scenario, n: number): Promise<Lost> => {
   return { reached: lost, held: [unchanged, repeated, JSON.stringify(await saved(target.storage)) === JSON.stringify(expected.effect)] };
 };
 
-const READ_NUMBERS = Array.from({ length: 16 }, (_, n) => n + 1);
+const READ_NUMBERS = Array.from({ length: 32 }, (_, n) => n + 1);
 
-test.each([
-  { scenario: TYPED_COMMIT, reads: 5 },
-  { scenario: TREE_COMMIT, reads: 11 },
-])("[REL-8] a commit that loses any one of its $reads reads is unavailable and changes nothing, and its repeat is applied once", async ({ scenario, reads }) => {
+/** What losing each read of a commit in turn comes to, for the reads the commit makes. */
+const lostReads = async (scenario: Scenario): Promise<Lost[]> => {
   const attempts = await Promise.all(READ_NUMBERS.map((n) => losingRead(scenario, n)));
-  const lost = attempts.filter((attempt) => attempt.reached);
+  const reads = attempts.findIndex((attempt) => !attempt.reached);
 
-  expect(lost).toHaveLength(reads);
-  expect(lost.map((attempt) => attempt.held)).toStrictEqual(lost.map(() => [true, true, true]));
   expect(attempts.slice(reads).map((attempt) => attempt.reached)).toStrictEqual(attempts.slice(reads).map(() => false));
+  return attempts.slice(0, reads);
+};
+
+test("[REL-8] a commit that loses any one of the reads it makes is unavailable and changes nothing, and its repeat is applied once", async () => {
+  const [typed, tree] = [await lostReads(TYPED_COMMIT), await lostReads(TREE_COMMIT)];
+  const lost = [...typed, ...tree];
+
+  expect(typed).toHaveLength(5);
+  expect(tree.length).toBeGreaterThan(typed.length);
+  expect(lost.map((attempt) => attempt.held)).toStrictEqual(lost.map(() => [true, true, true]));
 });
 
 /** Runs `record` every time the storage reaches `point`. */

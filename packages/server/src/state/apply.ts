@@ -1,6 +1,7 @@
 import type { Actor, Change, Commit } from "@agentpages/protocol";
+import type { Refusal } from "../pipeline/index.js";
 import type { Felling, Plan, Swept } from "../trees/cascade.js";
-import type { Before, Pending } from "./records.js";
+import { type Before, isChange, type Pending } from "./records.js";
 
 /** `ifRevision: 0` asks that the document does not exist. Any other asks for the value of its counter. */
 const isStale = ({ op: { ifRevision }, revision, stored }: Pending): boolean => {
@@ -8,8 +9,11 @@ const isStale = ({ op: { ifRevision }, revision, stored }: Pending): boolean => 
   return ifRevision === 0 ? stored !== undefined : ifRevision !== revision;
 };
 
-/** The position of the first op whose `ifRevision` no longer holds, or -1. */
-export const staleIndex = ({ pending }: Before): number => pending.findIndex(isStale);
+/** Section 4.1 of the spec: the first op whose `ifRevision` no longer holds. */
+export const stale = ({ pending }: Before): Refusal | undefined => {
+  const opIndex = pending.findIndex(isStale);
+  return opIndex === -1 ? undefined : { error: "Conflict", message: `The ifRevision of op ${opIndex} no longer holds.`, opIndex };
+};
 
 /** When a commit is made, by whom, and under which `opId`. */
 export interface Stamp {
@@ -20,10 +24,11 @@ export interface Stamp {
 
 const deleted = ({ collection, id, revision }: Swept): Change => ({ collection, id, revision: revision + 1, document: null });
 
-const ownChange = ({ at, by }: Stamp, { op, revision, stored }: Pending): Change[] => {
+const ownChange = ({ at, by }: Stamp, pending: Pending): Change[] => {
+  if (!isChange(pending)) return [];
+  const { op, revision } = pending;
   const counted = { collection: op.collection, id: op.id, revision: revision + 1 };
-  if (op.op === "put") return [{ ...counted, document: { ...counted, data: op.data, updatedAt: at, updatedBy: by } }];
-  return stored === undefined ? [] : [{ ...counted, document: null }];
+  return [{ ...counted, document: op.op === "put" ? { ...counted, data: op.data, updatedAt: at, updatedBy: by } : null }];
 };
 
 const changesOf =

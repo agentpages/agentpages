@@ -85,7 +85,7 @@ test("[REL-30] a repeat with the same params gets its first result before the li
   const roomy = world();
   const requests: [string, unknown][] = [published(0), committed(2, [put("a", { title: "Quarterly plan" })])];
   const first = await inTurn(requests, (request) => call(roomy, request));
-  const capability = { limits: { ...limits, maxHtmlBytes: 5 }, state: { maxDocumentBytes: 5, maxOpsPerCommit: 10, liveChanges: true } };
+  const capability = { limits: { ...limits, maxHtmlBytes: 5 }, state: { maxDocumentBytes: 5, maxOpsPerCommit: 10, maxTreeDepth: 4, liveChanges: true } };
   const strict = world({ ports: { storage: roomy.storage }, config: { capability } });
   const repeated = await inTurn(requests, (request) => call(strict, request));
   const others = [await call(strict, published(1)), await call(strict, committed(3, [put("b", { title: "Quarterly plan" })]))];

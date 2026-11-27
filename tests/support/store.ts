@@ -26,7 +26,7 @@ export const ADVERTISED: Omit<Capability, "version"> = {
     opRetentionSeconds: 3600,
     commitRetentionSeconds: 7200,
   },
-  state: { maxDocumentBytes: 1024, maxOpsPerCommit: 10, liveChanges: true },
+  state: { maxDocumentBytes: 1024, maxOpsPerCommit: 10, maxTreeDepth: 4, liveChanges: true },
   identity: {},
   files: { maxFileBytes: 1024 },
   render: { maxWidth: 1920, maxHeight: 1080, maxDocumentHeight: 8000, settleTimeoutMs: 1000 },

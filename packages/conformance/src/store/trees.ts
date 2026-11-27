@@ -1,38 +1,7 @@
-import type { Change, JsonObject, Op, PageContent } from "@agentpages/protocol";
 import type { Driver } from "../contract.js";
-import { actingAs, agent, type Cases, collection, having, LINK_READ, objectOfBytes, ofLength, page, PUBLISH, type Session, SET_ACCESS, sharing, text, type, TYPE_PUBLISH, typed, viewer } from "./kit.js";
-import { type ActingCases, after, COMMIT, COMMITS, committing, doc, limitsOf, listing, mine, onBoth, onlyIf, put, remove, revisionsOf, STATE_GET, STATE_LIST, type Surface, toolsOf, viewOf, within } from "./surface.js";
-
-const tree = { ...collection({}), tree: true };
-
-/** Publishes the first version of type `n`, whose `tasks` and `notes` are trees and whose `labels` are not. */
-const ofTrees = async (alice: Session, n: number): Promise<PageContent> => {
-  await alice.ok(TYPE_PUBLISH, having(type(n, 0), ["collections", { tasks: tree, notes: tree, labels: collection({}) }]));
-  return typed(n, 1);
-};
-
-/** The data of a tree document: its parent and its index, whatever they are. */
-const place = (parent: unknown, index: unknown = "a"): JsonObject => ({ parent, index });
-
-/** A put of a task under a parent, or as a root. */
-const node = (id: string, parent: string | null): Op => put(id, place(parent));
-
-/** `op`, a put, with other data. */
-const holding = (op: Op, data: JsonObject): unknown => having(op, ["data", data]);
-
-/** An index that ends in zero, which none may. */
-const ZERO = String(0);
-
-/** The ids of the documents a commit of these ops changes, in the order of its changes. */
-const changedBy = async (surface: Surface, ops: readonly unknown[]): Promise<string[]> =>
-  (await surface.ok(COMMIT, committing(ops))).commit.changes.map((change) => change.id);
-
-/** The ids of the documents a list returns. */
-const idsIn = async (surface: Surface, params: unknown): Promise<string[]> =>
-  (await surface.ok(STATE_LIST, params)).documents.map((document) => document.id);
-
-/** The change that deletes a task whose counter was 1. */
-const gone = (id: string): Change => ({ collection: "tasks", id, revision: 2, document: null });
+import { actingAs, agent, type Cases, having, LINK_READ, ofLength, page, PUBLISH, SET_ACCESS, sharing, text, viewer } from "./kit.js";
+import { changedBy, gone, holding, idsIn, node, ofTrees, place, ZERO } from "./nodes.js";
+import { type ActingCases, after, COMMIT, COMMITS, committing, doc, listing, mine, onBoth, put, remove, revisionsOf, STATE_GET, STATE_LIST, toolsOf, viewOf, within } from "./surface.js";
 
 const VALID = ["1", "Z", "a", "0a", "a0b", "00009"];
 
@@ -88,30 +57,7 @@ const ON_BOTH: ActingCases = {
     };
   },
 
-  "[COMMON-5] what is no tree node is decided after the limits and before a conflict, and a broken tree after the conditions of the ops": async (acting, driver) => {
-    const [first, second] = [node("a", null), node("b", null)];
-    const tried = [
-      [holding(first, place(null, ZERO)), put("c", objectOfBytes(limitsOf(driver).maxDocumentBytes + 1))],
-      [onlyIf(first, 1), holding(second, place(null, ZERO))],
-      [node("a", "none"), onlyIf(second, 1)],
-      [node("a", "none"), second],
-    ];
-    const refused = await Promise.all(tried.map((ops) => acting.answers(COMMIT, committing(ops))));
-    return {
-      got: [refused, await revisionsOf(acting, [first, second])],
-      want: [
-        [
-          ["LimitExceeded", 1],
-          ["InvalidParams", 1],
-          ["Conflict", 1],
-          ["Conflict", 0],
-        ],
-        [1, 1],
-      ],
-    };
-  },
-
-  "[TREE-4] a commit that would leave a tree document with a missing parent, or would create a cycle, is a conflict": async (acting) => {
+  "[TREE-4] a commit that would leave a tree document it puts with a missing parent, or one it places as its own ancestor, is a conflict": async (acting) => {
     await acting.ok(COMMIT, committing([node("a", null), node("b", "a"), node("c", "b")]));
     const before = await acting.ok(STATE_LIST, listing());
     const refused = [
@@ -122,6 +68,8 @@ const ON_BOTH: ActingCases = {
       await acting.answers(COMMIT, committing([node("e", null), node("a", "c")])),
       await acting.answers(COMMIT, committing([node("d", "e"), node("e", "d")])),
       await acting.answers(COMMIT, committing([node("f", "g"), node("g", "d"), node("d", "e"), node("e", "d")])),
+      await acting.answers(COMMIT, committing([node("d", "e"), node("e", "none")])),
+      await acting.answers(COMMIT, committing([node("d", "e"), node("e", "a"), remove("a")])),
     ];
     const unchanged = await acting.ok(STATE_LIST, listing());
     return {
@@ -135,10 +83,34 @@ const ON_BOTH: ActingCases = {
           ["Conflict", 1],
           ["Conflict", 0],
           ["Conflict", 2],
+          ["Conflict", 1],
+          ["Conflict", 1],
         ],
         before,
         [2, 2],
         ["Conflict", 0],
+      ],
+    };
+  },
+
+  "[TREE-4] a put places its document when it creates it or changes its parent: one that keeps its parent is not its own ancestor, and misses a parent the commit deletes": async (acting) => {
+    await acting.ok(COMMIT, committing([node("a", null), node("b", "a"), node("c", "b"), node("d", "c")]));
+    const [kept, deeper] = [put("b", place("a", "b")), put("d", place("c", "b"))];
+    const refused = [
+      await acting.answers(COMMIT, committing([kept, node("a", "c")])),
+      await acting.answers(COMMIT, committing([kept, remove("a")])),
+      await acting.answers(COMMIT, committing([node("x", null), deeper, remove("a")])),
+    ];
+    return {
+      got: [refused, await revisionsOf(acting, [kept, deeper, node("a", null)]), await idsIn(acting, listing())],
+      want: [
+        [
+          ["Conflict", 1],
+          ["Conflict", 0],
+          ["Conflict", 1],
+        ],
+        [2, 2, 2],
+        ["a", "b", "c", "d"],
       ],
     };
   },
@@ -208,40 +180,23 @@ const ON_BOTH: ActingCases = {
     };
   },
 
-  "[TREE-7] changes are in op order: a delete is followed by its descendants, a parent before its children, siblings by id": async (acting) => {
+  "[TREE-7] changes are in op order: a delete is followed by its descendants, depth first, a parent before its children, siblings by id": async (acting) => {
     await acting.ok(COMMIT, committing([node("r", null), node("a", "r"), node("B", "r"), node("10", "r"), node("x", "B")]));
-    await acting.ok(COMMIT, committing([node("p", null), node("q", "p"), node("u", "q"), node("k", "p")]));
     return {
-      got: [await changedBy(acting, [node("n", null), remove("r")]), await changedBy(acting, [remove("p"), node("m", null), remove("q")]), await idsIn(acting, listing())],
-      want: [
-        ["n", "r", "10", "B", "x", "a"],
-        ["p", "k", "m", "q", "u"],
-        ["m", "n"],
-      ],
+      got: [await changedBy(acting, [node("n", null), remove("r")]), await idsIn(acting, listing())],
+      want: [["n", "r", "10", "B", "x", "a"], ["n"]],
     };
   },
 
-  "[TREE-8] a commit whose changes, descendants included, number more than maxOpsPerCommit is beyond the limit, after the other tree rules": async (acting, driver) => {
-    const { maxOpsPerCommit } = limitsOf(driver);
-    const children = Array.from({ length: maxOpsPerCommit - 1 }, (_, n) => node(`child-${n}`, "p"));
-    await acting.ok(COMMIT, committing([node("p", null), ...children]));
-    const refused = [
-      await acting.answers(COMMIT, committing([remove("p"), node("q", null)])),
-      await acting.answers(COMMIT, committing([remove("p"), node("q", null), node("x", "none")])),
-    ];
-    const kept = await idsIn(acting, listing());
-    const { commit } = await acting.ok(COMMIT, committing([remove("p")]));
+  "[TREE-7] a descendant the commit has its own op on keeps the place of that op": async (acting) => {
+    await acting.ok(COMMIT, committing([node("p", null), node("q", "p"), node("u", "q"), node("k", "p")]));
+    await acting.ok(COMMIT, committing([node("s", null), node("t", "s"), node("v", "t"), node("w", "s")]));
     return {
-      got: [refused, kept.length, commit.changes.length, commit.seq, await idsIn(acting, listing())],
+      got: [await changedBy(acting, [remove("p"), node("m", null), remove("q")]), await changedBy(acting, [remove("s"), node("z", null), node("t", null)]), await idsIn(acting, listing())],
       want: [
-        [
-          ["LimitExceeded", undefined],
-          ["Conflict", 2],
-        ],
-        maxOpsPerCommit,
-        maxOpsPerCommit,
-        2,
-        [],
+        ["p", "k", "m", "q", "u"],
+        ["s", "w", "z", "t"],
+        ["m", "t", "v", "z"],
       ],
     };
   },

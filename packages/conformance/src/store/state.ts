@@ -1,4 +1,5 @@
 import { STATE_ACCESS_CASES } from "./access.js";
+import { BOUND_CASES } from "./bounds.js";
 import { COMMIT_CASES } from "./commit.js";
 import { type Cases, having, inPagesOfTwo, inTurn, ofLength, pageId, text, tick, timeOf, times } from "./kit.js";
 import { MODEL_CASES } from "./model.js";
@@ -184,6 +185,7 @@ export const STATE_CASES: Cases = {
   ...MODEL_CASES,
   ...TYPED_CASES,
   ...TREE_CASES,
+  ...BOUND_CASES,
   ...STATE_ACCESS_CASES,
   ...REPEAT_CASES,
 };

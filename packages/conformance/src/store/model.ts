@@ -1,6 +1,7 @@
 import type { Actor, Change, Commit, Document, Op } from "@agentpages/protocol";
 import type { Driver } from "../contract.js";
-import { brokenAt, descendants, malformedAt, type Parents, parentsOf, type Ruled, sweptBy } from "./grove.js";
+import { cleared, regrown } from "./felled.js";
+import { brokenAt, malformedAt, type Parents, parentsOf, type Ruled, sweptBy } from "./grove.js";
 import { actingAs, agent, type Cases, type Check, having, inTurn, LINK_WRITE, met, page, pageId, PUBLISH, SET_ACCESS, sharing, tick, timeOf, type, TYPE_PUBLISH, typed, viewer } from "./kit.js";
 import { BOBS_OWN, type Caller, CAROLS_OWN, COLLECTIONS, everyRun, IDS, keyOf, type LogName, OWNER, type Request, RUNS, type Seat, type Step, STEPS, TREE } from "./runs.js";
 import { AGENT, COMMIT, COMMITS, ownCommit, STATE_GET, STATE_LIST, type Surface, toolsOf, viewOf } from "./surface.js";
@@ -11,7 +12,7 @@ import { AGENT, COMMIT, COMMITS, ownCommit, STATE_GET, STATE_LIST, type Surface,
  */
 const GENERATED = 482_745_456;
 const MODULUS = 1_000_000_007;
-const FINAL_CHECKS = 4;
+const FINAL_CHECKS = 5;
 const MS_PER_STEP = 1000;
 
 /** One scope as the model keeps it: what `list` returns, every counter, and the log. */
@@ -213,26 +214,6 @@ const settled = async ({ callers, model }: Stage, { caller, scope, log }: Seat):
   };
 };
 
-/** An `opId` no run uses. */
-const CLEARING = 99;
-
-/**
- * What deleting every root of the tree changes: every document of the tree, each root followed by its descendants.
- * So every parent is there, no document is its own ancestor, and the Store knows the children of each.
- */
-const cleared = async ({ callers }: Stage): Promise<Check> => {
-  const { surface } = callers.agent;
-  const { documents } = await surface.ok(STATE_LIST, { scope: "page", collection: TREE });
-  const parents = parentsOf(documents);
-  const roots = documents.map((document) => document.id).filter((id) => parents.get(id) === null);
-  const ops = roots.map((id) => ({ op: "delete", collection: TREE, id }));
-  const made = await surface.ok(COMMIT, { scope: "page", opId: pageId(CLEARING), ops });
-  return {
-    got: [made.commit.changes.map((change) => change.id), await surface.ok(STATE_LIST, { scope: "page", collection: TREE })],
-    want: [roots.flatMap((id) => [id].concat(descendants(parents, { id, touched: new Set() }))), { documents: [], seq: made.commit.seq }],
-  };
-};
-
 const logOf = (first: Commit): Log => {
   const log = emptyLog();
   record(log, first);
@@ -270,7 +251,7 @@ const run =
     const stage = await staged(driver, n);
     await inTurn(sequence, async (step) => checks.push(await played(stage, step)));
     await inTurn([OWNER, BOBS_OWN, CAROLS_OWN], async (reached) => checks.push(await settled(stage, reached)));
-    checks.push(await cleared(stage));
+    checks.push(await cleared(stage.callers.agent.surface), await regrown(stage.callers.agent.surface));
   };
 
 /** A number that changes with any change of the text. */

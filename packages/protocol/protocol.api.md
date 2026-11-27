@@ -1068,6 +1068,8 @@ export interface StateLimits {
     maxDocumentBytes: number;
     // (undocumented)
     maxOpsPerCommit: number;
+    // (undocumented)
+    maxTreeDepth: number;
 }
 
 // @public (undocumented)

@@ -1,8 +1,7 @@
-import type { Paging } from "@agentpages/protocol";
 import type { Key, Reader } from "@agentpages/storage";
-import { countIn, list } from "../pipeline/index.js";
+import { countIn, ok, type Outcome, refuse } from "../pipeline/index.js";
 import { type DocumentId, documentKey, revisionKey } from "../state/keys.js";
-import type { Before, Pending } from "../state/records.js";
+import { type Before, isChange, type Pending } from "../state/records.js";
 import { type Child, childrenPrefix } from "./keys.js";
 import { type Grove, inTurn } from "./place.js";
 
@@ -22,52 +21,82 @@ export interface Plan {
   pending: Felling[];
 }
 
-interface Hold extends Grove {
+/** A descendant a sweep found, and the op that deletes it. */
+interface Found {
+  child: Child;
+  into: Swept[];
+}
+
+interface Sweep extends Grove {
   tx: Reader;
   /** The documents the commit has an op on. */
   changed: ReadonlySet<Key>;
+  maxOpsPerCommit: number;
+  /** How many more documents the commit may change. Below zero, it is beyond its limit, and the sweep is over. */
+  left: number;
+  found: Found[];
 }
 
-interface Rows {
-  prefix: Key;
-  paging: Paging;
+interface Under {
+  at: DocumentId;
+  into: Swept[];
 }
-
-/** The id of every row under a prefix, however many scans that takes. */
-const idsUnder = async (tx: Reader, { prefix, paging }: Rows): Promise<string[]> => {
-  const { rows, next } = await list({ tx, prefix, paging });
-  const ids = rows.map(([key]) => key.slice(prefix.length));
-  return next === undefined ? ids : [...ids, ...(await idsUnder(tx, { prefix, paging: { cursor: next.nextCursor } }))];
-};
 
 /**
- * Section 4.2 of the spec: the descendants of a document in the state after all the ops, a parent before its children
- * and siblings by id. A document the commit has an op on is no descendant: its op says where it is.
+ * Section 4.2 of the spec: the descendants of a document in the state after all the ops, depth first, a parent before
+ * its children and siblings by id. A document the commit has an op on is no descendant: its op says where it is. One
+ * scan reads the children of a document: more of them than `maxOpsPerCommit` are beyond the limit anyway.
  */
-const under = async (hold: Hold, { collection, id: parent }: DocumentId): Promise<Child[]> => {
-  const ids = await idsUnder(hold.tx, { prefix: childrenPrefix(hold.scope, { collection, id: parent }), paging: {} });
-  const children = ids
-    .map((id) => ({ collection, id, parent }))
-    .filter((child) => !hold.changed.has(documentKey(hold.scope, child)));
-  const below = await inTurn(children, async (child) => [child, ...(await under(hold, child))]);
-  return below.flat();
-};
-
-const counted = async ({ tx, scope }: Hold, found: Child[]): Promise<Swept[]> => {
-  const counters = await tx.getMany(found.map((child) => revisionKey(scope, child)));
-  return found.map((child, index) => ({ ...child, revision: countIn(counters[index], "revision") }));
+const sweepUnder = async (sweep: Sweep, { at, into }: Under): Promise<void> => {
+  const prefix = childrenPrefix(sweep.scope, at);
+  const rows = await sweep.tx.scan({ prefix, limit: sweep.maxOpsPerCommit });
+  const children = rows
+    .map(([key]) => ({ collection: at.collection, id: key.slice(prefix.length), parent: at.id }))
+    .filter((child) => !sweep.changed.has(documentKey(sweep.scope, child)));
+  await inTurn(children, async (child) => {
+    sweep.left -= 1;
+    if (sweep.left < 0) return;
+    sweep.found.push({ child, into });
+    await sweepUnder(sweep, { at: child, into });
+  });
 };
 
 const felling =
-  (hold: Hold) =>
+  (sweep: Sweep) =>
   async (pending: Pending): Promise<Felling> => {
     const { op } = pending;
-    const fells = op.op === "delete" && hold.trees.has(op.collection);
-    return { ...pending, swept: fells ? await counted(hold, await under(hold, op)) : [] };
+    const swept: Swept[] = [];
+    if (op.op === "delete" && sweep.trees.has(op.collection)) await sweepUnder(sweep, { at: op, into: swept });
+    return { ...pending, swept };
   };
 
-/** What a commit deletes besides the documents of its ops: the descendants of every tree document it deletes. */
-export const cascaded = async (tx: Reader, { grove, before }: { grove: Grove; before: Before }): Promise<Plan> => {
+/** One read of the counter of every descendant the sweep found, when it found any. */
+const count = async ({ tx, scope, found }: Sweep): Promise<void> => {
+  if (found.length === 0) return;
+  const counters = await tx.getMany(found.map(({ child }) => revisionKey(scope, child)));
+  found.forEach(({ child, into }, index) => {
+    into.push({ ...child, revision: countIn(counters[index], "revision") });
+  });
+};
+
+export interface Cascading {
+  grove: Grove;
+  before: Before;
+  maxOpsPerCommit: number;
+}
+
+/**
+ * What a commit deletes besides the documents of its ops: the descendants of every tree document it deletes. Section
+ * 4.2 of the spec: with more changes than `maxOpsPerCommit` it is beyond the limit, and the sweep stops there.
+ */
+export const cascaded = async (tx: Reader, { grove, before, maxOpsPerCommit }: Cascading): Promise<Outcome<Plan>> => {
   const changed = new Set(before.pending.map(({ op }) => documentKey(grove.scope, op)));
-  return { seq: before.seq, pending: await inTurn(before.pending, felling({ ...grove, tx, changed })) };
+  const left = maxOpsPerCommit - before.pending.filter(isChange).length;
+  const sweep: Sweep = { ...grove, tx, changed, maxOpsPerCommit, left, found: [] };
+  const pending = await inTurn(before.pending, felling(sweep));
+  if (sweep.left < 0) {
+    return refuse({ error: "LimitExceeded", message: `The changes, descendants included, are more than maxOpsPerCommit ${maxOpsPerCommit}` });
+  }
+  await count(sweep);
+  return ok({ seq: before.seq, pending });
 };

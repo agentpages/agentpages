@@ -18,7 +18,12 @@ export const CapabilitySchema: Schema<Capability> = sealed(
       commitRetentionSeconds: CountSchema,
     }),
     state: v.exactOptional(
-      v.object({ maxDocumentBytes: CountSchema, maxOpsPerCommit: CountSchema, liveChanges: v.boolean() }),
+      v.object({
+        maxDocumentBytes: CountSchema,
+        maxOpsPerCommit: CountSchema,
+        maxTreeDepth: CountSchema,
+        liveChanges: v.boolean(),
+      }),
     ),
     identity: v.exactOptional(EmptySchema),
     files: v.exactOptional(v.object({ maxFileBytes: CountSchema })),

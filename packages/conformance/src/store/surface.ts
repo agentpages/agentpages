@@ -36,6 +36,9 @@ import {
   type Session,
   SET_ACCESS,
   sharing,
+  type,
+  TYPE_PUBLISH,
+  typed,
   viewer,
   type Visit,
 } from "./kit.js";
@@ -182,6 +185,13 @@ export interface Acting extends Surface {
   by: Actor;
   page: number;
 }
+
+/** Publishes a second version of the type of the page, which declares these collections, and moves the page to it. */
+export const retyped = async (driver: Driver, { page: n, collections }: { page: number; collections: object }): Promise<void> => {
+  const alice = actingAs(driver, agent(1));
+  await alice.ok(TYPE_PUBLISH, having(type(n, 1), ["collections", collections]));
+  await alice.ok(PUBLISH, having(page(n, 1), ["content", typed(n, 2)]));
+};
 
 export type ActingCases = Record<string, (acting: Acting, driver: Driver) => Promise<Check>>;
 

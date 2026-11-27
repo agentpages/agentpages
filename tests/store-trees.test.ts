@@ -1,58 +1,63 @@
 import { type Answer, TOOL_SCHEMAS } from "@agentpages/protocol";
-import type { Storage } from "@agentpages/storage";
 import { expect, test } from "vitest";
 import * as fc from "fast-check";
-import { ADVERTISED, call, callEach, committed, declaring, errorOf, failureOf, node, PAGE, PUBLISHED, publishing, put, remove, resultOf, saved, transactingAs, TREE_PAGE, world, type World } from "./support/store.ts";
-
-const SCOPE = `page/${PAGE}/s/p/`;
+import { ADVERTISED, call, callEach, committed, errorOf, failureOf, node, PUBLISHED, PAGE, put, remove, resultOf, saved, transactingAs, TREE_PAGE, world, type World } from "./support/store.ts";
 
 /** What a commit of alice's changes: the id of each change, in order. */
 const changedBy = async (target: World, request: [string, unknown]): Promise<string[]> =>
   resultOf(TOOL_SCHEMAS.state_commit.result, await call(target, request)).commit.changes.map((change) => change.id);
 
-const idsIn = async (target: World, collection: string): Promise<string[]> =>
-  resultOf(TOOL_SCHEMAS.state_list.result, await call(target, ["state_list", { pageId: PAGE, scope: "page", collection }])).documents.map((document) => document.id);
+interface Task {
+  id: string;
+  parent: unknown;
+}
 
-/** A Store that takes so many ops in a commit, with `PAGE` as a page whose tasks are a tree. */
-const withTree = async (maxOpsPerCommit: number): Promise<World> => {
-  const target = world({ config: { capability: { ...ADVERTISED, state: { maxDocumentBytes: 1024, maxOpsPerCommit, liveChanges: true } } } });
+/** The tasks of `PAGE`, each with the parent its data names, in the order of their ids. */
+const tasksIn = async (target: World): Promise<Task[]> =>
+  resultOf(TOOL_SCHEMAS.state_list.result, await call(target, ["state_list", { pageId: PAGE, scope: "page", collection: "tasks" }])).documents.map(
+    ({ id, data }) => ({ id, parent: data.parent }),
+  );
+
+const idsIn = async (target: World): Promise<string[]> => (await tasksIn(target)).map((task) => task.id);
+
+interface TreeLimits {
+  maxOpsPerCommit: number;
+  maxTreeDepth: number;
+}
+
+/** A Store with these limits, with `PAGE` as a page whose tasks are a tree. */
+const withTree = async (limits: TreeLimits): Promise<World> => {
+  const target = world({ config: { capability: { ...ADVERTISED, state: { maxDocumentBytes: 1024, liveChanges: true, ...limits } } } });
   await callEach(target, TREE_PAGE);
   return target;
 };
 
-const keysOf = async (storage: Storage): Promise<string[]> => (await storage.scan({ prefix: "", limit: Number.MAX_SAFE_INTEGER })).map(([key]) => key);
-
-/** The rows that say which tree document is under which, as the storage holds them. */
-const rowsIn = async (storage: Storage): Promise<string[]> => (await keysOf(storage)).filter((key) => key.startsWith(`${SCOPE}t/`));
-
 const numbered = (n: number): string => `child-${String(n).padStart(3, "0")}`;
 
-test("[TREE-5] a document with more children than one scan returns is deleted with all of them, in the order of their ids", async () => {
-  const target = await withTree(200);
+test("[TREE-5] a document with more than a hundred children is deleted with all of them, in the order of their ids", async () => {
+  const target = await withTree({ maxOpsPerCommit: 200, maxTreeDepth: 4 });
   const children = Array.from({ length: 101 }, (_, n) => numbered(n));
   const lastFirst = children.map((_, n) => node(numbered(100 - n), "root"));
   await call(target, committed(2, [...lastFirst, node("root", null), node("other", null)]));
-  const before = await rowsIn(target.storage);
   const changed = await changedBy(target, committed(3, [remove("root")]));
 
-  expect(before).toStrictEqual(children.map((id) => `${SCOPE}t/tasks/root/${id}`));
   expect(changed).toStrictEqual(["root", ...children]);
-  expect(await idsIn(target, "tasks")).toStrictEqual(["other"]);
-  expect(await rowsIn(target.storage)).toStrictEqual([]);
+  expect(await idsIn(target)).toStrictEqual(["other"]);
 });
 
 const blamed = (answer: Answer): unknown[] => [errorOf(answer), failureOf(answer)?.message, failureOf(answer)?.opIndex];
 
 test("[ERR-3] the message of a commit that a tree does not allow names the op and what is wrong with it, and the commit saves nothing", async () => {
-  const target = await withTree(3);
+  const target = await withTree({ maxOpsPerCommit: 3, maxTreeDepth: 2 });
   await call(target, committed(2, [node("a", null), node("b", "a"), node("c", "b")]));
   const before = await saved(target.storage);
   const answers = [
     await call(target, committed(3, [node("d", null), put("e", { parent: null, index: "a0" })])),
     await call(target, committed(4, [put("e", { parent: "not an id", index: "a" })])),
     await call(target, committed(5, [node("d", null), node("e", "none")])),
-    await call(target, committed(6, [node("a", "c")])),
+    await call(target, committed(6, [node("a", "b")])),
     await call(target, committed(7, [remove("a"), node("d", null)])),
+    await call(target, committed(8, [node("d", null), node("e", "c")])),
   ];
 
   expect(answers.map(blamed)).toStrictEqual([
@@ -60,118 +65,123 @@ test("[ERR-3] the message of a commit that a tree does not allow names the op an
     ["InvalidParams", "op 0: data.parent: Expected /^[A-Za-z0-9_-]{1,128}$/u", 0],
     ["Conflict", "op 1: its parent none does not exist", 1],
     ["Conflict", "op 0: it would be its own ancestor", 0],
-    ["LimitExceeded", "4 changes are more than maxOpsPerCommit 3", undefined],
+    ["LimitExceeded", "The changes, descendants included, are more than maxOpsPerCommit 3", undefined],
+    ["LimitExceeded", "op 1: it would have more than maxTreeDepth 2 ancestors", 1],
   ]);
   expect(await saved(target.storage)).toStrictEqual(before);
 });
 
 test("[TREE-4] a root is under no document, not even under one whose id reads as null", async () => {
-  const target = await withTree(10);
+  const target = await withTree({ maxOpsPerCommit: 10, maxTreeDepth: 4 });
   await call(target, committed(2, [node("top", null), node("start", null), node("null", "start")]));
   const moved = await changedBy(target, committed(3, [node("start", "top")]));
   const deleted = await changedBy(target, committed(4, [remove("null")]));
 
   expect([moved, deleted]).toStrictEqual([["start"], ["null"]]);
-  expect(await idsIn(target, "tasks")).toStrictEqual(["start", "top"]);
-  expect(await rowsIn(target.storage)).toStrictEqual([`${SCOPE}t/tasks/top/start`]);
+  expect(await idsIn(target)).toStrictEqual(["start", "top"]);
+  expect(await changedBy(target, committed(5, [remove("top")]))).toStrictEqual(["top", "start"]);
 });
 
-/** The row that says a task is under a parent. */
-const row = (parent: string, id: string): string => `${SCOPE}t/tasks/${parent}/${id}`;
-
-type Write = [string, string];
-
-/** `storage`, with every write of its transactions recorded in `writes`, in order. */
-const recording = (storage: Storage, writes: Write[]): Storage =>
-  transactingAs(storage, (tx) => ({
+test("a commit to a tree writes and deletes no key outside its page", async () => {
+  const touched: string[] = [];
+  const recorded = transactingAs(world().storage, (tx) => ({
     put: (key, value) => {
-      writes.push(["put", key]);
+      touched.push(key);
       tx.put(key, value);
     },
     delete: (key) => {
-      writes.push(["delete", key]);
+      touched.push(key);
       tx.delete(key);
     },
   }));
-
-/** The documents, counters and logs of the page scope, and what the page remembers of its requests. */
-const ORDINARY = /\/s\/p\/(?:[drl]\/|head$)|\/op\//u;
-
-/** What a commit of alice's writes besides its documents, counters, log and record. */
-const rowWrites = async (target: World, { writes, request }: { writes: Write[]; request: [string, unknown] }): Promise<Write[]> => {
-  writes.length = 0;
-  await call(target, request);
-  return writes.filter(([, key]) => !ORDINARY.test(key));
-};
-
-test("a commit writes the row of each tree document it moves, deletes the row it had, and writes nothing else", async () => {
-  const writes: Write[] = [];
-  const kept = world();
-  const target = world({ ports: { storage: recording(kept.storage, writes) } });
+  const target = world({ ports: { storage: recorded } });
   await callEach(target, TREE_PAGE);
-  const written = [
-    await rowWrites(target, { writes, request: committed(2, [node("r", null), node("a", "r"), node("b", "a"), remove("none")]) }),
-    await rowWrites(target, { writes, request: committed(3, [node("b", "r"), put("a", { parent: "r", index: "b" })]) }),
-    await rowWrites(target, { writes, request: committed(4, [node("r", null), { ...put("x", { parent: "r", index: "a" }), collection: "labels" }]) }),
-    await rowWrites(target, { writes, request: committed(5, [remove("r"), { ...remove("x"), collection: "labels" }]) }),
-  ];
+  touched.length = 0;
+  await callEach(target, [committed(2, [node("a", null), node("b", "a")]), committed(3, [node("b", null), node("a", "b")]), committed(4, [remove("b")])]);
 
-  expect(written).toStrictEqual([
-    [
-      ["put", row("r", "a")],
-      ["put", row("a", "b")],
-    ],
-    [
-      ["delete", row("a", "b")],
-      ["put", row("r", "b")],
-      ["delete", row("r", "a")],
-      ["put", row("r", "a")],
-    ],
-    [],
-    [
-      ["delete", row("r", "a")],
-      ["delete", row("r", "b")],
-    ],
-  ]);
-  expect(await rowsIn(kept.storage)).toStrictEqual([]);
+  expect(touched.filter((key) => !key.startsWith(`page/${PAGE}/`))).toStrictEqual([]);
+  expect(await idsIn(target)).toStrictEqual([]);
 });
 
-/** How often a commit of alice's scans the storage. */
-const scansOf = async (target: World, request: [string, unknown]): Promise<number> => {
-  const scans = { made: 0 };
+const READS = new Set(["get", "getMany", "scan"]);
+
+/** The error of a request of alice's, and how often the Store read its storage to answer it. */
+const costOf = async (target: World, request: [string, unknown]): Promise<[string | undefined, number]> => {
+  const reads = { made: 0 };
   target.plan((point) => {
-    scans.made += Number(point === "scan");
+    reads.made += Number(READS.has(point));
   });
-  await call(target, request);
-  return scans.made;
+  return [errorOf(await call(target, request)), reads.made];
 };
 
-test("a delete scans for the children of its document, and of each descendant, in a tree and nowhere else", async () => {
-  const [typed, plain] = [await withTree(10), world()];
-  await call(typed, committed(2, [node("a", null), node("b", "a"), node("c", "a"), { ...put("a"), collection: "labels" }]));
-  await callEach(plain, [PUBLISHED, committed(2, [node("a", null), node("b", "a")])]);
-  const scans = [
-    await scansOf(typed, committed(3, [{ ...remove("a"), collection: "labels" }, node("d", "a")])),
-    await scansOf(typed, committed(4, [remove("a"), remove("none")])),
-    await scansOf(plain, committed(3, [remove("a")])),
-  ];
+/** Commits of alice's from `first` on, each of as many of the ops as a commit of five takes. */
+const grown = (first: number, ops: unknown[]): [string, unknown][] =>
+  Array.from({ length: Math.ceil(ops.length / 5) }, (_, n) => committed(first + n, ops.slice(n * 5, (n + 1) * 5)));
 
-  expect(scans).toStrictEqual([0, 5, 0]);
-  expect(await idsIn(plain, "tasks")).toStrictEqual(["b"]);
+/** Puts of so many tasks under a parent, named after it. */
+const under = (parent: string, count: number): unknown[] => Array.from({ length: count }, (_, n) => node(`${parent}-${n}`, parent));
+
+/** A task with three children, and after them a child with so many children of its own, each with as many again. */
+const bush = (root: string, size: number): unknown[] => {
+  const last = `${root}-z`;
+  return [node(root, null), ...under(root, 3), node(last, root), ...under(last, size), ...Array.from({ length: size }, (_, n) => under(`${last}-${n}`, size)).flat()];
+};
+
+test("[TREE-8] a delete that is beyond the limit reads no more of a subtree that is larger, in its width or below", async () => {
+  const target = await withTree({ maxOpsPerCommit: 5, maxTreeDepth: 4 });
+  await callEach(target, grown(100, [...bush("small", 1), ...bush("large", 5), node("few", null), ...under("few", 6), node("many", null), ...under("many", 60)]));
+  const [small, large] = [await costOf(target, committed(2, [remove("small")])), await costOf(target, committed(3, [remove("large")]))];
+  const [few, many] = [await costOf(target, committed(4, [remove("few")])), await costOf(target, committed(5, [remove("many")]))];
+
+  expect([small, few]).toStrictEqual([large, many]);
+  expect([large[0], many[0]]).toStrictEqual(["LimitExceeded", "LimitExceeded"]);
+  expect(await changedBy(target, committed(6, [remove("large-z-4-4"), remove("many-59")]))).toStrictEqual(["large-z-4-4", "many-59"]);
 });
 
-test("[TREE-5] a collection that its type declared a tree is one while the type version of the page leaves it out", async () => {
-  const target = await withTree(10);
-  await call(target, committed(2, [node("a", null), node("b", "a")]));
-  await callEach(target, [
-    ["types_publish", { ...declaring("deck", 3), baseVersion: 1, collections: { labels: { schema: {} } } }],
-    ["pages_publish", { ...publishing({ page: 1, baseVersion: 1, op: 4 }), content: { kind: "type", typeId: "deck", typeVersion: 2 } }],
-  ]);
-  const refused = errorOf(await call(target, committed(5, [node("c", "a")])));
-  const changed = await changedBy(target, committed(6, [remove("a")]));
+/** Puts of a chain of tasks under a parent, each under the one before it. */
+const chain = (name: string, { length, parent }: { length: number; parent: string | null }): unknown[] =>
+  Array.from({ length }, (_, n) => node(`${name}-${n}`, n === 0 ? parent : `${name}-${n - 1}`));
 
-  expect([refused, changed]).toStrictEqual(["InvalidParams", ["a", "b"]]);
-  expect(await rowsIn(target.storage)).toStrictEqual([]);
+/** A Store whose tree may be four deep, with a chain of five tasks, and one of twenty that was made by moving chains. */
+const withChains = async (): Promise<World> => {
+  const target = await withTree({ maxOpsPerCommit: 5, maxTreeDepth: 4 });
+  const pieces = ["short", "p", "q", "r", "s"].map((name) => chain(name, { length: 5, parent: null }));
+  const joins = [node("q-0", "p-4"), node("r-0", "q-4"), node("s-0", "r-4")];
+  await callEach(target, grown(100, [...pieces.flat(), ...joins]));
+  return target;
+};
+
+test("[TREE-9] a put that places a document climbs no further where the tree is deeper, and one that keeps its parent does not climb", async () => {
+  const target = await withChains();
+  const [shallow, deep] = [await costOf(target, committed(2, [node("x", "short-4")])), await costOf(target, committed(3, [node("x", "s-4")]))];
+  const [root, kept] = [await costOf(target, committed(4, [put("short-0", { parent: null, index: "b" })])), await costOf(target, committed(5, [put("s-4", { parent: "s-3", index: "b" })]))];
+
+  expect(shallow).toStrictEqual(deep);
+  expect(deep[0]).toBe("LimitExceeded");
+  expect(kept).toStrictEqual(root);
+  expect(kept[0]).toBeUndefined();
+});
+
+test("[TREE-9] the puts of a commit climb together: as many reads for five documents as for one", async () => {
+  const target = await withChains();
+  const one = await costOf(target, committed(2, [node("x", "short-3")]));
+  const five = await costOf(target, committed(3, [...under("short-2", 2), ...under("short-1", 2), node("y", "short-2-0")]));
+
+  expect(five).toStrictEqual(one);
+  expect(five[0]).toBeUndefined();
+});
+
+test("a commit outside a tree reads the storage as often as on a page without trees, whatever its ops are", async () => {
+  const [typed, plain] = [await withTree({ maxOpsPerCommit: 5, maxTreeDepth: 4 }), world()];
+  const label = { ...put("a"), collection: "labels" };
+  await callEach(typed, [committed(2, [node("a", null), node("b", "a")]), committed(3, [label])]);
+  await callEach(plain, [PUBLISHED, committed(3, [label])]);
+  const outside = [await costOf(typed, committed(4, [{ ...label, data: { n: 1 } }])), await costOf(typed, committed(5, [{ ...remove("a"), collection: "labels" }]))];
+  const untyped = [await costOf(plain, committed(4, [{ ...label, data: { n: 1 } }])), await costOf(plain, committed(5, [{ ...remove("a"), collection: "labels" }]))];
+
+  expect(outside[1]).toStrictEqual(outside[0]);
+  expect(untyped[1]).toStrictEqual(untyped[0]);
+  expect(await idsIn(typed)).toStrictEqual(["a", "b"]);
 });
 
 const IDS = ["a", "b", "c", "d", "e"];
@@ -184,36 +194,21 @@ const anOp = fc.oneof(
 /** A few ops, each on a document of its own. */
 const someOps = fc.uniqueArray(anOp, { minLength: 1, maxLength: 3, selector: (op) => op.id });
 
-/** A task as the storage holds it. */
-const StoredSchema = TOOL_SCHEMAS.state_get.result;
-
-interface Stored {
-  id: string;
-  parent: unknown;
-}
-
-/** The tasks the storage holds, each with the parent its data names. */
-const tasksIn = async (storage: Storage): Promise<Stored[]> =>
-  (await storage.scan({ prefix: `${SCOPE}d/tasks/`, limit: Number.MAX_SAFE_INTEGER }))
-    .map(([, document]) => resultOf(StoredSchema, { kind: "result", result: { document } }).document)
-    .flatMap((task) => (task === null ? [] : [{ id: task.id, parent: task.data.parent }]));
-
-/** The tasks a walk down from the roots reaches. */
-const reached = (tasks: Stored[], parent: string | null): string[] =>
+/** The tasks a walk down from a parent reaches: each followed by what is under it. */
+const reached = (tasks: Task[], parent: string | null): string[] =>
   tasks.flatMap((task) => (task.parent === parent ? [task.id].concat(reached(tasks, task.id)) : []));
 
-/** The row a task must have: none for a root. */
-const rowOf = ({ id, parent }: Stored): string[] => (typeof parent === "string" ? [row(parent, id)] : []);
-
-test("[TREE-4] whatever is committed, every tree document hangs under a root and has the row of its parent, and no other row exists", async () => {
+test("[TREE-4] whatever is committed, every tree document hangs under a root, and deleting the roots deletes each with what is under it", async () => {
   await fc.assert(
     fc.asyncProperty(fc.array(someOps, { minLength: 1, maxLength: 12 }), async (commits) => {
-      const target = await withTree(10);
+      const target = await withTree({ maxOpsPerCommit: 10, maxTreeDepth: 4 });
       await callEach(target, commits.map((ops, n) => committed(n + 2, ops)));
-      const tasks = await tasksIn(target.storage);
+      const tasks = await tasksIn(target);
+      const roots = tasks.filter((task) => task.parent === null).map((task) => remove(task.id));
 
       expect(new Set(reached(tasks, null))).toStrictEqual(new Set(tasks.map((task) => task.id)));
-      expect(new Set(await rowsIn(target.storage))).toStrictEqual(new Set(tasks.flatMap(rowOf)));
+      expect(await changedBy(target, committed(99, roots))).toStrictEqual(reached(tasks, null));
+      expect(await idsIn(target)).toStrictEqual([]);
     }),
     { numRuns: 60, seed: 2026 },
   );

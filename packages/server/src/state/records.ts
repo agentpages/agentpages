@@ -14,6 +14,9 @@ export interface Pending {
   stored: Value | undefined;
 }
 
+/** Section 4.1 of the spec: every put is a change, and so is the delete of a document that exists. */
+export const isChange = ({ op, stored }: Pending): boolean => op.op === "put" || stored !== undefined;
+
 /** A scope as a commit finds it. */
 export interface Before {
   seq: number;
