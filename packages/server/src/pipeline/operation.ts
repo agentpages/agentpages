@@ -1,8 +1,7 @@
-import type { Capability, Problem, Schema } from "@agentpages/protocol";
+import type { Answer, Capability, Problem, Schema } from "@agentpages/protocol";
 import type { Principal } from "../access/principal.js";
 import type { Ports } from "../ports/ports.js";
-import type { Key, Tx } from "../ports/storage.js";
-import type { Answer } from "./answer.js";
+import type { Key, Tx } from "@agentpages/storage";
 import type { Outcome } from "./outcome.js";
 
 export interface Deps extends Ports {
@@ -17,6 +16,8 @@ export interface Call<Who extends Principal> {
   method: string;
   input: unknown;
   principal: Who;
+  /** The id the request goes by: its host chose it for a host operation, and the Store for a tool call. */
+  requestId: string;
 }
 
 /** A well-formed request. */

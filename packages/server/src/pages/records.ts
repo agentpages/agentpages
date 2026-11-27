@@ -1,18 +1,12 @@
 import { type PageInfo, type PagesGetResult, TOOL_SCHEMAS } from "@agentpages/protocol";
-import { parsed, recordOf } from "../pipeline/index.js";
-import type { Reader, Tx, Value } from "../ports/storage.js";
+import { type Owned, owned, parsed, recordOf } from "../pipeline/index.js";
+import type { Reader, Tx, Value } from "@agentpages/storage";
 import { contentKey, metaKey, ownedKey } from "./keys.js";
 import { type Link, urlOf } from "./url.js";
 
-export interface Page {
-  owner: unknown;
-  info: PageInfo;
-}
+export type Page = Owned<PageInfo>;
 
-export const pageOf = (stored: Value): Page => ({
-  owner: recordOf(stored).owner,
-  info: parsed(TOOL_SCHEMAS.pages_publish.result, stored),
-});
+export const pageOf = (stored: Value): Page => owned(TOOL_SCHEMAS.pages_publish.result, stored);
 
 export interface VersionRead {
   tx: Reader;
@@ -48,9 +42,9 @@ export interface PageSave {
   info: PageInfo;
 }
 
-/** Saves the page and moves it to its new place among its owner's pages. */
+/** Saves the page, and moves it to its new place among its owner's pages in the same transaction. */
 export const savePage = ({ tx, owner, before, info }: PageSave): void => {
   tx.delete(ownedKey(owner, before));
-  tx.put(ownedKey(owner, info), {});
+  tx.put(ownedKey(owner, info), { ...info });
   tx.put(metaKey(info.pageId), { ...info, owner });
 };

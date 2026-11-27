@@ -1,16 +1,16 @@
-import { type Driver, type FaultPoint, faulty, type Plan, type Reply, type Viewing } from "@agentpages/conformance";
-import { type Capability, type LogRecord, type Schema, validate } from "@agentpages/protocol";
+import { type Driver, type FaultPoint, faulty, type Plan, type Viewing } from "@agentpages/conformance";
+import { type Answer, type Capability, type Failure, type LogRecord, type Schema, validate } from "@agentpages/protocol";
 import {
   ajvSchemaCompiler,
   createMemoryStorage,
   createStore,
   type Ports,
-  type Storage,
   type Store,
   type StoreConfig,
   unlimited,
   type Visitor,
 } from "@agentpages/server";
+import type { Reader, Storage, Tx } from "@agentpages/storage";
 
 export const BASE_URL = "https://pages.test/p/";
 
@@ -85,7 +85,7 @@ const failingOnceAt = (state: State, point: FaultPoint): Plan => (reached) => {
 const portsOf = (state: State, { storage, logs }: Pick<World, "storage" | "logs">): Ports => {
   const next = counter();
   return {
-    storage: faulty(storage, (point) => state.plan(point)),
+    storage: faulty(storage, (point, touched) => state.plan(point, touched)),
     clock: { now: () => state.now },
     ids: { id: () => `request-${next()}`, secret: () => `secret-${next()}` },
     logger: {
@@ -98,8 +98,8 @@ const portsOf = (state: State, { storage, logs }: Pick<World, "storage" | "logs"
   };
 };
 
-const principalOf = ({ url, subject }: Viewing): Visitor =>
-  subject === undefined ? { kind: "anonymous", url } : { kind: "viewer", subject, url };
+const principalOf = ({ subject }: Viewing): Visitor =>
+  subject === undefined ? { kind: "anonymous" } : { kind: "viewer", subject };
 
 /** The Store as the suite sees it: agents by their subject, viewers by the link they hold. */
 const driverOf = (running: { store: Store }, advance: (ms: number) => void): Driver => ({
@@ -174,22 +174,45 @@ export const declaring = (typeId: string, opNumber: number): Record<string, unkn
   content: { html: HTML },
 });
 
+/** The failure of an answer. Nothing when the request did not fail. */
+export const failureOf = (answer: Answer): Failure | undefined => (answer.kind === "failure" ? answer.failure : undefined);
+
+/** The error an answer failed with. */
+export const errorOf = (answer: Answer): string | undefined => failureOf(answer)?.error;
+
 /** The result of a call that must succeed, as the `T` of its schema. */
-export const resultOf = <T>(schema: Schema<T>, answer: Reply): T => {
-  const checked = validate(schema, answer.result);
-  if (answer.kind !== "result" || !checked.ok) throw new Error(`Expected a result, got ${JSON.stringify(answer)}`);
+export const resultOf = <T>(schema: Schema<T>, answer: Answer): T => {
+  const checked = validate(schema, answer.kind === "result" ? answer.result : undefined);
+  if (!checked.ok) throw new Error(`Expected a result, got ${JSON.stringify(answer)}`);
   return checked.value;
 };
 
 /** Every key and value the Store has saved. */
 export const saved = (storage: Storage): Promise<unknown> => storage.scan({ prefix: "", limit: Number.MAX_SAFE_INTEGER });
 
+/** `storage`, whose transactions read as `reads` says. */
+export const readingAs = (storage: Storage, reads: (tx: Tx) => Partial<Reader>): Storage => ({
+  ...storage,
+  transact: (locks, run) => storage.transact(locks, (tx) => run({ ...tx, ...reads(tx) })),
+});
+
 /** The request that publishes the first version of `PAGE`. */
 export const PUBLISHED: [string, unknown] = ["pages_publish", publishing({ page: 1, baseVersion: 0, op: 1 })];
 
 /** A tool call of alice. */
-export const call = (target: World, [tool, input]: [string, unknown]): Promise<Reply> =>
+export const call = (target: World, [tool, input]: [string, unknown]): Promise<Answer> =>
   target.call({ tool, input, principal: ALICE });
+
+/** The id the host of `open` chooses for its requests. */
+export const HOST_REQUEST = "host-request";
+
+export interface Opening extends Viewing {
+  url: string;
+}
+
+/** A host that opens `url` for a viewer. */
+export const open = (target: World, { url, ...viewer }: Opening): Promise<Answer> =>
+  target.host({ operation: "pages_open", input: { url }, principal: principalOf(viewer), requestId: HOST_REQUEST });
 
 interface Registered {
   name: string;

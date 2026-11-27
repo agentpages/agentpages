@@ -1,20 +1,22 @@
 import {
+  type Answer,
   type Capability,
+  CapabilitySchema,
   hasFeature,
   HOST_OPERATIONS,
   METHOD_NOT_FOUND,
   PROTOCOL_VERSION,
   TOOLS,
+  validate,
 } from "@agentpages/protocol";
 import type { Agent, Visitor } from "../access/principal.js";
-import type { Answer } from "../pipeline/answer.js";
 import type { Ports } from "../ports/ports.js";
 import { type HostOperationReady, OPERATIONS, type ToolReady } from "./operations.js";
 
 export interface StoreConfig {
   /** The limits and the features the Store advertises. */
   capability: Omit<Capability, "version">;
-  /** What every page `url` starts with, such as `https://pages.example/p/`. */
+  /** What every page `url` starts with: a URL, such as `https://pages.example/p/`. */
   baseUrl: string;
 }
 
@@ -28,6 +30,8 @@ export interface HostCall {
   operation: string;
   input: unknown;
   principal: Visitor;
+  /** The id the host chose for the request, as section 2.1 of the spec defines one. */
+  requestId: string;
 }
 
 export interface Store {
@@ -53,22 +57,32 @@ const listed = (capability: Capability): string[] =>
     .filter(([, { requires }]) => requires.every((feature) => hasFeature(capability, feature)))
     .map(([tool]) => tool);
 
-/** A Store over the given ports. All it keeps is in `ports.storage`. */
-export const createStore = (ports: Ports, config: StoreConfig): Store => {
-  const { opRetentionSeconds, commitRetentionSeconds } = config.capability.limits;
+/** What the Store advertises, once it is known to be a capability of section 3 of the spec that a Store can keep. */
+const advertised = (config: StoreConfig): Capability => {
+  const checked = validate(CapabilitySchema, { version: PROTOCOL_VERSION, ...config.capability });
+  if (!checked.ok) throw new TypeError(`The capability is not valid: ${JSON.stringify(checked.issues)}`);
+  const { opRetentionSeconds, commitRetentionSeconds } = checked.value.limits;
   if (commitRetentionSeconds < opRetentionSeconds) {
     throw new RangeError("commitRetentionSeconds must be at least opRetentionSeconds.");
   }
-  const capability = { version: PROTOCOL_VERSION, ...config.capability };
+  return checked.value;
+};
+
+/** A Store over the given ports. All it keeps is in `ports.storage`. It throws when `config` is not valid. */
+export const createStore = (ports: Ports, config: StoreConfig): Store => {
+  const capability = advertised(config);
+  if (!URL.canParse(config.baseUrl)) throw new TypeError("baseUrl must be a URL.");
   const deps = { ...ports, capability, baseUrl: config.baseUrl };
   return {
     capability,
     tools: listed(capability),
     call: ({ tool, input, principal }) =>
-      isReadyTool(tool) ? OPERATIONS[tool].answer({ deps, method: tool, input, principal }) : unknownMethod(),
-    host: ({ operation, input, principal }) =>
+      isReadyTool(tool)
+        ? OPERATIONS[tool].answer({ deps, method: tool, input, principal, requestId: ports.ids.id() })
+        : unknownMethod(),
+    host: ({ operation, input, principal, requestId }) =>
       isReadyHostOperation(operation)
-        ? OPERATIONS[operation].answer({ deps, method: operation, input, principal })
+        ? OPERATIONS[operation].answer({ deps, method: operation, input, principal, requestId })
         : unknownMethod(),
   };
 };

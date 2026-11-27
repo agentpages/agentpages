@@ -1,5 +1,5 @@
 import { counted } from "../pipeline/index.js";
-import type { Key } from "../ports/storage.js";
+import type { Key } from "@agentpages/storage";
 
 /** The current version of every type, by `typeId`. */
 export const TYPES_PREFIX: Key = "types/";

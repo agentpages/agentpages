@@ -38,6 +38,10 @@ const tree = { ...collection({}), tree: true };
 
 const flat = collection({});
 
+/** The collections of a first version, and the same with its tree no longer one. */
+const withTree = { outline: tree, notes: flat };
+const treeMadeFlat = { outline: flat, notes: flat };
+
 export const TYPES_CASES: Cases = {
   "[TYPES-1] types_publish creates a type and returns its TypeInfo": async (driver) => {
     const collections = { slides: { schema: { type: "object", required: ["title"] }, tree: true }, notes: { schema: {} } };
@@ -169,8 +173,8 @@ export const TYPES_CASES: Cases = {
 
   "[TYPES-12] a collection is a tree in every version of a type or in none": async (driver) => {
     const alice = actingAs(driver, agent(1));
-    await alice.ok(TYPE_PUBLISH, declaring(0, { outline: tree, notes: flat }));
-    const noLongerTree = await alice.fails(TYPE_PUBLISH, declaring(1, { outline: flat, notes: flat }));
+    await alice.ok(TYPE_PUBLISH, declaring(0, withTree));
+    const noLongerTree = await alice.fails(TYPE_PUBLISH, declaring(1, treeMadeFlat));
     const nowTree = await alice.fails(TYPE_PUBLISH, declaring(1, { outline: tree, notes: tree }));
     const second = await alice.ok(TYPE_PUBLISH, declaring(1, { notes: flat, tags: tree }));
     const declaredAgain = await alice.fails(TYPE_PUBLISH, declaring(2, { outline: flat }));
@@ -183,6 +187,15 @@ export const TYPES_CASES: Cases = {
         { outline: { schema: {}, tree: true }, extra: { schema: {} } },
         3,
       ],
+    };
+  },
+
+  "[TYPES-12] a stale baseVersion is a conflict, even when the request also changes what is a tree": async (driver) => {
+    const alice = actingAs(driver, agent(1));
+    await alice.ok(TYPE_PUBLISH, declaring(0, withTree));
+    return {
+      got: await Promise.all([0, 2].map((baseVersion) => alice.fails(TYPE_PUBLISH, declaring(baseVersion, treeMadeFlat)))),
+      want: times(2, "Conflict"),
     };
   },
 

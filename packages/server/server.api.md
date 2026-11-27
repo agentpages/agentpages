@@ -4,15 +4,14 @@
 
 ```ts
 
+import { Answer } from '@agentpages/protocol';
 import { Capability } from '@agentpages/protocol';
-import { Failure } from '@agentpages/protocol';
 import { Issue } from '@agentpages/protocol';
-import { JsonObject } from '@agentpages/protocol';
 import { JsonSchema } from '@agentpages/protocol';
 import { LogRecord } from '@agentpages/protocol';
-import { METHOD_NOT_FOUND } from '@agentpages/protocol';
 import { PageInfo } from '@agentpages/protocol';
 import { Problem } from '@agentpages/protocol';
+import { Storage as Storage_2 } from '@agentpages/storage';
 
 // @public
 export type Agent = Extract<Principal, {
@@ -21,12 +20,6 @@ export type Agent = Extract<Principal, {
 
 // @public
 export const ajvSchemaCompiler: SchemaCompiler;
-
-// @public
-export type Answer = Settled | {
-    kind: "unknown-method";
-    code: typeof METHOD_NOT_FOUND;
-};
 
 // @public (undocumented)
 export interface Clock {
@@ -52,6 +45,7 @@ export interface HostCall {
     operation: string;
     // (undocumented)
     principal: Visitor;
+    requestId: string;
 }
 
 // @public (undocumented)
@@ -59,9 +53,6 @@ export interface Ids {
     id(): string;
     secret(): string;
 }
-
-// @public
-export type Key = string;
 
 // @public (undocumented)
 export interface Logger {
@@ -81,11 +72,12 @@ export type Need = keyof typeof NEED;
 
 // @public (undocumented)
 export interface Permit {
+    link?: string;
     // (undocumented)
     need: Need;
     // (undocumented)
     page: {
-        owner: unknown;
+        owner: string;
         access: PageInfo["access"];
         url: string;
     };
@@ -120,29 +112,15 @@ export type Principal = {
     kind: "viewer";
     subject: string;
     name?: string;
-    url?: string;
 } | {
     kind: "anonymous";
-    url?: string;
 };
 
 // @public (undocumented)
-interface Range_2 {
-    after?: Key;
-    // (undocumented)
-    limit: number;
-    // (undocumented)
-    prefix: Key;
-    // (undocumented)
-    reverse?: true;
-}
-export { Range_2 as Range }
-
-// @public (undocumented)
 export interface RateLimiter {
-    check(request: RateRequest): {
+    check(request: RateRequest): Promise<{
         retryAfterMs: number;
-    } | undefined;
+    } | undefined>;
 }
 
 // @public (undocumented)
@@ -155,34 +133,9 @@ export interface RateRequest {
 }
 
 // @public (undocumented)
-export interface Reader {
-    // (undocumented)
-    get(key: Key): Promise<Value | undefined>;
-    // (undocumented)
-    getMany(keys: readonly Key[]): Promise<(Value | undefined)[]>;
-    // (undocumented)
-    scan(range: Range_2): Promise<[Key, Value][]>;
-}
-
-// @public (undocumented)
 export interface SchemaCompiler {
     compile(schema: JsonSchema): CompiledSchema | Problem;
 }
-
-// @public
-export type Settled = {
-    kind: "result";
-    result: unknown;
-} | {
-    kind: "failure";
-    failure: Failure;
-};
-
-// @public (undocumented)
-interface Storage_2 extends Reader {
-    transact<T>(locks: readonly Key[], run: (tx: Tx) => Promise<T>): Promise<T>;
-}
-export { Storage_2 as Storage }
 
 // @public (undocumented)
 export interface Store {
@@ -209,20 +162,7 @@ export interface ToolCall {
 }
 
 // @public
-export interface Tx extends Reader {
-    // (undocumented)
-    delete(key: Key): void;
-    // (undocumented)
-    deleteRange(prefix: Key): void;
-    // (undocumented)
-    put(key: Key, value: Value): void;
-}
-
-// @public
 export const unlimited: RateLimiter;
-
-// @public (undocumented)
-export type Value = JsonObject | Uint8Array;
 
 // @public
 export type Visitor = Exclude<Principal, Agent>;

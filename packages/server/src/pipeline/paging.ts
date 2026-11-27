@@ -1,5 +1,5 @@
 import { DEFAULT_LIMIT, type Paging } from "@agentpages/protocol";
-import type { Key, Reader, Value } from "../ports/storage.js";
+import type { Key, Reader, Value } from "@agentpages/storage";
 
 export interface Listing {
   tx: Reader;

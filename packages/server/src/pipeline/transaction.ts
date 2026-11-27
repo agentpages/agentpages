@@ -1,4 +1,4 @@
-import type { Key, Storage, Tx } from "../ports/storage.js";
+import type { Key, Storage, Tx } from "@agentpages/storage";
 
 type Fail = (error: unknown) => never;
 

@@ -8,8 +8,10 @@ export type Need = keyof typeof NEED;
 
 export interface Permit {
   principal: Principal;
-  page: { owner: unknown; access: PageInfo["access"]; url: string };
+  page: { owner: string; access: PageInfo["access"]; url: string };
   need: Need;
+  /** The page link the request presents. Whoever presents the page's current `url` is a link holder. */
+  link?: string;
 }
 
 const linkGrants = ({ page: { access }, need }: Permit): boolean =>
@@ -17,9 +19,9 @@ const linkGrants = ({ page: { access }, need }: Permit): boolean =>
 
 /** The access table of section 5.1 of the spec. */
 export const permits = (permit: Permit): boolean => {
-  const { principal, page, need } = permit;
+  const { principal, page, need, link } = permit;
   const { subject }: { kind: string; subject?: string } = principal;
   if (principal.kind === "agent") return subject === page.owner;
   if (subject === page.owner) return need !== NEED.owner;
-  return principal.url === page.url && linkGrants(permit);
+  return link === page.url && linkGrants(permit);
 };

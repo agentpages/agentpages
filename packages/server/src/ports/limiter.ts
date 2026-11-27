@@ -8,9 +8,9 @@ export interface RateRequest {
 }
 
 export interface RateLimiter {
-  /** How long the caller must wait, or nothing when the request may go on. */
-  check(request: RateRequest): { retryAfterMs: number } | undefined;
+  /** How long the caller must wait, or nothing when the request may go on. A rejection means it cannot tell. */
+  check(request: RateRequest): Promise<{ retryAfterMs: number } | undefined>;
 }
 
 /** Lets every request through. */
-export const unlimited: RateLimiter = { check: (): undefined => {} };
+export const unlimited: RateLimiter = { check: async (): Promise<undefined> => {} };

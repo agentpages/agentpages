@@ -1,15 +1,15 @@
-import type { Reply } from "@agentpages/conformance";
-import { TOOL_SCHEMAS } from "@agentpages/protocol";
+import { type Answer, TOOL_SCHEMAS } from "@agentpages/protocol";
+import type { Storage } from "@agentpages/storage";
 import * as fc from "fast-check";
 import { expect, test } from "vitest";
-import { BOB, call, declaring, op, PAGE, PUBLISHED, publishing, resultOf, world, type World } from "./support/store.ts";
+import { BOB, call, declaring, errorOf, op, PAGE, PUBLISHED, publishing, readingAs, resultOf, world, type World } from "./support/store.ts";
 
 type Request = [string, unknown];
 
-const outcomeOf = (answer: Reply): string => answer.failure?.error ?? answer.kind;
+const outcomeOf = (answer: Answer): string => errorOf(answer) ?? answer.kind;
 
 /** How many answers had each outcome. */
-const tally = (answers: Reply[]): Record<string, number> => {
+const tally = (answers: Answer[]): Record<string, number> => {
   const outcomes = answers.map(outcomeOf);
   return Object.fromEntries(outcomes.map((outcome) => [outcome, outcomes.filter((other) => other === outcome).length]));
 };
@@ -18,7 +18,7 @@ const tally = (answers: Reply[]): Record<string, number> => {
  * Sends `requests` together to a new Store, in every order a scheduler finds for the steps of its storage, and
  * checks what they answered and what they left.
  */
-const interleaving = (requests: Request[], check: (answers: Reply[], target: World) => Promise<void>): Promise<void> =>
+const interleaving = (requests: Request[], check: (answers: Answer[], target: World) => Promise<void>): Promise<void> =>
   fc.assert(
     fc.asyncProperty(fc.scheduler(), async (scheduler) => {
       const target = world();
@@ -59,7 +59,7 @@ test("[TYPES-4] of the requests that publish a type from one version exactly one
     const deck = await call(target, ["types_get", { typeId: "deck" }]);
 
     expect(tally(answers)).toStrictEqual({ result: 1, Conflict: 2 });
-    expect(deck.result).toMatchObject({ version: 1 });
+    expect(deck).toMatchObject({ result: { version: 1 } });
   });
 });
 
@@ -117,4 +117,29 @@ test("[REL-2] a request waits for the one before it on the same page", async () 
   release();
 
   expect(tally(await Promise.all(answers))).toStrictEqual({ result: 1, Conflict: 1 });
+});
+
+/** `storage`, where `meanwhile` happens after every scan of a transaction, before the scan is answered. */
+const afterEachScan = (storage: Storage, meanwhile: () => Promise<unknown>): Storage =>
+  readingAs(storage, (tx) => ({
+    scan: async (range) => {
+      const rows = await tx.scan(range);
+      await meanwhile();
+      return rows;
+    },
+  }));
+
+const pagesOf = async (target: World): Promise<string[]> =>
+  resultOf(TOOL_SCHEMAS.pages_list.result, await call(target, ["pages_list", {}])).pages.map((page) => page.pageId);
+
+test("[PAGES-3] pages_list answers from one read: a page deleted while it lists is listed whole or not at all", async () => {
+  const target = world();
+  await call(target, PUBLISHED);
+  const deleted: Answer[] = [];
+  const deleting = async (): Promise<number> => deleted.push(await call(target, ["pages_delete", { opId: op(2), pageId: PAGE }]));
+  const listed = await pagesOf(world({ ports: { storage: afterEachScan(target.storage, deleting) } }));
+
+  expect(listed).toStrictEqual([PAGE]);
+  expect(deleted).toStrictEqual([{ kind: "result", result: {} }]);
+  expect(await pagesOf(target)).toStrictEqual([]);
 });

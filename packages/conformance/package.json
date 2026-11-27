@@ -25,7 +25,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@agentpages/protocol": "workspace:^"
+    "@agentpages/protocol": "workspace:^",
+    "@agentpages/storage": "workspace:^"
   },
   "peerDependencies": {
     "fast-check": "^4.11.0",

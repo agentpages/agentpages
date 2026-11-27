@@ -1,4 +1,4 @@
-import type { Stored, StorageUnderTest, StorageWrites } from "../contract.js";
+import type { Storage, Tx, Value } from "@agentpages/storage";
 
 export const ALL = 100;
 
@@ -6,10 +6,10 @@ export const locks = (...held: number[]): string[] => held.map((lock) => `lock-$
 
 export const key = (n: number): string => `key/${n}`;
 
-export const value = (n: number): Stored => ({ step: n, nested: { list: [n, null] } });
+export const value = (n: number): Value => ({ step: n, nested: { list: [n, null] } });
 
 /** One transaction that makes these writes. */
-export const write = (storage: StorageUnderTest, change: (tx: StorageWrites) => void): Promise<void> =>
+export const write = (storage: Storage, change: (tx: Tx) => void): Promise<void> =>
   storage.transact(
     locks(),
     (tx) =>
@@ -20,17 +20,17 @@ export const write = (storage: StorageUnderTest, change: (tx: StorageWrites) => 
   );
 
 /** Puts a value under each key. */
-export const put = (storage: StorageUnderTest, keys: string[]): Promise<void> =>
+export const put = (storage: Storage, keys: string[]): Promise<void> =>
   write(storage, (tx) => {
     keys.forEach((name) => {
       tx.put(name, { at: name });
     });
   });
 
-export const keysUnder = async (storage: StorageUnderTest, prefix: string): Promise<string[]> =>
+export const keysUnder = async (storage: Storage, prefix: string): Promise<string[]> =>
   (await storage.scan({ prefix, limit: ALL })).map(([name]) => name);
 
-export const everyKey = (storage: StorageUnderTest): Promise<string[]> => keysUnder(storage, String());
+export const everyKey = (storage: Storage): Promise<string[]> => keysUnder(storage, String());
 
 export interface Gate {
   opened: Promise<void>;
@@ -63,7 +63,7 @@ export const RUNS = "run/";
 /** A run that reads how many runs came before, does `meanwhile`, then adds itself. Serial runs get their own number. */
 export const numbered =
   (meanwhile: () => Promise<unknown>) =>
-  async (tx: StorageWrites): Promise<void> => {
+  async (tx: Tx): Promise<void> => {
     const earlier = await tx.scan({ prefix: RUNS, limit: ALL });
     await meanwhile();
     tx.put(`${RUNS}${earlier.length}`, {});
@@ -77,7 +77,7 @@ export interface Arrival {
 }
 
 /** A run that says it arrived, then waits for `until`. */
-export const arriving = ({ arrived, name, until }: Arrival): ((tx: StorageWrites) => Promise<void>) =>
+export const arriving = ({ arrived, name, until }: Arrival): ((tx: Tx) => Promise<void>) =>
   numbered(() => {
     arrived.push(name);
     return Promise.resolve(until);

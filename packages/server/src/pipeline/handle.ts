@@ -1,8 +1,8 @@
-import { failure, invalidParams, type Validation, validate } from "@agentpages/protocol";
+import { failure, ID_PATTERN, invalidParams, type LogRecord, type Settled, type Validation, validate } from "@agentpages/protocol";
+import type { Tx } from "@agentpages/storage";
 import { actorOf } from "../access/actor.js";
 import type { Principal } from "../access/principal.js";
-import type { Tx } from "../ports/storage.js";
-import type { Settled } from "./answer.js";
+import type { Logger } from "../ports/logger.js";
 import type { Call, Place, Request, Schemas, Spec } from "./operation.js";
 import type { Outcome, Refusal } from "./outcome.js";
 import { transact } from "./transaction.js";
@@ -36,10 +36,15 @@ const failed = (requestId: string, refusal: Refusal): Settled => ({
 const settled = (requestId: string, outcome: Outcome<unknown>): Settled =>
   outcome.ok ? { kind: "result", result: outcome.value } : failed(requestId, outcome.refusal);
 
-const unavailable = (): Outcome<never> => ({
+const STORAGE_DOWN: Outcome<never> = {
   ok: false,
   refusal: { error: "Unavailable", message: "The storage did not answer. Repeat the request with the same opId." },
-});
+};
+
+const LIMITER_DOWN: Refusal = {
+  error: "Unavailable",
+  message: "The rate limiter did not answer. Repeat the request with the same opId.",
+};
 
 const nowhere = (): Refusal => ({ error: "NotFound", message: "The request names no page of this Store." });
 
@@ -48,19 +53,47 @@ const rateLimited = (requestId: string, retryAfterMs: number): Settled => ({
   failure: failure({ error: "RateLimited", requestId, message: `Too many requests. Wait ${retryAfterMs} ms.`, retryAfterMs }),
 });
 
+const none = (): undefined => {};
+
+/** Half of a surrogate pair: text that is not well-formed Unicode, and so cannot be part of a key. */
+const LONE_SURROGATE = /\p{Surrogate}/u;
+
+/** What is wrong with what the transport passed beside the input: who makes the request, and the id it goes by. */
+const strayEnvelope = ({ principal, requestId }: Call<Principal>): Refusal | undefined => {
+  if (Object.values(principal).some((text) => LONE_SURROGATE.test(text))) {
+    return { error: "InvalidParams", message: "principal: Expected well-formed Unicode." };
+  }
+  return ID_PATTERN.test(requestId) ? undefined : { error: "InvalidParams", message: "requestId: Expected an id." };
+};
+
+/** What the rate limiter makes of a request. Nothing when the request may go on. */
+const held = async <P, T, R, Who extends Principal>(attempt: Attempt<P, T, R, Who>): Promise<Settled | undefined> => {
+  const { call, requestId, place } = attempt;
+  const { deps, method, principal } = call;
+  const asked = await deps.limiter.check({ principal, method, pageId: place?.names.pageId }).then((limited) => ({ limited }), none);
+  if (asked === undefined) return failed(requestId, LIMITER_DOWN);
+  return asked.limited && rateLimited(requestId, asked.limited.retryAfterMs);
+};
+
+/** What stops a request before its params are looked at. */
+const turnedAway = <P, T, R, Who extends Principal>(attempt: Attempt<P, T, R, Who>): Promise<Settled | undefined> => {
+  const stray = strayEnvelope(attempt.call);
+  return stray === undefined ? held(attempt) : Promise.resolve(failed(attempt.requestId, stray));
+};
+
 /** The checks of a request in the order the spec gives them. The first that fails decides the answer. */
 const decide = async <P, T, R, Who extends Principal>(attempt: Attempt<P, T, R, Who>): Promise<Settled> => {
   const { operation, call, requestId, at, checked, place } = attempt;
   const { deps, method, principal } = call;
-  const limited = deps.limiter.check({ principal, method, pageId: place?.names.pageId });
-  if (limited !== undefined) return rateLimited(requestId, limited.retryAfterMs);
+  const turned = await turnedAway(attempt);
+  if (turned !== undefined) return turned;
   if (!checked.ok) return { kind: "failure", failure: invalidParams({ requestId, issues: checked.issues }) };
   const malformed = operation.spec.malformed?.(checked.value, deps);
   if (malformed !== undefined) return failed(requestId, malformed);
   if (place === undefined) return failed(requestId, nowhere());
   const request = { deps, method, principal, requestId, at, params: checked.value };
   const run = (tx: Tx): Promise<Outcome<unknown>> => operation.inside(place)(request, tx);
-  return settled(requestId, (await transact({ storage: deps.storage, locks: place.locks, run })) ?? unavailable());
+  return settled(requestId, (await transact({ storage: deps.storage, locks: place.locks, run })) ?? STORAGE_DOWN);
 };
 
 const causeOf = (error: unknown): string => (error instanceof Error ? error.name : typeof error);
@@ -75,7 +108,16 @@ const crashed =
 const verdictOf = (answer: Settled): { outcome: "ok" } | { outcome: "error"; error: string } =>
   answer.kind === "failure" ? { outcome: "error", error: answer.failure.error } : { outcome: "ok" };
 
-/** Answers one request and writes its one log record. */
+/** Section 7.7 of the spec: a log record that cannot be written is lost, and the answer stays what it was. */
+const written = (logger: Logger, record: LogRecord): Promise<unknown> =>
+  Promise.resolve(record)
+    .then((whole) => {
+      logger.log(whole);
+      return whole;
+    })
+    .catch(none);
+
+/** Answers one request and writes its one log record. An id its host chose badly is replaced, and the request refused. */
 export const handle = async <P, T, R, Who extends Principal>(
   operation: Operation<P, T, R, Who>,
   call: Call<Who>,
@@ -83,12 +125,12 @@ export const handle = async <P, T, R, Who extends Principal>(
   const { clock, ids, logger } = call.deps;
   const started = clock.now();
   const at = new Date(started).toISOString();
-  const requestId = ids.id();
+  const requestId = ID_PATTERN.test(call.requestId) ? call.requestId : ids.id();
   const checked = validate(operation.schemas.params, call.input);
   const place = checked.ok ? operation.spec.target(checked.value, call.deps) : undefined;
   const attempt = { operation, call, requestId, at, checked, place };
   const { answer, cause } = await decide(attempt).then((decided): Decided => ({ answer: decided, cause: {} }), crashed(requestId));
-  logger.log({
+  await written(logger, {
     at,
     requestId,
     ...place?.names,

@@ -15,6 +15,12 @@ export type Actor = {
 };
 
 // @public
+export type Answer = Settled | {
+    kind: "unknown-method";
+    code: typeof METHOD_NOT_FOUND;
+};
+
+// @public
 export const BASE64_PATTERN: RegExp;
 
 // @public
@@ -994,6 +1000,15 @@ export type Scope = "page" | "viewer";
 
 // @public
 export const SETTLE_QUIET_MS = 500;
+
+// @public
+export type Settled = {
+    kind: "result";
+    result: unknown;
+} | {
+    kind: "failure";
+    failure: Failure;
+};
 
 // @public (undocumented)
 export interface StateCommitParams {

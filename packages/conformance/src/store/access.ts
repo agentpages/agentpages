@@ -8,6 +8,7 @@ import {
   GET,
   guards,
   having,
+  HOST_REQUEST,
   html,
   LINK_READ,
   LINK_WRITE,
@@ -20,6 +21,7 @@ import {
   PRIVATE,
   PUBLISH,
   reading,
+  refusedOpenId,
   type Session,
   SET_ACCESS,
   sharing,
@@ -122,14 +124,20 @@ export const HOST_CASES: Cases = {
     await alice.ok(SET_ACCESS, sharing(1, PRIVATE));
     const current = await alice.ok(SET_ACCESS, sharing(1, LINK_READ));
     const nowhere = [stale.url.replace(pageId(1), pageId(2)), stale.url.replace(pageId(1), String(1)), stale.url.slice(1)];
-    const strangers = [anonymous(stale.url), viewer(2, stale.url)];
+    const notCurrent = [stale.url, `${current.url}x`];
+    const strangers = notCurrent.flatMap((url) => [anonymous(url), viewer(2, url)]);
     const unnamed = await Promise.all(nowhere.map((url) => openFails(driver, anonymous(url))));
     const refused = await Promise.all(strangers.map((stranger) => openFails(driver, stranger)));
-    const owned = await opens(driver, viewer(1, stale.url));
+    const owned = await Promise.all(notCurrent.map((url) => opens(driver, viewer(1, url))));
     await alice.ok(DELETE, deleting(1));
     return {
-      got: [unnamed, refused, owned.page, await openFails(driver, anonymous(current.url))],
-      want: [times(3, "NotFound"), times(2, "Forbidden"), current, "NotFound"],
+      got: [unnamed, refused, owned.map((opened) => opened.page), await openFails(driver, anonymous(current.url))],
+      want: [times(3, "NotFound"), times(4, "Forbidden"), [current, current], "NotFound"],
     };
+  },
+
+  "[REL-25] a failure of a host operation carries the requestId its host chose": async (driver) => {
+    const { published } = await withPage(driver);
+    return { got: await refusedOpenId(driver, anonymous(published.url)), want: HOST_REQUEST };
   },
 };

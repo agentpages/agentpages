@@ -9,7 +9,7 @@ import {
 } from "@agentpages/protocol";
 import { type Context, type Deps, type Handler, mutation, ok, type Outcome, parsed, refuse } from "../pipeline/index.js";
 import type { Agent } from "../access/principal.js";
-import type { Tx } from "../ports/storage.js";
+import type { Tx } from "@agentpages/storage";
 import { declaredKey, rememberedPrefix, typeKey, typeVersionKey } from "./keys.js";
 import { publishableType, type Type } from "./target.js";
 

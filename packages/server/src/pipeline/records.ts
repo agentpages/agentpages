@@ -1,5 +1,5 @@
 import { type JsonObject, type Schema, validate } from "@agentpages/protocol";
-import type { Value } from "../ports/storage.js";
+import type { Value } from "@agentpages/storage";
 
 /** The storage returned something the Store never put there. */
 class CorruptRecord extends Error {
@@ -16,4 +16,17 @@ export const parsed = <T>(schema: Schema<T>, value: unknown): T => {
   const checked = validate(schema, value);
   if (!checked.ok) throw new CorruptRecord();
   return checked.value;
+};
+
+/** A page or type as it is stored: what the spec says of it, and the subject that owns it. */
+export interface Owned<T> {
+  owner: string;
+  info: T;
+}
+
+/** `value` as the `T` its owner stored. A record without an owner is corrupt. */
+export const owned = <T>(schema: Schema<T>, value: Value): Owned<T> => {
+  const { owner } = recordOf(value);
+  if (typeof owner !== "string") throw new CorruptRecord();
+  return { owner, info: parsed(schema, value) };
 };

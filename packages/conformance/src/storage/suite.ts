@@ -1,15 +1,15 @@
 import * as fc from "fast-check";
 import { expect, test } from "vitest";
-import type { StorageUnderTest, StorageWrites } from "../contract.js";
+import type { Storage, Tx } from "@agentpages/storage";
 import type { Check } from "../store/kit.js";
 import { ALL, arriving, everyKey, type Gate, gate, key, keysUnder, locks, numbered, put, RUNS, settled, value, write } from "./kit.js";
 
-export type MakeStorage = () => StorageUnderTest | Promise<StorageUnderTest>;
+export type MakeStorage = () => Storage | Promise<Storage>;
 
 type Cases = Record<string, (make: MakeStorage) => Promise<Check>>;
 
 /** Puts key 3, and deletes key 1 and everything under key 2, such as keys 21 and 22. */
-const change = (tx: StorageWrites): void => {
+const change = (tx: Tx): void => {
   tx.put(key(3), value(3));
   tx.delete(key(1));
   tx.deleteRange(key(2));
@@ -22,7 +22,7 @@ interface Held {
 }
 
 /** Starts a run on lock 1 that waits at a gate. */
-const holding = (storage: StorageUnderTest): Held => {
+const holding = (storage: Storage): Held => {
   const first = gate();
   const arrived: string[] = [];
   return { first, arrived, held: storage.transact(locks(1), arriving({ arrived, name: key(1), until: first.opened })) };
@@ -70,59 +70,31 @@ const CASES: Cases = {
     };
   },
 
-  "[REL-7] a transaction reads its own writes, in the order it made them": async (make) => {
+  "[REL-7] a run reads only committed rows, never its own writes, which are saved in the order it made them": async (make) => {
     const storage = await make();
-    await put(storage, [key(1)]);
-    const seen = await storage.transact(locks(), async (tx) => {
-      tx.put(key(21), value(2));
-      tx.put(key(22), value(3));
-      const committed = await tx.get(key(1));
-      tx.delete(key(1));
-      const afterDelete = [committed, await tx.getMany([key(1), key(22)]), await tx.scan({ prefix: key(2), limit: ALL })];
-      tx.put(key(1), value(4));
-      tx.deleteRange(key(2));
-      tx.put(key(23), value(5));
-      return [afterDelete, await tx.scan({ prefix: String(), limit: ALL })];
-    });
-    const all = [
-      [key(1), value(4)],
-      [key(23), value(5)],
+    await put(storage, [key(1), key(21)]);
+    const committed = [
+      [key(1), { at: key(1) }],
+      [key(21), { at: key(21) }],
     ];
+    const seen = await storage.transact(locks(), async (tx) => {
+      tx.deleteRange(key(2));
+      tx.put(key(22), value(3));
+      tx.delete(key(1));
+      return [await tx.get(key(1)), await tx.getMany([key(21), key(22)]), await tx.scan({ prefix: String(), limit: ALL })];
+    });
     return {
       got: [seen, await storage.scan({ prefix: String(), limit: ALL })],
-      want: [
-        [
-          [
-            { at: key(1) },
-            [undefined, value(3)],
-            [
-              [key(21), value(2)],
-              [key(22), value(3)],
-            ],
-          ],
-          all,
-        ],
-        all,
-      ],
+      want: [[{ at: key(1) }, [{ at: key(21) }, undefined], committed], [[key(22), value(3)]]],
     };
   },
 
-  "[REL-8] a run that throws saves nothing, and the transaction rejects with what it threw": async (make) => {
+  "[REL-8] a transaction rejects with what its run threw, and the next run on its lock goes on": async (make) => {
     const storage = await make();
-    await put(storage, [key(1), key(21)]);
     const thrown = new Error(key(9));
-    const inside: unknown[] = [];
-    const failing = storage.transact(locks(1), async (tx) => {
-      change(tx);
-      inside.push(await tx.scan({ prefix: String(), limit: ALL }));
-      throw thrown;
-    });
-    const rejection: unknown = await failing.catch((error: unknown) => error);
+    const rejection: unknown = await storage.transact(locks(1), () => Promise.reject(thrown)).catch((error: unknown) => error);
     await storage.transact(locks(1), numbered(settled));
-    return {
-      got: [inside, rejection, await everyKey(storage)],
-      want: [[[[key(3), value(3)]]], thrown, [key(1), key(21), `${RUNS}0`]],
-    };
+    return { got: [rejection, await everyKey(storage)], want: [thrown, [`${RUNS}0`]] };
   },
 
   "[REL-2] a transaction resolves with what its run returned": async (make) => {
@@ -169,7 +141,7 @@ const CASES: Cases = {
     };
   },
 
-  "[PAGES-14] deleteRange removes exactly the keys under its prefix": async (make) => {
+  "[PAGES-6] deleteRange removes exactly the keys under its prefix": async (make) => {
     const storage = await make();
     await put(storage, ["page/1/a", "page/1/b/c", "page/10/a", "page/1", "x/page/1/a"]);
     await write(storage, (tx) => {

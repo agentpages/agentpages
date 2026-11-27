@@ -1,6 +1,8 @@
 import {
+  type Answer,
   type Empty,
   type ErrorName,
+  type Failure,
   HOST_OPERATION_SCHEMAS,
   type JsonObject,
   type Opened,
@@ -17,7 +19,7 @@ import {
   type TypesListResult,
   type TypesPublishParams,
 } from "@agentpages/protocol";
-import type { Driver, Reply, Viewing } from "../contract.js";
+import type { Driver, Viewing } from "../contract.js";
 
 /** What a case found, and what the spec says it must find. */
 export interface Check {
@@ -45,18 +47,27 @@ export const TYPE_PUBLISH: Tool<TypeInfo> = tool("types_publish", TOOL_SCHEMAS.t
 export const TYPE_GET: Tool<TypesGetResult> = tool("types_get", TOOL_SCHEMAS.types_get);
 export const TYPE_LIST: Tool<TypesListResult> = tool("types_list", TOOL_SCHEMAS.types_list);
 
+/** An answer of any kind, with what the other kinds carry left out. */
+interface Loose {
+  kind: string;
+  result?: unknown;
+  failure?: Failure;
+}
+
 /**
- * The result of a reply, typed by the schema it must match, with every field the reply carried: a case that spells
- * out what it wants sees a field the spec does not know. A reply that failed gives its failure instead.
+ * The result of an answer, typed by the schema it must match, with every field the answer carried: a case that spells
+ * out what it wants sees a field the spec does not know. An answer that failed gives its failure instead.
  */
-const resultIn = <R>(schema: Schema<R>, reply: Reply): R => {
-  const verdict: { value?: R; issues?: unknown } = schema["~standard"].validate(reply.result);
-  return Object.assign({}, reply.failure, verdict.value, reply.result);
+const resultIn = <R>(schema: Schema<R>, answer: Answer): R => {
+  const { result, failure }: Loose = answer;
+  const verdict: { value?: R; issues?: unknown } = schema["~standard"].validate(result);
+  return Object.assign({}, failure, verdict.value, result);
 };
 
-/** The error a reply failed with. Nothing when the failure does not say what was wrong. */
-const errorIn = (reply: Reply): string => {
-  const { error, message } = Object.assign({}, reply.failure);
+/** The error an answer failed with. Nothing when the failure does not say what was wrong. */
+const errorIn = (answer: Answer): string => {
+  const { failure }: Loose = answer;
+  const { error, message } = Object.assign({}, failure);
   return error.repeat(Math.sign(message.length));
 };
 
@@ -71,26 +82,41 @@ export interface Session {
 export const agent = (n: number): string => `agent-${n}`;
 
 export const actingAs = (driver: Driver, subject: string): Session => {
-  const call = ({ name }: Tool<unknown>, input: unknown): Promise<Reply> => driver.call({ tool: name, input, subject });
+  const call = ({ name }: Tool<unknown>, input: unknown): Promise<Answer> => driver.call({ tool: name, input, subject });
   return {
     ok: async (asked, input) => resultIn(asked.result, await call(asked, input)),
     fails: async (asked, input) => errorIn(await call(asked, input)),
   };
 };
 
-const opening = (driver: Driver, viewer: Viewing): Promise<Reply> =>
-  driver.host({ operation: "pages_open", input: { url: viewer.url }, viewer });
+/** A viewer with the page link they present. */
+export interface Visit extends Viewing {
+  url: string;
+}
+
+/** The id the suite, acting as a host, chooses for every request. */
+export const HOST_REQUEST = "chosen-by-the-host";
+
+/** The link reaches the Store as the input of the request, and nowhere else. */
+const opening = (driver: Driver, { url, ...viewer }: Visit): Promise<Answer> =>
+  driver.host({ operation: "pages_open", input: { url }, viewer, requestId: HOST_REQUEST });
 
 /** What a viewer gets who opens the link they hold. */
-export const opens = async (driver: Driver, viewer: Viewing): Promise<Opened> =>
-  resultIn(HOST_OPERATION_SCHEMAS.pages_open.result, await opening(driver, viewer));
+export const opens = async (driver: Driver, visit: Visit): Promise<Opened> =>
+  resultIn(HOST_OPERATION_SCHEMAS.pages_open.result, await opening(driver, visit));
 
-export const openFails = async (driver: Driver, viewer: Viewing): Promise<string> => errorIn(await opening(driver, viewer));
+export const openFails = async (driver: Driver, visit: Visit): Promise<string> => errorIn(await opening(driver, visit));
 
-/** Agent `n`, signed in and looking at a page. */
-export const viewer = (n: number, url: string): Viewing => ({ subject: agent(n), url });
+/** The requestId of the failure a viewer gets who may not open the link they hold. */
+export const refusedOpenId = async (driver: Driver, visit: Visit): Promise<string> => {
+  const { failure }: Loose = await opening(driver, visit);
+  return Object.assign({}, failure).requestId;
+};
 
-export const anonymous = (url: string): Viewing => ({ url });
+/** Agent `n`, signed in and holding a link. */
+export const viewer = (n: number, url: string): Visit => ({ subject: agent(n), url });
+
+export const anonymous = (url: string): Visit => ({ url });
 
 const numbered = (n: number): string => String(n).padStart(12, "0");
 

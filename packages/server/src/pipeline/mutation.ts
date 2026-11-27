@@ -1,6 +1,6 @@
 import type { JsonObject } from "@agentpages/protocol";
 import type { Agent } from "../access/principal.js";
-import type { Key, Tx } from "../ports/storage.js";
+import type { Key, Tx } from "@agentpages/storage";
 import { fingerprint } from "./digest.js";
 import { handle } from "./handle.js";
 import { segment } from "./keys.js";

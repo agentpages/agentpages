@@ -4,9 +4,10 @@
 
 ```ts
 
+import { Answer } from '@agentpages/protocol';
 import { Capability } from '@agentpages/protocol';
-import { Failure } from '@agentpages/protocol';
-import { JsonObject } from '@agentpages/protocol';
+import { Key } from '@agentpages/storage';
+import { Storage as Storage_2 } from '@agentpages/storage';
 
 // @public
 export interface Driver {
@@ -15,96 +16,50 @@ export interface Driver {
         tool: string;
         input: unknown;
         subject: string;
-    }): Promise<Reply>;
+    }): Promise<Answer>;
     // (undocumented)
     capability: Capability;
     host(request: {
         operation: string;
         input: unknown;
         viewer: Viewing;
-    }): Promise<Reply>;
+        requestId: string;
+    }): Promise<Answer>;
 }
 
 // @public
 export type FaultPoint = "get" | "getMany" | "scan" | "commit" | "committed";
 
 // @public
-export const faulty: (storage: StorageUnderTest, plan: Plan) => StorageUnderTest;
+export const faulty: (storage: Storage_2, plan: Plan) => Storage_2;
 
 // @public (undocumented)
 export type MakeDriver = () => Driver | Promise<Driver>;
 
 // @public (undocumented)
-export type MakeStorage = () => StorageUnderTest | Promise<StorageUnderTest>;
+export type MakeStorage = () => Storage_2 | Promise<Storage_2>;
 
 // @public
-export type Plan = (point: FaultPoint) => unknown;
-
-// @public
-export interface Reply {
-    // (undocumented)
-    code?: number;
-    // (undocumented)
-    failure?: Failure;
-    // (undocumented)
-    kind: "result" | "failure" | "unknown-method";
-    // (undocumented)
-    result?: unknown;
-}
-
-// @public (undocumented)
-export interface Scan {
-    // (undocumented)
-    after?: string;
-    // (undocumented)
-    limit: number;
-    // (undocumented)
-    prefix: string;
-    // (undocumented)
-    reverse?: true;
-}
-
-// @public (undocumented)
-export interface StorageReads {
-    // (undocumented)
-    get(key: string): Promise<Stored | undefined>;
-    // (undocumented)
-    getMany(keys: readonly string[]): Promise<(Stored | undefined)[]>;
-    // (undocumented)
-    scan(scan: Scan): Promise<[string, Stored][]>;
-}
+export type Plan = (point: FaultPoint, touched: Touched) => unknown;
 
 // @public
 export const storageSuite: (make: MakeStorage) => void;
 
 // @public
-export interface StorageUnderTest extends StorageReads {
-    // (undocumented)
-    transact<T>(locks: readonly string[], run: (tx: StorageWrites) => Promise<T>): Promise<T>;
-}
-
-// @public (undocumented)
-export interface StorageWrites extends StorageReads {
-    // (undocumented)
-    delete(key: string): void;
-    // (undocumented)
-    deleteRange(prefix: string): void;
-    // (undocumented)
-    put(key: string, value: Stored): void;
-}
-
-// @public
-export type Stored = JsonObject | Uint8Array;
-
-// @public
 export const storeSuite: (make: MakeDriver) => void;
+
+// @public
+export interface Touched {
+    // (undocumented)
+    keys: readonly Key[];
+    // (undocumented)
+    locks: readonly Key[];
+}
 
 // @public
 export interface Viewing {
     // (undocumented)
     subject?: string;
-    // (undocumented)
-    url: string;
 }
 
 // (No @packageDocumentation comment for this package)

@@ -179,7 +179,7 @@ export const PAGES_CASES: Cases = {
     return { got: versions.map(({ version }) => version), want: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] };
   },
 
-  "[PAGES-14] pages_delete removes the page with its versions": async (driver) => {
+  "[PAGES-6] pages_delete removes the page with its versions": async (driver) => {
     const alice = await withVersions(driver, 2);
     const kept = await alice.ok(PUBLISH, page(2, 0));
     const { url } = await alice.ok(SET_ACCESS, sharing(1, LINK_READ));

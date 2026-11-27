@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@agentpages/protocol": "workspace:^",
+    "@agentpages/storage": "workspace:^",
     "ajv": "^8.20.0"
   }
 }

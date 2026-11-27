@@ -44,6 +44,7 @@ export type * from "./render/types.js";
 export * from "./state/limits.js";
 export type * from "./state/methods.js";
 export type * from "./state/types.js";
+export type * from "./store/types.js";
 export * from "./trees/schemas.js";
 export type * from "./trees/types.js";
 export * from "./types/limits.js";

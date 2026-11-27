@@ -1,7 +1,6 @@
-import type { Reply } from "@agentpages/conformance";
-import { METHOD_NOT_FOUND, PROTOCOL_VERSION, TOOL_SCHEMAS } from "@agentpages/protocol";
+import { type Answer, METHOD_NOT_FOUND, PROTOCOL_VERSION, TOOL_SCHEMAS } from "@agentpages/protocol";
 import { expect, test } from "vitest";
-import { ADVERTISED, BASE_URL, call, declaring, HTML, op, PAGE, publishing, resultOf, saved, uuid, world, type World } from "./support/store.ts";
+import { ADVERTISED, BASE_URL, call, declaring, errorOf, failureOf, HOST_REQUEST, HTML, op, open, PAGE, publishing, resultOf, saved, uuid, world, type World } from "./support/store.ts";
 
 const { limits } = ADVERTISED;
 
@@ -28,8 +27,8 @@ test("[EXT-5] each Store keeps to the limits it chose", async () => {
   const requests: [string, unknown][] = [published(0), ["types_publish", { ...declared, collections: { tasks: { schema } } }]];
   const answers = await Promise.all([...requests.map((request) => call(strict, request)), ...requests.map((request) => call(world(), request))]);
 
-  expect(answers.map((answer) => answer.failure?.error)).toStrictEqual(["LimitExceeded", "LimitExceeded", undefined, undefined]);
-  expect(answers.map((answer) => answer.failure?.message)).toStrictEqual([
+  expect(answers.map((answer) => errorOf(answer))).toStrictEqual(["LimitExceeded", "LimitExceeded", undefined, undefined]);
+  expect(answers.map((answer) => failureOf(answer)?.message)).toStrictEqual([
     expect.stringContaining("maxHtmlBytes 33"),
     expect.stringContaining("maxSchemaBytes 17"),
     undefined,
@@ -43,7 +42,7 @@ test("[PAGES-17] a typed page has no html of its own to measure", async () => {
   const typed = { ...publishing({ page: 1, baseVersion: 0, op: 2 }), content: { kind: "type", typeId: "deck", typeVersion: 1 } };
   const answers = [await call(tiny, ["types_publish", declared]), await call(tiny, ["pages_publish", typed]), await call(tiny, published(0))];
 
-  expect(answers.map((answer) => [answer.kind, answer.failure?.error])).toStrictEqual([
+  expect(answers.map((answer) => [answer.kind, errorOf(answer)])).toStrictEqual([
     ["result", undefined],
     ["result", undefined],
     ["failure", "LimitExceeded"],
@@ -58,6 +57,14 @@ test("a Store that would forget commits before it forgets opIds is refused", () 
 
   expect(() => world({ config: shorter })).toThrow(new RangeError("commitRetentionSeconds must be at least opRetentionSeconds."));
   expect(world({ config: equal }).driver.capability.limits.commitRetentionSeconds).toBe(3600);
+});
+
+test("a Store is not created with a capability that is not one of section 3, or with a baseUrl that is not a URL", () => {
+  const negative = { capability: { limits: { ...limits, maxHtmlBytes: -1 } } };
+  const issues = JSON.stringify([{ message: "Expected >=0", path: ["limits", "maxHtmlBytes"] }]);
+
+  expect(() => world({ config: negative })).toThrow(new TypeError(`The capability is not valid: ${issues}`));
+  expect(() => world({ config: { baseUrl: "pages.test/p/" } })).toThrow(new TypeError("baseUrl must be a URL."));
 });
 
 const tools = (features: object): readonly string[] => world({ config: { capability: { limits, ...features } } }).tools;
@@ -81,7 +88,7 @@ test("a tool or host operation the Store does not have yet is the JSON-RPC metho
   const operations = ["comments_start", ...PAGE_TOOLS, ...TYPE_TOOLS, ...later, "toString", ""];
   const answers = [
     ...notTools.map((tool) => call(target, [tool, { pageId: PAGE }])),
-    ...operations.map((operation) => target.host({ operation, input: { pageId: PAGE }, principal: { kind: "anonymous" } })),
+    ...operations.map((operation) => target.host({ operation, input: { pageId: PAGE }, principal: { kind: "anonymous" }, requestId: HOST_REQUEST })),
   ];
 
   expect(await Promise.all(answers)).toStrictEqual(answers.map(() => UNKNOWN));
@@ -90,26 +97,25 @@ test("a tool or host operation the Store does not have yet is the JSON-RPC metho
 });
 
 /** A Store with the first version of `PAGE`, the page's url, and its owner as a viewer who presents a url. */
-const withPage = async (): Promise<{ target: World; url: string; open: (presented: string) => Promise<Reply> }> => {
+const withPage = async (): Promise<{ target: World; url: string; openAs: (presented: string) => Promise<Answer> }> => {
   const target = world();
   const { url } = resultOf(TOOL_SCHEMAS.pages_publish.result, await call(target, published(0)));
-  const open = (presented: string): Promise<Reply> =>
-    target.host({ operation: "pages_open", input: { url: presented }, principal: { kind: "viewer", subject: "alice", url: presented } });
-  return { target, url, open };
+  return { target, url, openAs: (presented) => open(target, { url: presented, subject: "alice" }) };
 };
 
 test("a tool is not a host operation, and a host operation is not a tool", async () => {
-  const { target, url, open } = await withPage();
+  const { target, url, openAs } = await withPage();
+  const principal = { kind: "viewer", subject: "alice" } as const;
 
   expect(await call(target, ["pages_open", { url }])).toStrictEqual(UNKNOWN);
-  expect(await target.host({ operation: "pages_get", input: { pageId: PAGE }, principal: { kind: "viewer", subject: "alice", url } })).toStrictEqual(UNKNOWN);
-  expect((await open(url)).kind).toBe("result");
+  expect(await target.host({ operation: "pages_get", input: { pageId: PAGE }, principal, requestId: HOST_REQUEST })).toStrictEqual(UNKNOWN);
+  expect((await openAs(url)).kind).toBe("result");
 });
 
 test("[PAGES-12] the pages of one subject are never listed for another, whatever the subjects are", async () => {
   const target = world();
   const subjects = ["team", "team/alice", "team/alice/é", "team%2Falice", ""];
-  const publish = (subject: string, page: number): Promise<Reply> =>
+  const publish = (subject: string, page: number): Promise<Answer> =>
     target.call({ tool: "pages_publish", input: publishing({ page, baseVersion: 0, op: page }), principal: { kind: "agent", subject } });
   const list = async (subject: string): Promise<string[]> => {
     const answer = await target.call({ tool: "pages_list", input: {}, principal: { kind: "agent", subject } });
@@ -152,7 +158,7 @@ test("[REL-3] an array and an object with its indexes as keys are different para
   const target = world();
   const answers = [await call(target, withCsp([1, 2])), await call(target, withCsp({ 0: 1, 1: 2 })), await call(target, withCsp([2, 1]))];
 
-  expect(answers.map((answer) => answer.failure?.error)).toStrictEqual([undefined, "InvalidParams", "InvalidParams"]);
+  expect(answers.map((answer) => errorOf(answer))).toStrictEqual([undefined, "InvalidParams", "InvalidParams"]);
 });
 
 const declared = (typeId: string, tasks: object): [string, unknown] => ["types_publish", { ...declaring(typeId, 1), collections: { tasks } }];
@@ -167,27 +173,27 @@ test("[TYPES-12] each type keeps to its own collections", async () => {
   await call(target, declared("deck", { schema: {}, tree: true })).then(() => call(target, declared("board", { schema: {} })));
   const answers = [await call(target, second("deck", { schema: {} })), await call(target, second("deck", { schema: {}, tree: true }))];
 
-  expect(answers.map((answer) => answer.failure?.error)).toStrictEqual(["InvalidParams", undefined]);
+  expect(answers.map((answer) => errorOf(answer))).toStrictEqual(["InvalidParams", undefined]);
 });
 
 test("[REL-29] an opId belongs to its caller: another caller's request with it is checked for access like any other", async () => {
   const target = world();
-  const asTeam = (subject: string, input: unknown): Promise<Reply> =>
+  const asTeam = (subject: string, input: unknown): Promise<Answer> =>
     target.call({ tool: "types_publish", input, principal: { kind: "agent", subject } });
   const first = await asTeam("team", { opId: op(1), typeId: "deck", baseVersion: 0, title: "Deck", description: "", instructions: "", collections: {}, exports: {}, content: { html: "" } });
   const other = await asTeam("team/alice", { opId: op(1), typeId: "deck", baseVersion: 0, title: "Deck", description: "", instructions: "", collections: {}, exports: {}, content: { html: "" } });
 
-  expect([first.kind, other.failure?.error]).toStrictEqual(["result", "Forbidden"]);
+  expect([first.kind, errorOf(other)]).toStrictEqual(["result", "Forbidden"]);
 });
 
 test("[HOST-4] a url of another origin names no page, even where it holds a pageId", async () => {
-  const { target, url, open } = await withPage();
+  const { target, url, openAs } = await withPage();
   const elsewhere = [url.replace("pages.test", "pages.fake"), url.replace(BASE_URL, ""), `x${url}`, url.replace(PAGE, PAGE.replace("4000", "4xyz"))];
-  const answers = await Promise.all(elsewhere.map(open));
+  const answers = await Promise.all(elsewhere.map(openAs));
 
-  expect(answers.map((answer) => answer.failure?.error)).toStrictEqual(["NotFound", "NotFound", "NotFound", "NotFound"]);
+  expect(answers.map((answer) => errorOf(answer))).toStrictEqual(["NotFound", "NotFound", "NotFound", "NotFound"]);
   expect(target.logs.slice(1).map((record) => record.pageId)).toStrictEqual([undefined, undefined, undefined, undefined]);
-  expect((await open(`${BASE_URL}${PAGE}`)).kind).toBe("result");
+  expect((await openAs(`${BASE_URL}${PAGE}`)).kind).toBe("result");
   expect(url).toBe(`${BASE_URL}${PAGE}/secret-2`);
 });
 
@@ -202,7 +208,7 @@ test("[PAGES-15] deleting a page that never existed does not use up its pageId",
   expect(answer.kind).toBe("result");
 });
 
-test("[PAGES-14] pages_delete leaves nothing of the page but the record that it is gone", async () => {
+test("[PAGES-6] pages_delete leaves nothing of the page but the record that it is gone", async () => {
   const target = world();
   await call(target, published(0)).then(() => call(target, published(1)));
   await call(target, ["pages_set_access", { opId: op(7), pageId: PAGE, access: "link-write" }]);

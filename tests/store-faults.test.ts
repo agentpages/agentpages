@@ -1,6 +1,6 @@
-import type { Reply } from "@agentpages/conformance";
+import type { Answer } from "@agentpages/protocol";
 import { expect, test } from "vitest";
-import { call, declaring, op, PAGE, PUBLISHED, publishing, saved, uuid, world, type World } from "./support/store.ts";
+import { call, declaring, errorOf, op, PAGE, PUBLISHED, publishing, saved, uuid, world, type World } from "./support/store.ts";
 
 interface Scenario {
   tool: string;
@@ -29,7 +29,7 @@ const prepared = async ({ before }: Scenario): Promise<World> => {
 };
 
 /** What the request answers and leaves in the storage when nothing goes wrong. */
-const undisturbed = async (scenario: Scenario): Promise<{ answer: Reply; effect: unknown }> => {
+const undisturbed = async (scenario: Scenario): Promise<{ answer: Answer; effect: unknown }> => {
   const target = await prepared(scenario);
   const answer = await call(target, [scenario.tool, scenario.input]);
   return { answer, effect: await saved(target.storage) };
@@ -37,13 +37,13 @@ const undisturbed = async (scenario: Scenario): Promise<{ answer: Reply; effect:
 
 const unavailable = {
   kind: "failure",
-  failure: { error: "Unavailable", retryable: true, requestId: expect.any(String) as unknown, message: expect.stringContaining("same opId") as unknown },
+  failure: { error: "Unavailable", retryable: true, requestId: expect.any(String) as unknown, message: "The storage did not answer. Repeat the request with the same opId." },
 };
 
 interface Crash {
   /** What the storage held when the request was answered. */
   afterCrash: unknown;
-  lost: Reply;
+  lost: Answer;
   target: World;
 }
 
@@ -110,9 +110,9 @@ test("[REL-8] a request the Store refuses saves nothing", async () => {
     ["types_publish", { ...declaring("deck", 9), baseVersion: 1, collections: { tasks: { schema: { type: 7 } } } }],
   ];
   const answers = await Promise.all(refused.map((request) => call(target, request)));
-  const strangers: Reply = await target.call({ tool: "pages_delete", input: { opId: op(10), pageId: PAGE }, principal: { kind: "agent", subject: "bob" } });
+  const strangers: Answer = await target.call({ tool: "pages_delete", input: { opId: op(10), pageId: PAGE }, principal: { kind: "agent", subject: "bob" } });
 
-  expect([...answers, strangers].map((answer) => answer.failure?.error)).toStrictEqual(
+  expect([...answers, strangers].map((answer) => errorOf(answer))).toStrictEqual(
     ["Conflict", "LimitExceeded", "NotFound", "NotFound", "InvalidParams", "Conflict", "InvalidParams", "Forbidden"],
   );
   expect(await saved(target.storage)).toStrictEqual(before);
@@ -120,7 +120,6 @@ test("[REL-8] a request the Store refuses saves nothing", async () => {
 
 test.each([
   { point: "get", request: ["pages_get", { pageId: PAGE }] },
-  { point: "getMany", request: ["pages_list", {}] },
   { point: "scan", request: ["pages_list", {}] },
   { point: "getMany", request: ["pages_publish", publishing({ page: 1, baseVersion: 1, op: 2 })] },
   { point: "get", request: ["types_publish", declaring("deck", 2)] },

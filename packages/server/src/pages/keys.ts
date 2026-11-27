@@ -1,6 +1,6 @@
 import type { PageInfo } from "@agentpages/protocol";
 import { counted, segment } from "../pipeline/index.js";
-import type { Key } from "../ports/storage.js";
+import type { Key } from "@agentpages/storage";
 
 export interface VersionOf {
   pageId: string;
@@ -10,7 +10,7 @@ export interface VersionOf {
 /** Everything of one page lives under this, so deleting the page is deleting one range. */
 export const pagePrefix = (pageId: string): Key => `page/${pageId}/`;
 
-/** The page as `pages_list` shows it, with its owner. It is also the lock of the page. */
+/** The page with its owner. It is also the lock of the page. */
 export const metaKey = (pageId: string): Key => `${pagePrefix(pageId)}meta`;
 
 export const versionsPrefix = (pageId: string): Key => `${pagePrefix(pageId)}v/`;
@@ -28,6 +28,6 @@ export const goneKey = (pageId: string): Key => `gone/${pageId}`;
 
 export const ownedPrefix = (subject: string): Key => `owner/${segment(subject)}/`;
 
-/** One owner's pages in the order of their `updatedAt`. */
+/** One owner's pages in the order of their `updatedAt`, each as `pages_list` shows it. */
 export const ownedKey = (subject: string, { updatedAt, pageId }: Pick<PageInfo, "pageId" | "updatedAt">): Key =>
   `${ownedPrefix(subject)}${updatedAt}/${pageId}`;

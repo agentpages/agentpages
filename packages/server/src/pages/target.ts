@@ -1,7 +1,7 @@
 import { NEED, type Need, permits } from "../access/permits.js";
 import type { Principal } from "../access/principal.js";
 import { ok, type Outcome, type Place, refuse, type Target } from "../pipeline/index.js";
-import type { Key } from "../ports/storage.js";
+import type { Key } from "@agentpages/storage";
 import { goneKey, metaKey } from "./keys.js";
 import { type Page, pageOf } from "./records.js";
 import { pageIdIn } from "./url.js";
@@ -12,6 +12,8 @@ interface PageId {
 
 interface Entry<T> {
   need: Need;
+  /** The page link the request presents. */
+  link?: string;
   /** What the request finds where no page is. */
   absent: () => Outcome<T>;
 }
@@ -21,16 +23,16 @@ const missing = (): Outcome<never> => refuse({ error: "NotFound", message: "The 
 const none = (): Outcome<null> => ok(null);
 
 /** The page with this `pageId`, for a caller who has the access the operation needs. */
-const pageAt = <P, T = never>(pageId: string, { need, absent }: Entry<T>): Place<P, Page | T, Principal> => ({
+const pageAt = <P, T = never>(pageId: string, { absent, ...asked }: Entry<T>): Place<P, Page | T, Principal> => ({
   names: { pageId },
   locks: [metaKey(pageId)],
   find: async ({ principal }, tx) => {
     const stored = await tx.get(metaKey(pageId));
     if (stored === undefined) return absent();
     const page = pageOf(stored);
-    return permits({ principal, need, page: { ...page.info, owner: page.owner } })
+    return permits({ ...asked, principal, page: { ...page.info, owner: page.owner } })
       ? ok(page)
-      : refuse({ error: "Forbidden", message: `The caller has no ${need} access to the page.` });
+      : refuse({ error: "Forbidden", message: `The caller has no ${asked.need} access to the page.` });
   },
 });
 
@@ -40,12 +42,12 @@ export const existingPage =
   ({ pageId }) =>
     pageAt(pageId, { need, absent: missing });
 
-/** The page a `url` of this Store names. */
+/** The page a `url` of this Store names, for a caller who presents that `url`. */
 export const linkedPage =
   <P extends { url: string }>(need: Need): Target<P, Page> =>
   ({ url }, { baseUrl }) => {
     const pageId = pageIdIn(url, baseUrl);
-    return pageId === undefined ? undefined : pageAt(pageId, { need, absent: missing });
+    return pageId === undefined ? undefined : pageAt(pageId, { need, link: url, absent: missing });
   };
 
 /** The page of `pages_delete`, which may be gone already. */

@@ -1,4 +1,4 @@
-import type { Key, Range, Reader, Storage, Tx, Value } from "../ports/storage.js";
+import type { Key, Range, Reader, Storage, Tx, Value } from "@agentpages/storage";
 
 type Rows = Map<Key, Value>;
 
@@ -19,19 +19,12 @@ const scanned = (rows: Rows, range: Range): [Key, Value][] => {
     .map((key) => [key, structuredClone(rows.get(key) ?? {})]);
 };
 
-/** Reads of the rows as they are when each read happens. */
-const readerOf = (rowsNow: () => Rows): Reader => ({
-  get: (key) => Promise.resolve(structuredClone(rowsNow().get(key))),
-  getMany: (keys) => Promise.resolve(keys.map((key) => structuredClone(rowsNow().get(key)))),
-  scan: (range) => Promise.resolve(scanned(rowsNow(), range)),
+/** Reads of the committed rows as they are when each read happens. */
+const readerOf = (rows: Rows): Reader => ({
+  get: (key) => Promise.resolve(structuredClone(rows.get(key))),
+  getMany: (keys) => Promise.resolve(keys.map((key) => structuredClone(rows.get(key)))),
+  scan: (range) => Promise.resolve(scanned(rows, range)),
 });
-
-const applied = (rows: Rows, writes: Write[]): Rows => {
-  writes.forEach((write) => {
-    write(rows);
-  });
-  return rows;
-};
 
 const deleteRange =
   (prefix: Key): Write =>
@@ -43,9 +36,9 @@ const deleteRange =
       });
   };
 
-/** A transaction buffers its writes. Its reads see the committed rows with those writes on top. */
-const txOf = (rows: Rows, writes: Write[]): Tx => ({
-  ...readerOf(() => applied(new Map(rows), writes)),
+/** A run reads the committed rows and buffers its writes. */
+const txOf = (reader: Reader, writes: Write[]): Tx => ({
+  ...reader,
   put: (key, value) => {
     const copy = structuredClone(value);
     writes.push((target) => {
@@ -67,15 +60,18 @@ const txOf = (rows: Rows, writes: Write[]): Tx => ({
  */
 export const createMemoryStorage = (): Storage => {
   const rows: Rows = new Map();
+  const reader = readerOf(rows);
   const tails = new Map<Key, Promise<unknown>>();
   const commit = async <T>(run: (tx: Tx) => Promise<T>): Promise<T> => {
     const writes: Write[] = [];
-    const result = await run(txOf(rows, writes));
-    applied(rows, writes);
+    const result = await run(txOf(reader, writes));
+    writes.forEach((write) => {
+      write(rows);
+    });
     return result;
   };
   return {
-    ...readerOf(() => rows),
+    ...reader,
     transact: (locks, run) => {
       const turn = Promise.all(locks.map((lock) => Promise.resolve(tails.get(lock))));
       const done = turn.then(() => commit(run));

@@ -2,7 +2,7 @@ import { type PageInfo, type PagesSetAccessParams, TOOL_SCHEMAS } from "@agentpa
 import { type Context, type Handler, mutation, ok, type Outcome } from "../pipeline/index.js";
 import { NEED } from "../access/permits.js";
 import type { Agent } from "../access/principal.js";
-import type { Tx } from "../ports/storage.js";
+import type { Tx } from "@agentpages/storage";
 import { rememberedPrefix } from "./keys.js";
 import { type Page, savePage } from "./records.js";
 import { existingPage } from "./target.js";

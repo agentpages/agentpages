@@ -1,19 +1,16 @@
 import { type TypeInfo, TypeInfoSchema } from "@agentpages/protocol";
-import { ok, parsed, recordOf, refuse, type Target } from "../pipeline/index.js";
+import { ok, type Owned, owned, refuse, type Target } from "../pipeline/index.js";
 import type { Agent } from "../access/principal.js";
-import type { Value } from "../ports/storage.js";
+import type { Value } from "@agentpages/storage";
 import { typeKey } from "./keys.js";
 
 interface TypeId {
   typeId: string;
 }
 
-export interface Type {
-  owner: unknown;
-  info: TypeInfo;
-}
+export type Type = Owned<TypeInfo>;
 
-const typeOf = (stored: Value): Type => ({ owner: recordOf(stored).owner, info: parsed(TypeInfoSchema, stored) });
+const typeOf = (stored: Value): Type => owned(TypeInfoSchema, stored);
 
 /** A type that must exist. Every MCP principal may read it. */
 export const existingType =

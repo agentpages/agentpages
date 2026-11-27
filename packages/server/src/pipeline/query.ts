@@ -1,5 +1,5 @@
 import type { Principal } from "../access/principal.js";
-import type { Tx } from "../ports/storage.js";
+import type { Tx } from "@agentpages/storage";
 import { handle } from "./handle.js";
 import type { Context, Handler, Schemas, Spec } from "./operation.js";
 import { type Outcome, refuse } from "./outcome.js";
