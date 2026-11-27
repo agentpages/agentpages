@@ -6,6 +6,7 @@
 
 import { Answer } from '@agentpages/protocol';
 import { Capability } from '@agentpages/protocol';
+import { Clock } from '@agentpages/storage';
 import { Issue } from '@agentpages/protocol';
 import { JsonSchema } from '@agentpages/protocol';
 import { LogRecord } from '@agentpages/protocol';
@@ -20,11 +21,6 @@ export type Agent = Extract<Principal, {
 
 // @public
 export const ajvSchemaCompiler: SchemaCompiler;
-
-// @public (undocumented)
-export interface Clock {
-    now(): number;
-}
 
 // @public (undocumented)
 export interface CompiledSchema {

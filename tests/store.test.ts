@@ -1,6 +1,8 @@
 import { storeSuite } from "@agentpages/conformance";
-import { describe, expect, test } from "vitest";
-import { ADVERTISED, titlesBeside, world } from "./support/store.ts";
+import { afterAll, describe, expect, test } from "vitest";
+import { sqliteFiles } from "./support/sqlite.ts";
+import { ADVERTISED, world } from "./support/store.ts";
+import { titlesBeside } from "./support/suites.ts";
 
 /** What the suite proves of every Store, by the requirement of the spec each test proves. */
 const CORE = [
@@ -170,5 +172,17 @@ describe.each(Object.entries(KINDS))("a Store over the memory storage, with %s",
 
   test("the suite registered every test of such a Store", ({ task }) => {
     expect(titlesBeside(task)).toStrictEqual(titles);
+  });
+});
+
+const files = sqliteFiles();
+
+afterAll(files.remove);
+
+describe("a Store over the SQLite storage, with state and identity", { timeout: 60_000 }, () => {
+  storeSuite(() => world({ ports: { storage: files.open({ path: files.path() }) } }).driver);
+
+  test("the suite registered every test of such a Store", ({ task }) => {
+    expect(titlesBeside(task)).toStrictEqual([...CORE, ...STATE, ...IDENTITY, ...IDENTITY_IN_STATE]);
   });
 });

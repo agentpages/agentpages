@@ -1,27 +1,8 @@
 import * as fc from "fast-check";
-import { expect, test } from "vitest";
-import type { Storage, Tx } from "@agentpages/storage";
-import type { Check } from "../store/kit.js";
-import { ALL, arriving, everyKey, type Gate, gate, key, keysUnder, locks, numbered, put, RUNS, settled, value, write } from "./kit.js";
+import type { Storage } from "@agentpages/storage";
+import { ALL, arriving, type Cases, change, changing, everyKey, type Gate, gate, key, keysUnder, locks, numbered, put, register, RUNS, settled, value, write } from "./kit.js";
 
 export type MakeStorage = () => Storage | Promise<Storage>;
-
-type Cases = Record<string, (make: MakeStorage) => Promise<Check>>;
-
-/** Puts key 3, and deletes key 1 and everything under key 2, such as keys 21 and 22. */
-const change = (tx: Tx): void => {
-  tx.put(key(3), value(3));
-  tx.delete(key(1));
-  tx.deleteRange(key(2));
-};
-
-/** A run that makes the change, then ends as `end` does. */
-const changing =
-  (end: () => Promise<void>) =>
-  (tx: Tx): Promise<void> => {
-    change(tx);
-    return end();
-  };
 
 interface Held {
   first: Gate;
@@ -36,7 +17,7 @@ const holding = (storage: Storage): Held => {
   return { first, arrived, held: storage.transact(locks(1), arriving({ arrived, name: key(1), until: first.opened })) };
 };
 
-const CASES: Cases = {
+const CASES: Cases<MakeStorage> = {
   "[REL-6] what a transaction put is read back once it resolves": async (make) => {
     const storage = await make();
     await write(storage, (tx) => {
@@ -95,6 +76,34 @@ const CASES: Cases = {
       got: [seen, await storage.scan({ prefix: String(), limit: ALL })],
       want: [[{ at: key(1) }, [{ at: key(21) }, undefined], committed], [[key(22), value(3)]]],
     };
+  },
+
+  "[REL-7] a value is saved as it is when it is put, whatever happens to it afterwards": async (make) => {
+    const storage = await make();
+    const json = { tags: [key(1)] };
+    const bytes = new Uint8Array([1, 2]);
+    await write(storage, (tx) => {
+      tx.put(key(1), json);
+      tx.put(key(2), bytes);
+      json.tags.push(key(2));
+      bytes.fill(9);
+    });
+    return {
+      got: [json, bytes, await storage.getMany([key(1), key(2)])],
+      want: [{ tags: ["key/1", "key/2"] }, new Uint8Array([9, 9]), [{ tags: ["key/1"] }, new Uint8Array([1, 2])]],
+    };
+  },
+
+  "[REL-7] a read returns a copy: a change of it changes nothing that is saved": async (make) => {
+    const storage = await make();
+    await write(storage, (tx) => {
+      tx.put(key(4), value(4));
+    });
+    const reads = [await storage.get(key(4)), ...(await storage.getMany([key(4)])), ...(await storage.scan({ prefix: key(4), limit: ALL })).flat()];
+    reads.forEach((read) => {
+      Object.assign(read ?? {}, value(5));
+    });
+    return { got: [reads, await storage.get(key(4))], want: [[value(5), value(5), "key/4", value(5)], value(4)] };
   },
 
   "[REL-8] a transaction rejects with what its run threw, and the next run on its lock goes on": async (make) => {
@@ -180,8 +189,12 @@ const CASES: Cases = {
         await scheduler.waitFor(Promise.all(runs));
         counted.push([await keysUnder(storage, RUNS), scheduler.report().length]);
       }),
+      { numRuns: 20 },
     );
-    return { got: new Set(counted.map((run) => JSON.stringify(run))), want: new Set([JSON.stringify([["run/0", "run/1", "run/2"], 3])]) };
+    return {
+      got: [new Set(counted.map((run) => JSON.stringify(run))), counted.length],
+      want: [new Set([JSON.stringify([["run/0", "run/1", "run/2"], 3])]), 20],
+    };
   },
 
   "[REL-2] a run waits for every run before it that holds one of its locks": async (make) => {
@@ -217,9 +230,5 @@ const CASES: Cases = {
  * with the requirement of the spec the test serves.
  */
 export const storageSuite = (make: MakeStorage): void => {
-  test.each(Object.entries(CASES))("%s", async (_, run) => {
-    const check = await run(make);
-
-    expect(check).toStrictEqual({ got: check.want, want: check.want });
-  });
+  register(CASES, make);
 };

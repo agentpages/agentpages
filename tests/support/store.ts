@@ -287,12 +287,3 @@ export const sharedPage = async (options: WorldOptions = {}): Promise<{ target: 
   const shared = await call(target, ["pages_set_access", { opId: op(2), pageId: PAGE, access: "link-write" }]);
   return { target, url: resultOf(TOOL_SCHEMAS.pages_set_access.result, shared).url };
 };
-
-interface Registered {
-  name: string;
-  suite?: { tasks: { name: string }[] };
-}
-
-/** The titles of the tests registered beside `task`. */
-export const titlesBeside = (task: Registered): string[] | undefined =>
-  task.suite?.tasks.map((registered) => registered.name).filter((title) => title !== task.name);

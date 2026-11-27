@@ -10,6 +10,9 @@ import { Key } from '@agentpages/storage';
 import { Storage as Storage_2 } from '@agentpages/storage';
 
 // @public
+export const across: (storages: readonly [Storage_2, ...Storage_2[]]) => Storage_2;
+
+// @public
 export interface Driver {
     advance(ms: number): void;
     call(request: {
@@ -35,6 +38,15 @@ export interface Driver {
 }
 
 // @public
+export interface Durable {
+    expire: () => void;
+    open: () => Storage_2;
+}
+
+// @public
+export const durableSuite: (make: MakeDurable) => void;
+
+// @public
 export type FaultPoint = "get" | "getMany" | "scan" | "commit" | "committed";
 
 // @public
@@ -42,6 +54,9 @@ export const faulty: (storage: Storage_2, plan: Plan) => Storage_2;
 
 // @public (undocumented)
 export type MakeDriver = () => Driver;
+
+// @public (undocumented)
+export type MakeDurable = () => Durable;
 
 // @public (undocumented)
 export type MakeStorage = () => Storage_2 | Promise<Storage_2>;
