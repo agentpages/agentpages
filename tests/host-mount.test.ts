@@ -107,7 +107,7 @@ test("[REL-25] a mounted host draws a new UUID for every request", async () => {
   await settle();
 });
 
-test("[HOST-7] a mounted host asks for heads every second by the timers of its window", async () => {
+test("[HOST-8] a mounted host asks for heads every second by the timers of its window", async () => {
   const { hosts } = subject();
   await settle();
   vi.advanceTimersByTime(999);

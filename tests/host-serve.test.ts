@@ -1,4 +1,4 @@
-import { EXTENSION_ID, ID_PATTERN, type JsonRpcMessage, methodNotFound, toJsonRpcError } from "@agentpages/protocol";
+import { type Answer, EXTENSION_ID, ID_PATTERN, type JsonRpcMessage, methodNotFound, toJsonRpcError } from "@agentpages/protocol";
 import { expect, test } from "vitest";
 import {
   answer,
@@ -6,6 +6,7 @@ import {
   commitsOnly,
   failed,
   failing,
+  gate,
   heads,
   idOf,
   initialize,
@@ -178,6 +179,19 @@ test("[EXT-8] close sends nothing to a view that never initialized, and nothing 
   expect(await probe(view)).toStrictEqual(PROBED);
   await answer(view, teardown);
   await expect(Promise.all([closed.done, again])).resolves.toStrictEqual([undefined, undefined]);
+});
+
+test("[REL-17] a host closed while the Store answers its view asks nothing more and waits for nothing", async () => {
+  const slow = gate<Answer>();
+  const { view, views, hosts, mounted, timers, events, store } = subject();
+  await settle();
+  store.view = () => slow.promise;
+  await view.send(request(1, { method: "agentpages/identity/get" }));
+  await mounted.close();
+  slow.open({ kind: "result", result: { viewer: null } });
+  timers.advance(10 * TIMEOUT_MS);
+  await settle();
+  expect([views.length, hosts.length, events, timers.waiting()]).toStrictEqual([1, 1, [], 0]);
 });
 
 test("[REL-17] a closed host hears its view no longer and asks the Store nothing more", async () => {

@@ -12,6 +12,7 @@ export const createChain = (timers: Timers): Chain => {
   const state = { stopped: false, cancel: (): void => {} };
   return {
     after: (ms, step) => {
+      if (state.stopped) return;
       state.cancel = timers.after(ms, () => {
         state.cancel = (): void => {};
         void step();

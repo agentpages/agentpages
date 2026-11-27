@@ -118,6 +118,12 @@ export const commitsByScope =
   ({ params }: ViewRequest): Answer =>
     JSON.stringify(params).includes("viewer") ? commits(...seqs) : commits(6);
 
+/** A Store that answers its first request with the first of `answers`, and so on. */
+export const inTurn = (...answers: Answer[]): Scripts["view"] => {
+  const left = [...answers];
+  return () => left.shift() ?? failed("Internal");
+};
+
 /** A Store that has commit 6 and refuses every other request. */
 export const commitsOnly = ({ method }: ViewRequest): Answer =>
   method === "agentpages/state/commits" ? commits(6) : failed("Forbidden");

@@ -17,7 +17,7 @@ await mounted.close();
 - It answers `ui/initialize` with the capability, without `render`, and a `ping` with `{}`.
 - It passes every other request of the view to `link.view`, once, with the `url` and a `requestId` it chose. The Store decides which methods exist. The view never gets the `url`.
 - It asks `link.host` for `pages_heads` at once, and again `intervalMs` after each answer, so two never overlap. Answers that say nothing of the page are skipped.
-- When the Store advertises `liveChanges`, it fetches the commits after the last `seq` it sent an initialized view and sends each as `agentpages/state/committed`. A failed fetch is asked again from the same `seq` at the next heads. `ResyncRequired` skips to the `seq` of the heads: the view resyncs itself.
+- When the Store advertises `liveChanges`, it fetches the commits after the last `seq` it sent an initialized view and sends each as `agentpages/state/committed`, page after page until it has sent the `seq` of the heads. A failed fetch is asked again from the same `seq` at the next heads. `ResyncRequired` skips to the `seq` of the heads: the view resyncs itself.
 - It pings an initialized view, and again `requestTimeoutMs` after each answer.
 - Before `ui/notifications/initialized` it sends nothing of its own.
 

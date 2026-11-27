@@ -37,6 +37,7 @@ export const startPoll = ([serving, ports]: [Serving, HostPorts], view: Followed
       view.send({ scope: position.scope, commit });
     });
     seen.sent.set(position.scope, cursor);
+    if (cursor > position.since) await pump({ ...position, since: cursor });
   };
   const follow = async (heads: Heads): Promise<void> => {
     if (seen.comments !== undefined && seen.comments !== heads.comments) on({ kind: "comments", comments: heads.comments });

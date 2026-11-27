@@ -10,6 +10,7 @@ import {
   gate,
   heads,
   initialize,
+  inTurn,
   LINK,
   probe,
   PROBED,
@@ -47,10 +48,33 @@ const behind = async (answered: Answer | Promise<Answer>, seq = 7): Promise<Subj
   return served;
 };
 
+/** The same, with the Store at `seq` 8 and the pages of commits it answers with, after the one tick that fetched two of them. */
+const backlog = async (...pages: Answer[]): Promise<Subject> => {
+  const served = await live();
+  served.store.heads = heads({ seq: 8 });
+  served.store.view = inTurn(...pages);
+  await tick(served);
+  expect(fetches(served)).toStrictEqual([fetch("page", 5), fetch("page", 6)]);
+  return served;
+};
+
+/** The next `count` messages the view got. */
+const received = async (served: Subject, count: number): Promise<JsonRpcMessage[]> =>
+  count === 0 ? [] : [await served.view.next(), ...(await received(served, count - 1))];
+
+/** The next `count` messages the view got, and the one after them: `PROBED` when the host sent no more. */
+const gotByView = async (served: Subject, count: number): Promise<JsonRpcMessage[]> => [
+  ...(await received(served, count)),
+  await probe(served.view),
+];
+
+/** The commits `seqs` of the page as a view gets them, and nothing after them. */
+const andNoMore = (...seqs: number[]): JsonRpcMessage[] => [...seqs.map((seq) => committed("page", seq)), PROBED];
+
 /** What a host that should have stopped asking did in the five seconds that follow. */
 const afterwards = async (served: Subject): Promise<unknown> => {
   await tick(served, 5000);
-  return { events: served.events, asked: served.hosts.length, waiting: served.timers.waiting() };
+  return { events: served.events, asked: served.hosts.length, fetched: served.views.length, waiting: served.timers.waiting() };
 };
 
 /** Puts commit 6 in the Store and lets the host learn of it. */
@@ -69,7 +93,7 @@ const ENDINGS: { name: string; answered: Answer; event: unknown }[] = [
   { name: "[HOST-8] Forbidden", answered: failed("Forbidden"), event: { kind: "closed", error: "Forbidden" } },
 ];
 
-test("[HOST-7] a host asks pages_heads for the link of its viewer at once, and again after each answer and a wait", async () => {
+test("[HOST-8] a host asks pages_heads for the link of its viewer at once, and again after each answer and a wait", async () => {
   const served = subject();
   expect(served.hosts).toStrictEqual([{ operation: "pages_heads", input: { url: LINK }, requestId: "host-1" }]);
   await settle();
@@ -81,7 +105,7 @@ test("[HOST-7] a host asks pages_heads for the link of its viewer at once, and a
   expect(served.events).toStrictEqual([]);
 });
 
-test("[HOST-7] a host waits intervalMs between an answer and the next pages_heads, and never asks two at once", async () => {
+test("[HOST-8] a host waits intervalMs between an answer and the next pages_heads, and never asks two at once", async () => {
   const slow = gate<Answer>();
   const served = subject({ intervalMs: 50 });
   await settle();
@@ -105,7 +129,7 @@ test.each(ENDINGS)("[REL-17] $name is reported once, and the host asks for no mo
   await settle();
   served.store.heads = answered;
   await tick(served);
-  expect(await afterwards(served)).toStrictEqual({ events: [event], asked: 2, waiting: 0 });
+  expect(await afterwards(served)).toStrictEqual({ events: [event], asked: 2, fetched: 0, waiting: 0 });
 });
 
 test.each([
@@ -142,14 +166,24 @@ test("[HOST-8] [STATE-21] a host fetches the commits after its first heads and s
 });
 
 test("[HOST-8] a host fetches from the last commit it sent, and nothing while the Store has no more", async () => {
-  const served = await behind(commits(6), 8);
+  const served = await behind(commits(6, 7));
   await tick(served);
-  served.store.heads = heads({ seq: 6 });
+  served.store.heads = heads({ seq: 9 });
+  served.store.view = () => commits(8, 9);
   await tick(served);
-  expect(fetches(served)).toStrictEqual([fetch("page", 5), fetch("page", 6)]);
-  expect(await served.view.next()).toStrictEqual(committed("page", 6));
-  expect(await served.view.next()).toStrictEqual(committed("page", 6));
-  expect(await probe(served.view)).toStrictEqual(PROBED);
+  expect(fetches(served)).toStrictEqual([fetch("page", 5), fetch("page", 7)]);
+  expect(await gotByView(served, 4)).toStrictEqual(andNoMore(6, 7, 8, 9));
+});
+
+test("[HOST-8] a host that is more than one page of commits behind fetches them all at once, in order", async () => {
+  const served = await backlog(commits(6), commits(7, 8));
+  expect(await gotByView(served, 3)).toStrictEqual(andNoMore(6, 7, 8));
+});
+
+test("[HOST-8] a host stops fetching at a page that fails, and goes on from there at the next heads", async () => {
+  const served = await backlog(commits(6), failed("Unavailable"), commits(7, 8));
+  await tick(served);
+  expect(fetches(served)).toStrictEqual([fetch("page", 5), fetch("page", 6), fetch("page", 6)]);
 });
 
 test.each([
@@ -165,7 +199,7 @@ test.each([
   expect(served.events).toStrictEqual([]);
 });
 
-test("[HOST-8] a host told to resync skips to the seq of its heads and leaves the resync to the view", async () => {
+test("[HOST-8] a host whose commits answer ResyncRequired goes on from the seq of that pages_heads and sends nothing", async () => {
   const served = await behind(failed("ResyncRequired"));
   await tick(served);
   served.store.heads = heads({ seq: 8 });
@@ -236,17 +270,18 @@ test("[REL-17] a host closed while it waits for heads reports nothing and asks n
   await tick(served);
   await served.mounted.close();
   slow.open(heads({ version: 4 }));
-  expect(await afterwards(served)).toStrictEqual({ events: [], asked: 2, waiting: 0 });
+  expect(await afterwards(served)).toStrictEqual({ events: [], asked: 2, fetched: 0, waiting: 0 });
 });
 
-test("[REL-17] a host closed while it fetches commits sends none of them", async () => {
+test("[REL-17] a host closed while it fetches commits sends none of them, fetches no more and asks for no more heads", async () => {
   const slow = gate<Answer>();
   const served = await behind(slow.promise);
   const closed = served.mounted.close();
   const teardown = await served.view.next();
-  slow.open(commits(6, 7));
+  slow.open(commits(6));
   await settle();
   expect(await probe(served.view)).toStrictEqual(PROBED);
   await answer(served.view, teardown);
-  await expect(closed).resolves.toBeUndefined();
+  await closed;
+  expect(await afterwards(served)).toStrictEqual({ events: [], asked: 2, fetched: 1, waiting: 0 });
 });
