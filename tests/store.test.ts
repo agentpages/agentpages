@@ -8,6 +8,7 @@ import { titlesBeside } from "./support/suites.ts";
 const CORE = [
   "[COMMON-4] a list without a limit returns 100 items, and nextCursor exactly when more exist",
   "[COMMON-4] every list returns its items in pages of the limit it was given",
+  "[COMMON-4] a cursor with a character that is not printable ASCII is malformed",
   "[COMMON-5] a malformed request is malformed, whatever else is wrong with it",
   "[COMMON-5] what a request names is looked for before the caller's access",
   "[COMMON-5] the caller's access is checked before the limits, and what a request names before both",

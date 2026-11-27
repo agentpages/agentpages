@@ -1,4 +1,4 @@
-/** ASCII, ordered by code point. The Store encodes its tuples into keys. */
+/** Printable ASCII, U+0020 to U+007E, ordered by code point. The Store encodes its tuples into keys. */
 export type Key = string;
 
 /** A JSON object, holding only JSON values, or bytes. */

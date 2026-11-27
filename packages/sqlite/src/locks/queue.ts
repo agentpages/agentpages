@@ -1,6 +1,6 @@
 import type { DatabaseSync, StatementResultingChanges } from "node:sqlite";
 import type { Clock, Key } from "@agentpages/storage";
-import { atomically } from "../database/connect.js";
+import { atomically, durably } from "../database/connect.js";
 
 /** The place of a run in the queue. */
 export type Ticket = StatementResultingChanges["lastInsertRowid"];
@@ -53,13 +53,13 @@ export const queueOf = (db: DatabaseSync, { clock, leaseMs }: Lease): Queue => {
         return ahead.get(ticket) !== undefined;
       }),
     leave: (ticket, save) => {
-      atomically(db, () => {
+      durably(db, () => {
         held(leave.run(ticket));
         save();
       });
     },
     abandon: (ticket) => {
-      leave.run(ticket);
+      atomically(db, () => leave.run(ticket));
     },
   };
 };

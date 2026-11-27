@@ -5,7 +5,7 @@ import { once } from "node:events";
 import { writeFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { afterAll, expect, test } from "vitest";
-import { LEASE_MS, NEVER_MS, sqliteFiles } from "./support/sqlite.ts";
+import { besides, holderOf, LEASE_MS, NEVER_MS, openAlone, sqliteFiles } from "./support/sqlite.ts";
 import { wholeStorageSuite } from "./support/storage.ts";
 import { whole } from "./support/suites.ts";
 
@@ -42,6 +42,7 @@ whole({
   titles: [
     "[REL-6] what a transaction saved is read through a later opening",
     "[REL-2] a run that lost its lock to another run rejects and saves nothing, and its storage goes on",
+    "[REL-2] a run that lost its lock rejects while the run that took it still runs, and that run saves",
   ],
 });
 
@@ -76,6 +77,41 @@ test("[REL-2] a run waits while another process writes to the file", async () =>
 
   expect(await keysOf(storage)).toStrictEqual(["a"]);
   expect(await once(writer, "exit")).toStrictEqual([0, null]);
+});
+
+test("[REL-2] a run waits for the run of another process that holds its lock", async () => {
+  const path = files.path();
+  const storage = files.open({ path });
+  const holder = holderOf(path);
+  await once(holder.stdout, "data");
+  const seen = storage.transact(["lock"], (tx) => tx.get("held"));
+  holder.stdin.end();
+
+  expect(await seen).toStrictEqual({});
+  expect(await once(holder, "exit")).toStrictEqual([0, null]);
+});
+
+test("[REL-2] a clock that tells fractions of a millisecond is taken", async () => {
+  const storage = files.open({ path: files.path(), clock: { now: () => 0.5 } });
+
+  expect(await storage.transact(["lock"], () => storage.get("a"))).toBeUndefined();
+});
+
+test("[REL-8] a run that throws after its storage closed rejects with both errors", async () => {
+  const storage = openAlone({ path: files.path() });
+  const thrown = new Error("thrown by the run");
+  const rejection: unknown = await storage
+    .transact(["lock"], () => {
+      storage.close();
+      return Promise.reject(thrown);
+    })
+    .catch((error: unknown) => error);
+
+  expect(rejection).toBeInstanceOf(AggregateError);
+  expect(rejection).toMatchObject({
+    message: "The run failed and its ticket stays until its lease ends.",
+    errors: [thrown, { message: "database is not open" }],
+  });
 });
 
 test("[REL-8] a run that does not get to write within its lease rejects and saves nothing, and the next run goes on", async () => {
@@ -134,15 +170,61 @@ test("a file that is not a SQLite database is not opened", () => {
   expect(() => files.open({ path })).toThrow("file is not a database");
 });
 
-test("a file that holds another version of the storage is not opened, and stays as it is", () => {
+/** What a database file holds, read through a connection of its own. */
+const holdingOf = (path: string): unknown[] => {
+  const db = new DatabaseSync(path);
+  const held = ["SELECT name FROM sqlite_schema", "PRAGMA application_id", "PRAGMA user_version", "PRAGMA journal_mode"].map((sql) => db.prepare(sql).all());
+  db.close();
+  return held.flat().flatMap((row) => Object.values(row));
+};
+
+/** A closed database file that `sql` made. */
+const madeBy = (sql: string): string => {
   const path = files.path();
+  const db = new DatabaseSync(path);
+  db.exec(sql);
+  db.close();
+  return path;
+};
+
+test("a file that holds another version of the storage is not opened, and stays as it is", () => {
+  const path = madeBy("PRAGMA user_version=7");
+
+  expect(() => files.open({ path })).toThrow(`${path} is not a storage of this version.`);
+  expect(holdingOf(path)).toStrictEqual([0, 7, "delete"]);
+});
+
+test("a database of another program is not opened, and stays as it is", () => {
+  const path = madeBy("PRAGMA journal_mode=WAL; CREATE TABLE theirs(a)");
+
+  expect(() => files.open({ path })).toThrow(`${path} is not a storage of this version.`);
+  expect(besides(path)).toStrictEqual([]);
+  expect(holdingOf(path)).toStrictEqual(["theirs", 0, 0, "wal"]);
+});
+
+test("a storage opens while another connection writes to the file", async () => {
+  const path = files.path();
+  await files.open({ path }).transact([], putting("a"));
+  const writer = new DatabaseSync(path);
+  writer.exec("BEGIN IMMEDIATE");
+  const storage = files.open({ path, leaseMs: 20 });
+  writer.close();
+
+  expect(await keysOf(storage)).toStrictEqual(["a"]);
+});
+
+test("a row that another program wrote as 1, null or [1] is not read", async () => {
+  const path = files.path();
+  const storage = files.open({ path });
   const other = new DatabaseSync(path);
-  other.exec("PRAGMA user_version=7");
-
-  expect(() => files.open({ path })).toThrow(`${path} holds another version of the storage.`);
-  expect(other.prepare("PRAGMA user_version").all().map((row) => row.user_version)).toStrictEqual([7]);
-
+  other.exec("INSERT INTO rows(key,value) VALUES('a',1),('b','null'),('c','[1]'),('d','{}')");
   other.close();
+  const refused = "A row holds a value that is not a JSON object or bytes.";
+
+  await expect(storage.get("a")).rejects.toThrow(refused);
+  await expect(storage.get("b")).rejects.toThrow(refused);
+  await expect(storage.get("c")).rejects.toThrow(refused);
+  expect(await storage.get("d")).toStrictEqual({});
 });
 
 test("a closed SQLite storage rejects every call", async () => {

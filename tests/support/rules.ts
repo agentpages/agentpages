@@ -234,6 +234,9 @@ const versions: fc.Arbitrary<string> = fc
   .tuple(textOf(DIGITS, { minLength: 1, maxLength: 3 }), textOf(DIGITS, { minLength: 1, maxLength: 3 }))
   .map((parts) => parts.join("."));
 
+/** Section 2.1: a cursor is printable ASCII. */
+const isCursor = (text: string): boolean => Array.from(text).every((character) => character >= " " && character <= "~");
+
 const DATES = ["2024-02-29T00:00:00.000Z", "2023-02-29T00:00:00.000Z", "2100-02-29T00:00:00.000Z", "2000-02-29T00:00:00.000Z"];
 
 export const RULES = {
@@ -248,6 +251,7 @@ export const RULES = {
   name: sized(STATED.nameFrom, STATED.nameTo),
   description: sized(0, STATED.descriptionTo),
   body: sized(0, STATED.bodyTo),
+  cursor: stringRule({ accepts: isCursor, valid: fc.string(), extremes: [" ~", "\u001F", "\u007F", "\u00E9"] }),
   count: integerRule(0, MAX_COUNT),
   limit: integerRule(STATED.limitFrom, STATED.limitTo),
 } satisfies Record<string, Rule>;

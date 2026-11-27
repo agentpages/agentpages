@@ -106,6 +106,15 @@ const CASES: Cases<MakeStorage> = {
     return { got: [reads, await storage.get(key(4))], want: [[value(5), value(5), "key/4", value(5)], value(4)] };
   },
 
+  "[REL-7] a key named __proto__ in a value is read back as it was put": async (make) => {
+    const storage = await make();
+    await write(storage, (tx) => {
+      tx.put(key(1), Object.fromEntries([["__proto__", value(1)]]));
+    });
+    const read = (await storage.get(key(1))) ?? {};
+    return { got: [Object.keys(read), Object.values(read)], want: [["__proto__"], [value(1)]] };
+  },
+
   "[REL-8] a transaction rejects with what its run threw, and the next run on its lock goes on": async (make) => {
     const storage = await make();
     const thrown = new Error(key(9));
@@ -170,6 +179,16 @@ const CASES: Cases<MakeStorage> = {
     };
   },
 
+  "[COMMON-4] a prefix covers the keys that go on from it with a space and with a tilde, in scan and deleteRange": async (make) => {
+    const storage = await make();
+    await put(storage, ["o~", "p", "p x", "p~x", "q "]);
+    const under = await keysUnder(storage, "p");
+    await write(storage, (tx) => {
+      tx.deleteRange("p");
+    });
+    return { got: [under, await everyKey(storage)], want: [["p", "p x", "p~x"], ["o~", "q "]] };
+  },
+
   "[PAGES-6] deleteRange removes exactly the keys under its prefix": async (make) => {
     const storage = await make();
     await put(storage, ["page/1/a", "page/1/b/c", "page/10/a", "page/1", "x/page/1/a"]);
@@ -189,11 +208,11 @@ const CASES: Cases<MakeStorage> = {
         await scheduler.waitFor(Promise.all(runs));
         counted.push([await keysUnder(storage, RUNS), scheduler.report().length]);
       }),
-      { numRuns: 20 },
+      { numRuns: 100 },
     );
     return {
       got: [new Set(counted.map((run) => JSON.stringify(run))), counted.length],
-      want: [new Set([JSON.stringify([["run/0", "run/1", "run/2"], 3])]), 20],
+      want: [new Set([JSON.stringify([["run/0", "run/1", "run/2"], 3])]), 100],
     };
   },
 

@@ -11,8 +11,16 @@ const SCAN_UP =
 const SCAN_DOWN =
   "SELECT key,value FROM rows WHERE key>=:prefix AND key<:prefix||char(65535) AND (:after IS NULL OR key<:after) ORDER BY key DESC LIMIT :limit";
 
-const valueOf = (stored: SQLOutputValue | undefined): Value =>
-  stored instanceof Uint8Array ? stored : Object.assign<Record<string, unknown>, unknown>({}, JSON.parse(String(stored)));
+const isObject = (parsed: unknown): parsed is Record<string, unknown> =>
+  typeof parsed === "object" && parsed !== null && !Array.isArray(parsed);
+
+const objectOf = (text: string): Value => {
+  const parsed: unknown = JSON.parse(text);
+  if (isObject(parsed)) return parsed;
+  throw new Error("A row holds a value that is not a JSON object or bytes.");
+};
+
+const valueOf = (stored: SQLOutputValue | undefined): Value => (stored instanceof Uint8Array ? stored : objectOf(String(stored)));
 
 /** A promise of what `read` returns, which rejects when it throws. */
 const reading = <T>(read: () => T): Promise<T> =>

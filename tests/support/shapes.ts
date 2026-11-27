@@ -27,6 +27,7 @@ const FIELD_RULES: Record<string, RuleName> = {
   instructions: "body",
   blob: "base64",
   limit: "limit",
+  cursor: "cursor",
   index: "treeIndex",
   "Capability.version": "version",
 };
