@@ -7,21 +7,17 @@ export interface Waiters {
 
 /** The runs of this connection that wait for a lock. A run that ends wakes them, so they need not wait for a timer. */
 export const waitersOf = (retryMs: number): Waiters => {
-  const waiting = new Set<() => void>();
+  const waiting: (() => void)[] = [];
   return {
     pause: () =>
       new Promise((resolve) => {
-        const timer = setTimeout(resolve, retryMs);
-        waiting.add(() => {
-          clearTimeout(timer);
-          resolve();
-        });
+        setTimeout(resolve, retryMs);
+        waiting.push(resolve);
       }),
     wake: () => {
-      waiting.forEach((go) => {
+      waiting.splice(0).forEach((go) => {
         go();
       });
-      waiting.clear();
     },
   };
 };

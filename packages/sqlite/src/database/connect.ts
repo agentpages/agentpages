@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS waits(lock TEXT NOT NULL, ticket INTEGER NOT NULL REF
 CREATE INDEX IF NOT EXISTS waits_ticket ON waits(ticket);
 PRAGMA application_id=${APPLICATION}; PRAGMA user_version=1;`;
 
-const SETTINGS = "PRAGMA journal_mode=WAL; PRAGMA fullfsync=ON; PRAGMA foreign_keys=ON;";
+const SETTINGS = "PRAGMA journal_mode=WAL";
 
 export interface Connection {
   /** The file of the database. It is created when it does not exist. */
@@ -45,7 +45,12 @@ export const durably: Transaction = transaction("PRAGMA synchronous=FULL; BEGIN 
 /** A power loss may undo it. */
 export const atomically: Transaction = transaction("PRAGMA synchronous=NORMAL; BEGIN IMMEDIATE");
 
-const kindOf = (db: DatabaseSync): unknown => db.prepare(KIND).get()?.kind;
+const kindOf = (db: DatabaseSync): string =>
+  db
+    .prepare(KIND)
+    .all()
+    .map(({ kind }) => kind)
+    .join("");
 
 const prepare = (db: DatabaseSync, path: string): void => {
   if (kindOf(db) === "new")

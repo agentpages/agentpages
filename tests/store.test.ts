@@ -180,7 +180,7 @@ const files = sqliteFiles();
 
 afterAll(files.remove);
 
-describe("a Store over the SQLite storage, with state and identity", { timeout: 60_000 }, () => {
+describe("a Store over the SQLite storage, with state and identity", () => {
   storeSuite(() => world({ ports: { storage: files.open({ path: files.path() }) } }).driver);
 
   test("the suite registered every test of such a Store", ({ task }) => {

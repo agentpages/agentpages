@@ -208,7 +208,6 @@ const CASES: Cases<MakeStorage> = {
         await scheduler.waitFor(Promise.all(runs));
         counted.push([await keysUnder(storage, RUNS), scheduler.report().length]);
       }),
-      { numRuns: 100 },
     );
     return {
       got: [new Set(counted.map((run) => JSON.stringify(run))), counted.length],

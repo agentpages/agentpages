@@ -202,6 +202,13 @@ test("a database of another program is not opened, and stays as it is", () => {
   expect(holdingOf(path)).toStrictEqual(["theirs", 0, 0, "wal"]);
 });
 
+test("a new file is put in WAL mode, which every later connection to it keeps", () => {
+  const path = files.path();
+  files.open({ path }).close();
+
+  expect(holdingOf(path).at(-1)).toBe("wal");
+});
+
 test("a storage opens while another connection writes to the file", async () => {
   const path = files.path();
   await files.open({ path }).transact([], putting("a"));

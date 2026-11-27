@@ -41,7 +41,6 @@ export const queueOf = (db: DatabaseSync, { clock, leaseMs }: Lease): Queue => {
   return {
     enter: (locks) =>
       atomically(db, () => {
-        reap.run(clock.now());
         const ticket = join.run(expiry()).lastInsertRowid;
         wait.run(JSON.stringify(locks), ticket);
         return ticket;
