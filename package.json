@@ -59,6 +59,7 @@
     "@agentpages/conformance": "workspace:*",
     "@agentpages/protocol": "workspace:*",
     "@agentpages/server": "workspace:*",
+    "@agentpages/sqlite": "workspace:*",
     "@agentpages/storage": "workspace:*",
     "@arethetypeswrong/cli": "^0.18.5",
     "@changesets/cli": "^3.0.3",

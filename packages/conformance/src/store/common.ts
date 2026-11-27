@@ -81,6 +81,15 @@ export const COMMON_CASES: Cases = {
     };
   },
 
+  "[COMMON-4] a cursor with a character that is not printable ASCII is malformed": async (driver) => {
+    const alice = await withVersions(driver, 1);
+    const from = (cursor: string): Promise<string> => alice.fails(VERSIONS, having(reading(1), ["cursor", cursor]));
+    return {
+      got: [await from("\u0001a"), await from("a\u007F"), await from("\u00E9"), (await alice.ok(VERSIONS, having(reading(1), ["cursor", "~ "]))).versions],
+      want: ["InvalidParams", "InvalidParams", "InvalidParams", []],
+    };
+  },
+
   "[COMMON-5] a malformed request is malformed, whatever else is wrong with it": async (driver) => {
     const [alice, bob] = [actingAs(driver, agent(1)), actingAs(driver, agent(2))];
     await alice.ok(TYPE_PUBLISH, type(1, 0));

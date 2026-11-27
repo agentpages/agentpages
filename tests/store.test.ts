@@ -1,11 +1,14 @@
 import { storeSuite } from "@agentpages/conformance";
-import { describe, expect, test } from "vitest";
-import { ADVERTISED, titlesBeside, world } from "./support/store.ts";
+import { afterAll, describe, expect, test } from "vitest";
+import { sqliteFiles } from "./support/sqlite.ts";
+import { ADVERTISED, world } from "./support/store.ts";
+import { titlesBeside } from "./support/suites.ts";
 
 /** What the suite proves of every Store, by the requirement of the spec each test proves. */
 const CORE = [
   "[COMMON-4] a list without a limit returns 100 items, and nextCursor exactly when more exist",
   "[COMMON-4] every list returns its items in pages of the limit it was given",
+  "[COMMON-4] a cursor with a character that is not printable ASCII is malformed",
   "[COMMON-5] a malformed request is malformed, whatever else is wrong with it",
   "[COMMON-5] what a request names is looked for before the caller's access",
   "[COMMON-5] the caller's access is checked before the limits, and what a request names before both",
@@ -170,5 +173,17 @@ describe.each(Object.entries(KINDS))("a Store over the memory storage, with %s",
 
   test("the suite registered every test of such a Store", ({ task }) => {
     expect(titlesBeside(task)).toStrictEqual(titles);
+  });
+});
+
+const files = sqliteFiles();
+
+afterAll(files.remove);
+
+describe("a Store over the SQLite storage, with state and identity", () => {
+  storeSuite(() => world({ ports: { storage: files.open({ path: files.path() }) } }).driver);
+
+  test("the suite registered every test of such a Store", ({ task }) => {
+    expect(titlesBeside(task)).toStrictEqual([...CORE, ...STATE, ...IDENTITY, ...IDENTITY_IN_STATE]);
   });
 });

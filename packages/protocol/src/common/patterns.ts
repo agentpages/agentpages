@@ -22,3 +22,6 @@ export const DESCRIPTION_PATTERN: RegExp = /^[\s\S]{0,1024}$/u;
 export const BODY_PATTERN: RegExp = /^[\s\S]{0,65536}$/u;
 
 export const VERSION_PATTERN: RegExp = /^\d+\.\d+$/u;
+
+/** A `cursor`: printable ASCII, as the keys of a storage are. */
+export const CURSOR_PATTERN: RegExp = /^[ -~]*$/u;

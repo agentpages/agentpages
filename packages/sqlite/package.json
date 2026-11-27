@@ -1,0 +1,36 @@
+{
+  "name": "@agentpages/sqlite",
+  "version": "0.0.0",
+  "description": "A storage adapter that keeps a Store in a SQLite file",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agentpages/agentpages.git",
+    "directory": "packages/sqlite"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.16"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@agentpages/storage": "workspace:^"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.7"
+  }
+}

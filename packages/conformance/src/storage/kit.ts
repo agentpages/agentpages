@@ -1,4 +1,18 @@
 import type { Storage, Tx, Value } from "@agentpages/storage";
+import { expect, test } from "vitest";
+import { type Check, met } from "../store/kit.js";
+
+/** What each case finds of the storages that `make` makes. */
+export type Cases<M> = Record<string, (make: M) => Promise<Check>>;
+
+/** Registers a test for each case. It passes when the case got what it wants. */
+export const register = <M>(cases: Cases<M>, make: M): void => {
+  test.each(Object.entries(cases))("%s", async (_, run) => {
+    const check = await run(make);
+
+    expect(check).toStrictEqual(met(check));
+  });
+};
 
 export const ALL = 100;
 
@@ -26,6 +40,21 @@ export const put = (storage: Storage, keys: string[]): Promise<void> =>
       tx.put(name, { at: name });
     });
   });
+
+/** Puts key 3, and deletes key 1 and everything under key 2, such as keys 21 and 22. */
+export const change = (tx: Tx): void => {
+  tx.put(key(3), value(3));
+  tx.delete(key(1));
+  tx.deleteRange(key(2));
+};
+
+/** A run that makes the change, then ends as `end` does. */
+export const changing =
+  (end: () => Promise<void>) =>
+  (tx: Tx): Promise<void> => {
+    change(tx);
+    return end();
+  };
 
 export const keysUnder = async (storage: Storage, prefix: string): Promise<string[]> =>
   (await storage.scan({ prefix, limit: ALL })).map(([name]) => name);
