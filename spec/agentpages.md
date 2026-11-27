@@ -42,7 +42,7 @@ Because the Store is the single owner of data, a write through a view is visible
 - A `pageId` and an `opId` are UUIDs chosen by the caller, written in lowercase as `8-4-4-4-12` hexadecimal digits. `[COMMON-2]`
 - Timestamps are real UTC dates and times, written as `YYYY-MM-DDTHH:mm:ss.sssZ`. `[COMMON-3]`
 - Every `limit` is 1 to 100 and defaults to 100. A method that takes `cursor?` returns `nextCursor` exactly when more items exist. A `cursor` is opaque: the caller sends back a `nextCursor` unchanged, with the same other parameters. `[COMMON-4]`
-- A request is checked in this order, and the first check that fails decides the error: it is well formed (`InvalidParams`); the page or type it names exists, unless the request creates it (`NotFound`); the caller has access (`Forbidden`); the viewer is signed in where that is required (`Unauthenticated`); it is within the limits (`LimitExceeded`). `[COMMON-5]`
+- A request is checked in this order, and the first check that fails decides the error: it is well formed (`InvalidParams`); the page or type it names exists, unless the request creates it (`NotFound`); the caller has access (`Forbidden`); the viewer is signed in where that is required (`Unauthenticated`); it is within the limits (`LimitExceeded`). An `InvalidParams` that depends on what the Store holds is decided after the limits and before `Conflict`. `[COMMON-5]`
 - Every number in a request, a result or an advertised capability is an integer from 0 to 2^53 − 1. `[COMMON-6]`
 - `title`, `name` and `mimeType` are 1 to 255 characters. `description` and `quote` are at most 1024. `body` and `instructions` are at most 65536. A character is a Unicode code point. `[COMMON-7]`
 - Base64 uses the standard alphabet with padding (RFC 4648, section 4), in canonical form: unused bits are zero. `[COMMON-8]`
@@ -160,7 +160,7 @@ interface Committed {
 
 - `list` orders by `id`, ascending by code point. `seq` is a log position the response is at least as new as. `[STATE-18]`
 - `commits` returns up to `limit` commits with `seq` greater than `since`, in order, and the current `seq`. A `since` greater than the current `seq` returns `InvalidParams`. `[STATE-19]`
-- A Store keeps commits for at least `commitRetentionSeconds`. `commits` with a `since` older than what it keeps returns `ResyncRequired`. `[STATE-20]`
+- A Store keeps commits for at least `commitRetentionSeconds`. `commits` with a `since` older than what it keeps returns `ResyncRequired`. Age decides this, not what the Store happens to still hold. `[STATE-20]`
 
 **Live changes**
 
@@ -207,7 +207,7 @@ interface Viewer {
 | `[IDENT-1]` | `agentpages/identity/get` | `{}` | `{ viewer: Viewer \| null }` |
 
 - `viewer` is `null` for an anonymous viewer. `[IDENT-2]`
-- `id` is opaque and MUST be the same for the same person on the same page. `[IDENT-3]`
+- `id` is opaque and MUST be the same for the same person on the same page. It is the `id` of that viewer's `Actor` in commits. `[IDENT-3]`
 - A host MUST NOT expose any other field through this method. `[IDENT-4]`
 
 ### 4.4 Files
@@ -349,6 +349,7 @@ type PageContent =
 - When a page's current version changes, the host reloads every open view of it. `[PAGES-19]`
 - `csp` and `permissions` belong to a version: a version published without them has none. `[PAGES-9]`
 - A new page is `private`. `[PAGES-10]`
+- A page keeps its `kind`, and its `typeId` if it has one, in every version. `pages_publish` that changes either returns `InvalidParams`. `[PAGES-21]`
 - `pages_get` without `version` returns the current version. With a `version` the page does not have, it returns `NotFound`, as `types_get` does for a type. `[PAGES-11]`
 - `pages_list` returns the caller's pages, most recently updated first. `[PAGES-12]`
 - A page's `updatedAt` changes when a version is published or its `access` changes to a different value, and at no other time. `[PAGES-20]`
@@ -554,7 +555,7 @@ interface TypeContent {
 - In the `page` scope of a typed page, a commit that puts a document into a collection the type does not declare, or whose `data` does not match that collection's `schema`, returns `InvalidParams`. The type version is the one the page names when the commit arrives. `[TYPES-9]`
 - A page moves to a newer type version only by publishing a new page version that names it. `[TYPES-10]`
 - Documents already stored are not checked again when a page moves to another type version. `[TYPES-11]`
-- A collection is a tree in every version of a type or in none. `types_publish` that changes this returns `InvalidParams`. It is checked against the published versions, after `baseVersion`. `[TYPES-12]`
+- A collection is a tree in every version of a type or in none. `types_publish` that changes this returns `InvalidParams`. `[TYPES-12]`
 - A key of `exports` is an id, as in section 2.1, other than `pdf`. Any other key returns `InvalidParams`. `[TYPES-13]`
 - A `schema` that is not valid JSON Schema 2020-12, or that refers to anything outside itself, returns `InvalidParams`. `[TYPES-14]`
 - A `schema` larger than `maxSchemaBytes`, as UTF-8 JSON without whitespace, returns `LimitExceeded`. `[TYPES-15]`
@@ -569,7 +570,7 @@ A client must be able to assume that the network fails, that requests arrive twi
 - However many times and however close together a Store receives an `opId`, it applies the request once and answers every copy with the same result. `[REL-2]`
 - An `opId` reused with different params returns `InvalidParams`. `[REL-3]`
 - A Store remembers an `opId` for at least `opRetentionSeconds`. `[REL-4]`
-- An `opId` belongs to its caller and to the page or type its request names. The same value from another caller, or for another page or type, is a different `opId`. `[REL-29]`
+- An `opId` belongs to its caller and to the page or type its request names. The same value from another caller, or for another page or type, is a different `opId`. All anonymous viewers of a page are one caller. `[REL-29]`
 - The checks of section 2.1 come before a repeated `opId` is recognised: a repeat after the page was deleted, or after access was lost, returns `NotFound` or `Forbidden`. `[REL-30]`
 - A Store remembers only requests that succeeded. `[REL-31]`
 - A client MUST NOT send an `opId` it first sent more than `opRetentionSeconds` ago. It reports that request as failed with an unknown outcome. `[REL-5]`
