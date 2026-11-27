@@ -45,12 +45,8 @@ export const durably: Transaction = transaction("PRAGMA synchronous=FULL; BEGIN 
 /** A power loss may undo it. */
 export const atomically: Transaction = transaction("PRAGMA synchronous=NORMAL; BEGIN IMMEDIATE");
 
-const kindOf = (db: DatabaseSync): string =>
-  db
-    .prepare(KIND)
-    .all()
-    .map(({ kind }) => kind)
-    .join("");
+/** What the file holds: the one row of `KIND`, as text. */
+const kindOf = (db: DatabaseSync): string => String(db.prepare(KIND).all().map(({ kind }) => kind));
 
 const prepare = (db: DatabaseSync, path: string): void => {
   if (kindOf(db) === "new")
