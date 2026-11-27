@@ -1,7 +1,6 @@
 const pkg = (name) => `^packages/${name}/`;
 
-// Matches other workspace packages by specifier or by resolved path.
-const anyPackageExcept = (...names) => [
+const anyPackageExceptBySpecifierOrPath = (...names) => [
   `(^|/)@agentpages/(?!(${names.join("|")})(/|$))`,
   `^packages/(?!(${names.join("|")})/)`,
 ];
@@ -22,25 +21,25 @@ module.exports = {
       name: "protocol-is-a-leaf",
       severity: "error",
       from: { path: pkg("protocol") },
-      to: { path: anyPackageExcept("protocol") },
+      to: { path: anyPackageExceptBySpecifierOrPath("protocol") },
     },
     {
       name: "client-only-uses-protocol",
       severity: "error",
       from: { path: pkg("client") },
-      to: { path: anyPackageExcept("client", "protocol") },
+      to: { path: anyPackageExceptBySpecifierOrPath("client", "protocol") },
     },
     {
       name: "host-is-framework-free",
       severity: "error",
       from: { path: pkg("host") },
-      to: { path: [...anyPackageExcept("host", "protocol"), uiFrameworks] },
+      to: { path: [...anyPackageExceptBySpecifierOrPath("host", "protocol"), uiFrameworks] },
     },
     {
       name: "server-only-uses-protocol",
       severity: "error",
       from: { path: pkg("server") },
-      to: { path: [...anyPackageExcept("server", "protocol"), uiFrameworks] },
+      to: { path: [...anyPackageExceptBySpecifierOrPath("server", "protocol"), uiFrameworks] },
     },
   ],
   options: {

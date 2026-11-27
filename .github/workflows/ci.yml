@@ -17,3 +17,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+  pr-description:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Description is within 250 words
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+        run: test "$(printf '%s' "$BODY" | wc -w)" -le 250
