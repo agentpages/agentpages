@@ -13,10 +13,12 @@ import {
   HOST_OPERATIONS,
   ID_PATTERN,
   isBase64,
+  JSONRPC_VERSION,
   MAX_ATTEMPTS,
   MAX_COUNT,
   MAX_DIAGNOSTICS,
   MAX_LIMIT,
+  MCP_APPS_VERSION,
   METHOD_NOT_FOUND,
   METHOD_PREFIX,
   METHOD_SCHEMAS,
@@ -28,6 +30,7 @@ import {
   PAGE_RESOURCE_URI_TEMPLATE,
   pageResourceUri,
   PDF_FORMAT,
+  PING,
   PROTOCOL_VERSION,
   RETRY_BASE_MS,
   SETTLE_QUIET_MS,
@@ -36,6 +39,9 @@ import {
   TOOL_VISIBILITY,
   TOOLS,
   TREE_INDEX_PATTERN,
+  UI_INITIALIZE,
+  UI_INITIALIZED,
+  UI_TEARDOWN,
   UUID_PATTERN,
 } from "@agentpages/protocol";
 import { expect, test } from "vitest";
@@ -132,6 +138,10 @@ test("the constants are the ones the spec states", () => {
   expect(pageResourceUri({ pageId: "{pageId}", version: 7 })).toBe(resource?.replace("{version}", "7"));
   expect(PAGE_RESOURCE_URI_TEMPLATE).toBe(resource);
   expect(spec).toContain(`\`_meta.ui.visibility: ${JSON.stringify(TOOL_VISIBILITY)}\``);
+  expect(spec).toContain(`JSON-RPC ${JSONRPC_VERSION} over`);
+  expect(spec).toContain(`send \`protocolVersion\` \`${MCP_APPS_VERSION}\``);
+  expect(spec).toContain(`| \`${UI_INITIALIZE}\`, \`${UI_INITIALIZED}\`, \`${UI_TEARDOWN}\`,`);
+  expect(spec).toContain(`| \`${PING}\` |`);
 });
 
 test("the numbers are the ones the spec states", () => {

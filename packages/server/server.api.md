@@ -7,6 +7,8 @@
 import { Answer } from '@agentpages/protocol';
 import { Capability } from '@agentpages/protocol';
 import { Clock } from '@agentpages/storage';
+import { HostCapability } from '@agentpages/protocol';
+import { HostRequest } from '@agentpages/protocol';
 import { Issue } from '@agentpages/protocol';
 import { JsonSchema } from '@agentpages/protocol';
 import { LogRecord } from '@agentpages/protocol';
@@ -14,6 +16,7 @@ import { PageInfo } from '@agentpages/protocol';
 import { Problem } from '@agentpages/protocol';
 import { Storage as Storage_2 } from '@agentpages/storage';
 import { ToolName } from '@agentpages/protocol';
+import { ViewRequest } from '@agentpages/protocol';
 
 // @public
 export type Agent = Extract<Principal, {
@@ -35,14 +38,9 @@ export const createMemoryStorage: () => Storage_2;
 export const createStore: (ports: Ports, config: StoreConfig) => Store;
 
 // @public (undocumented)
-export interface HostCall {
-    // (undocumented)
-    input: unknown;
-    // (undocumented)
-    operation: string;
+export interface HostCall extends HostRequest {
     // (undocumented)
     principal: Visitor;
-    requestId: string;
 }
 
 // @public (undocumented)
@@ -148,7 +146,7 @@ export interface Store {
 export interface StoreConfig {
     actorKey: string;
     baseUrl: string;
-    capability: Omit<Capability, "version" | "render">;
+    capability: Omit<HostCapability, "version">;
 }
 
 // @public (undocumented)
@@ -165,15 +163,9 @@ export interface ToolCall {
 export const unlimited: RateLimiter;
 
 // @public (undocumented)
-export interface ViewCall {
-    // (undocumented)
-    method: string;
-    // (undocumented)
-    params: unknown;
+export interface ViewCall extends ViewRequest {
     // (undocumented)
     principal: Visitor;
-    requestId: string;
-    url: string;
 }
 
 // @public

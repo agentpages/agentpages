@@ -4,12 +4,15 @@ import {
   type Capability,
   CapabilitySchema,
   hasFeature,
+  type HostCapability,
+  type HostRequest,
   isToolName,
   METHOD_NOT_FOUND,
   PROTOCOL_VERSION,
   type ToolName,
   TOOLS,
   validate,
+  type ViewRequest,
 } from "@agentpages/protocol";
 import { actorsUnder } from "../access/actor.js";
 import type { Agent, Visitor } from "../access/principal.js";
@@ -20,7 +23,7 @@ import { HOST_HANDLERS, methodsOf, toolsOf } from "./operations.js";
 
 export interface StoreConfig {
   /** The limits and the features the Store advertises. It has no `render`: a Store does not render yet. */
-  capability: Omit<Capability, "version" | "render">;
+  capability: Omit<HostCapability, "version">;
   /** What every page `url` starts with: a URL, such as `https://pages.example/p/`. */
   baseUrl: string;
   /**
@@ -36,22 +39,12 @@ export interface ToolCall {
   principal: Agent;
 }
 
-export interface HostCall {
-  operation: string;
-  input: unknown;
+export interface HostCall extends HostRequest {
   principal: Visitor;
-  /** The id the host chose for the request, as section 2.1 of the spec defines one. */
-  requestId: string;
 }
 
-export interface ViewCall {
-  method: string;
-  params: unknown;
-  /** The page link the host holds for the view. It names the page and is the link the viewer presents. */
-  url: string;
+export interface ViewCall extends ViewRequest {
   principal: Visitor;
-  /** The id the host chose for the request. */
-  requestId: string;
 }
 
 export interface Store {
