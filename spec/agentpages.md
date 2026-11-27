@@ -160,7 +160,7 @@ interface Committed {
 
 - `list` orders by `id`, ascending by code point. `seq` is a log position the response is at least as new as. `[STATE-18]`
 - `commits` returns up to `limit` commits with `seq` greater than `since`, in order, and the current `seq`. A `since` greater than the current `seq` returns `InvalidParams`. `[STATE-19]`
-- A Store keeps commits for at least `commitRetentionSeconds`. `commits` with a `since` older than what it keeps returns `ResyncRequired`. Age decides this, not what the Store happens to still hold. `[STATE-20]`
+- A commit is kept while it is at most `commitRetentionSeconds` old. `commits` with a `since` before a commit that is no longer kept returns `ResyncRequired`, whether or not the Store still holds it. `[STATE-20]`
 
 **Live changes**
 
@@ -207,7 +207,8 @@ interface Viewer {
 | `[IDENT-1]` | `agentpages/identity/get` | `{}` | `{ viewer: Viewer \| null }` |
 
 - `viewer` is `null` for an anonymous viewer. `[IDENT-2]`
-- `id` is opaque and MUST be the same for the same person on the same page. It is the `id` of that viewer's `Actor` in commits. `[IDENT-3]`
+- `id` is opaque. It MUST be the same for the same person on the same page for as long as the page exists, and MUST differ for that person on another page. It is the `id` of that viewer's `Actor` in commits. `[IDENT-3]`
+- `id` MUST NOT be computable without a secret of the Store. `[IDENT-5]`
 - A host MUST NOT expose any other field through this method. `[IDENT-4]`
 
 ### 4.4 Files
@@ -571,7 +572,7 @@ A client must be able to assume that the network fails, that requests arrive twi
 - An `opId` reused with different params returns `InvalidParams`. `[REL-3]`
 - A Store remembers an `opId` for at least `opRetentionSeconds`. `[REL-4]`
 - An `opId` belongs to its caller and to the page or type its request names. The same value from another caller, or for another page or type, is a different `opId`. All anonymous viewers of a page are one caller. `[REL-29]`
-- The checks of section 2.1 come before a repeated `opId` is recognised: a repeat after the page was deleted, or after access was lost, returns `NotFound` or `Forbidden`. `[REL-30]`
+- The checks of section 2.1 come before a repeated `opId` is recognised: a repeat after the page was deleted, or after access was lost, returns `NotFound` or `Forbidden`. A repeat with the same params then gets its first result, before the limits. An `opId` reused with different params is decided after the limits, as section 2.1 orders it. `[REL-30]`
 - A Store remembers only requests that succeeded. `[REL-31]`
 - A client MUST NOT send an `opId` it first sent more than `opRetentionSeconds` ago. It reports that request as failed with an unknown outcome. `[REL-5]`
 
@@ -632,7 +633,7 @@ interface LogRecord {
 ```
 
 - A host chooses the `requestId` of a view request and passes it to the Store, so both records and the `ErrorData` share it. The Store chooses the `requestId` of a tool call. `[REL-25]`
-- `seq` is the commit a request created. `[REL-26]`
+- `seq` is the commit a request created or, for a repeat, got back. `[REL-26]`
 - `Internal` errors carry a `cause`. `[REL-27]`
 - No field of a log record, `cause` included, contains document data, file contents, HTML or credentials. `[REL-28]`
 - A log record that cannot be written is lost and does not change the answer to its request. `[REL-32]`
