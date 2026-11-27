@@ -5,6 +5,7 @@ export interface Limits {
   syncIntervalMs: number;
   exportTimeoutMs: number;
   maxHtmlBytes: number;
+  maxSchemaBytes: number;
   opRetentionSeconds: number;
   commitRetentionSeconds: number;
 }

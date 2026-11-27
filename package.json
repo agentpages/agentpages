@@ -47,10 +47,18 @@
       "path": "packages/protocol/dist/index.js",
       "import": "{ fromJsonRpcError, failure, toJsonRpcError }",
       "limit": "3.5 kB"
+    },
+    {
+      "name": "storage: types only",
+      "path": "packages/storage/dist/index.js",
+      "limit": "13 B"
     }
   ],
   "devDependencies": {
+    "@agentpages/conformance": "workspace:*",
     "@agentpages/protocol": "workspace:*",
+    "@agentpages/server": "workspace:*",
+    "@agentpages/storage": "workspace:*",
     "@arethetypeswrong/cli": "^0.18.5",
     "@changesets/cli": "^3.0.3",
     "@microsoft/api-extractor": "^7.60.1",

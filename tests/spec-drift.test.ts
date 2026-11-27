@@ -10,6 +10,8 @@ import {
   EXTENSION_ID,
   type Feature,
   FEATURES,
+  HOST_OPERATION_SCHEMAS,
+  HOST_OPERATIONS,
   ID_PATTERN,
   MAX_ATTEMPTS,
   MAX_COUNT,
@@ -36,7 +38,7 @@ import {
   UUID_PATTERN,
 } from "@agentpages/protocol";
 import { expect, test } from "vitest";
-import { advertised, capabilityExample, errorRows, type Exchange, methodRows, numberIn, spec, textIn, toolRows } from "./support/spec.ts";
+import { advertised, capabilityExample, errorRows, type Exchange, hostRows, methodRows, numberIn, spec, textIn, toolRows } from "./support/spec.ts";
 import { methodToolRows, notificationExample, verdict } from "./support/subjects.ts";
 
 const allTools: Exchange[] = [...toolRows, ...methodToolRows];
@@ -93,6 +95,16 @@ test("the registry has exactly the tools of the spec's tables and of its state a
   expect(new Map(Object.entries(TOOLS))).toStrictEqual(new Map(toolsOfSpec));
   expect(new Set(Object.keys(TOOL_SCHEMAS))).toStrictEqual(new Set(Object.keys(TOOLS)));
   expect(new Set(toolRows.map((row) => row.tag)).size).toBe(toolRows.length);
+});
+
+test("the registry has exactly the host operations of the spec's table, and none of them is a tool", () => {
+  const operationsOfSpec = hostRows.map((row) => [row.name, { mutates: row.params.includes("opId") }]);
+
+  expect(hostRows.map((row) => row.section)).toStrictEqual(["5.6 Host operations", "5.6 Host operations"]);
+  expect(Object.entries(HOST_OPERATIONS)).toStrictEqual(operationsOfSpec);
+  expect(Object.keys(HOST_OPERATION_SCHEMAS)).toStrictEqual(Object.keys(HOST_OPERATIONS));
+  expect(Object.keys(TOOLS).filter((name) => name in HOST_OPERATIONS)).toStrictEqual([]);
+  expect(spec).toContain("They are not MCP tools");
 });
 
 test("the errors are exactly the rows of the spec's table", () => {

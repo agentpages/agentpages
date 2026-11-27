@@ -1,1 +1,1 @@
-export { PROTOCOL_VERSION } from "@agentpages/server";
+export type { Store } from "@agentpages/server";

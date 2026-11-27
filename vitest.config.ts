@@ -11,5 +11,5 @@ const sourceEntry = (name: string): [string, string] => [
 
 export default defineConfig({
   resolve: { alias: Object.fromEntries(readdirSync(packagesDir).map(sourceEntry)) },
-  test: { exclude: ["**/node_modules/**", "**/dist/**", "reports/**"] },
+  test: { exclude: ["**/node_modules/**", "**/dist/**", "reports/**"], expect: { requireAssertions: true } },
 });

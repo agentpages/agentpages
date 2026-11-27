@@ -4,9 +4,9 @@
 
 ```ts
 
-import { PROTOCOL_VERSION } from '@agentpages/server';
+import { Store } from '@agentpages/server';
 
-export { PROTOCOL_VERSION }
+export { Store }
 
 // (No @packageDocumentation comment for this package)
 

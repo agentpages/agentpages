@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 import { declaredNames, typeOfCell } from "./support/shapes.ts";
-import { capabilityExample, type Exchange, methodRows, toolRows, typeBlocks, typeOfExample } from "./support/spec.ts";
+import { capabilityExample, type Exchange, hostRows, methodRows, toolRows, typeBlocks, typeOfExample } from "./support/spec.ts";
 import { methodToolRows } from "./support/subjects.ts";
 
 const folder = new URL("../reports/spec-types/", import.meta.url);
@@ -65,6 +65,7 @@ const source = [
   ...declaredNames.map(declarationCheck),
   ...methodRows.flatMap(exchangeChecks("Methods")),
   ...[...toolRows, ...methodToolRows].flatMap(exchangeChecks("Tools")),
+  ...hostRows.flatMap(exchangeChecks("HostOperations")),
   `export const committed: Equal<Committed, Protocol.Notifications["agentpages/state/committed"]["params"]> = true;`,
   `export const capability: Equal<Flat<${typeOf(typeOfExample(capabilityExample))}>, Flat<Protocol.Capability>> = true;`,
 ].join("\n");
