@@ -548,7 +548,7 @@ interface Heads {
 - `pages_open` with a `url` that names no page returns `NotFound`. A `url` that is not current, presented by anyone but the owner, returns `Forbidden`. `[HOST-4]`
 - `comments_start` records the page's current version. The `id` of the thread and of its first entry is the `opId`. `[HOST-5]`
 - A host also uses `comments_list`, `comments_reply` and `comments_resolve` for a viewer, with `url` in place of `pageId`, under the access rules of section 5.1, with the viewer as `author`. `[HOST-6]`
-- A host learns of every change to a page it shows by calling `pages_heads`. On a new `version` it reloads the view. On `NotFound` or `Forbidden` it closes it. On a new `seq` or `viewerSeq` it fetches `commits` from the last `seq` it sent the view. Before it has sent any, that is the `seq` of its first `pages_heads`. On a new `comments` it lists the threads again. `[HOST-8]`
+- A host learns of every change to a page it shows by calling `pages_heads`. On a new `version` it reloads the view. On `NotFound` or `Forbidden` it closes it. On a new `seq` or `viewerSeq` it fetches `commits` from the last `seq` it sent the view. Before it has sent any, that is the `seq` of its first `pages_heads`. When `commits` answers `ResyncRequired`, it goes on from the `seq` of that `pages_heads`; the view resyncs by section 7.4. On a new `comments` it lists the threads again. `[HOST-8]`
 - A Store answers `pages_heads` without waiting for a change to the page that is in progress. `[HOST-9]`
 
 ## 6. Types
