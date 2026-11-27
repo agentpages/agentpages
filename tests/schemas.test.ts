@@ -133,6 +133,13 @@ test("[COMMON-8] an input schema says that a blob is a string of base64, and lea
   const put = inputSchemaVerdict("files_put");
   const params = { opId: OP_ID, pageId: OP_ID, id: "a", name: "a", mimeType: "a" };
 
-  expect(toolInputSchema("files_put")).toMatchObject({ allOf: [{ properties: { blob: { type: "string", contentEncoding: "base64" } } }, {}] });
+  expect(toolInputSchema("files_put")).toMatchObject({ properties: { blob: { type: "string", contentEncoding: "base64" } } });
   expect(["AA==", "AB==", 7, null].map((blob) => put({ ...params, blob }))).toStrictEqual([true, true, false, false]);
+});
+
+test.each(TOOL_NAMES)("[STORE-1] the input schema of %s is one object, as MCP asks of a tool, with no schema combined at its top", (tool) => {
+  const schema = toolInputSchema(tool);
+
+  expect(schema.type).toBe("object");
+  expect(new Set(Object.keys(schema))).toStrictEqual(new Set(["$schema", "properties", "required", "type"]));
 });

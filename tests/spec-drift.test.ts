@@ -25,9 +25,11 @@ import {
   NOTIFICATION_SCHEMAS,
   NOTIFICATIONS,
   PAGE_RESOURCE_MIME_TYPE,
+  PAGE_RESOURCE_URI_TEMPLATE,
   pageResourceUri,
   PDF_FORMAT,
   PROTOCOL_VERSION,
+  REQUEST_CAP_SLACK_BYTES,
   RETRY_BASE_MS,
   SETTLE_QUIET_MS,
   TIMESTAMP_PATTERN,
@@ -129,11 +131,13 @@ test("the constants are the ones the spec states", () => {
   expect(spec).toContain(`With \`format: "${PDF_FORMAT}"\``);
   expect(spec).toContain(`MIME type \`${PAGE_RESOURCE_MIME_TYPE}\``);
   expect(pageResourceUri({ pageId: "{pageId}", version: 7 })).toBe(resource?.replace("{version}", "7"));
+  expect(PAGE_RESOURCE_URI_TEMPLATE).toBe(resource);
   expect(spec).toContain(`\`_meta.ui.visibility: ${JSON.stringify(TOOL_VISIBILITY)}\``);
 });
 
 test("the numbers are the ones the spec states", () => {
   expect(MAX_DIAGNOSTICS).toBe(numberIn(/At most (\d+) diagnostics/u));
+  expect(REQUEST_CAP_SLACK_BYTES).toBe(numberIn(/request cap of a Store is (\d+) bytes plus twice/u));
   expect(SETTLE_QUIET_MS).toBe(numberIn(/pending for (\d+) milliseconds/u));
   expect(RETRY_BASE_MS).toBe(numberIn(/between 0 and `(\d+) × 2ⁿ` milliseconds/u));
   expect(MAX_ATTEMPTS).toBe(numberIn(/stops after (\d+) attempts/u));

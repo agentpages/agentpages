@@ -7,7 +7,8 @@ import {
   DescriptionSchema,
   IdSchema,
   ofPage,
-  PagingSchema,
+  type Optional,
+  pagingEntries,
   type Raw,
   TimestampSchema,
   UuidSchema,
@@ -32,11 +33,17 @@ export const ThreadSchema: Raw<Thread> = v.object({
   ),
 });
 
-/** The params of each comments tool without the page they name. */
-export const COMMENTS_PARAMS: { readonly [T in keyof CommentsTools]: Raw<Omit<CommentsTools[T]["params"], "pageId">> } = {
-  comments_list: v.intersect([v.object({ status: v.exactOptional(StatusSchema) }), PagingSchema]),
-  comments_reply: v.object({ opId: UuidSchema, threadId: IdSchema, body: BodySchema }),
-  comments_resolve: v.object({ opId: UuidSchema, threadId: IdSchema }),
+interface CommentsEntries {
+  readonly comments_list: { status: Optional<Thread["status"]> } & typeof pagingEntries;
+  readonly comments_reply: { opId: Raw<string>; threadId: Raw<string>; body: Raw<string> };
+  readonly comments_resolve: { opId: Raw<string>; threadId: Raw<string> };
+}
+
+/** The entries of the params of each comments tool, without the page they name. */
+export const COMMENTS_ENTRIES: CommentsEntries = {
+  comments_list: { status: v.exactOptional(StatusSchema), ...pagingEntries },
+  comments_reply: { opId: UuidSchema, threadId: IdSchema, body: BodySchema },
+  comments_resolve: { opId: UuidSchema, threadId: IdSchema },
 };
 
 export const ThreadsSchema: Raw<CommentsListResult> = v.object({
@@ -45,9 +52,9 @@ export const ThreadsSchema: Raw<CommentsListResult> = v.object({
 });
 
 export const COMMENTS_TOOL_PARAMS: { readonly [T in keyof CommentsTools]: Raw<CommentsTools[T]["params"]> } = {
-  comments_list: ofPage(COMMENTS_PARAMS.comments_list),
-  comments_reply: ofPage(COMMENTS_PARAMS.comments_reply),
-  comments_resolve: ofPage(COMMENTS_PARAMS.comments_resolve),
+  comments_list: ofPage(COMMENTS_ENTRIES.comments_list),
+  comments_reply: ofPage(COMMENTS_ENTRIES.comments_reply),
+  comments_resolve: ofPage(COMMENTS_ENTRIES.comments_resolve),
 };
 
 export const COMMENTS_TOOL_SCHEMAS: ExchangeSchemas<CommentsTools> = {

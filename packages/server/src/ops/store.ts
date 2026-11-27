@@ -3,8 +3,10 @@ import {
   type Capability,
   CapabilitySchema,
   hasFeature,
+  isToolName,
   METHOD_NOT_FOUND,
   PROTOCOL_VERSION,
+  type ToolName,
   TOOLS,
   validate,
 } from "@agentpages/protocol";
@@ -55,7 +57,7 @@ export interface Store {
   /** What the Store advertises under the extension identifier. */
   readonly capability: Capability;
   /** The tools the Store lists: those whose features it advertises. */
-  readonly tools: readonly string[];
+  readonly tools: readonly ToolName[];
   /** Answers a tool call of an agent. */
   call(request: ToolCall): Promise<Answer>;
   /** Answers an operation a host runs for a viewer. */
@@ -75,10 +77,12 @@ const byName = <H>(handlers: Record<string, H>): Map<string, H> => new Map(Objec
 
 const unknownMethod = (): Promise<Answer> => Promise.resolve({ kind: "unknown-method", code: METHOD_NOT_FOUND });
 
-const listed = (capability: Capability): string[] =>
-  Object.entries(TOOLS)
-    .filter(([, { requires }]) => requires.every((feature) => hasFeature(capability, feature)))
-    .map(([tool]) => tool);
+const lists =
+  (capability: Capability) =>
+  (tool: string): tool is ToolName =>
+    isToolName(tool) && TOOLS[tool].requires.every((feature) => hasFeature(capability, feature));
+
+const listed = (capability: Capability): ToolName[] => Object.keys(TOOLS).filter(lists(capability));
 
 /** What the Store advertises, once it is known to be a capability of section 3 of the spec that a Store can keep. */
 const advertised = (config: StoreConfig): Capability => {

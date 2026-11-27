@@ -110,13 +110,17 @@ export const LimitSchema: Raw<number> = v.pipe(v.number(), v.integer(), v.minVal
 
 export const EmptySchema: Raw<Empty> = v.pipe(JsonObjectSchema, v.object({}));
 
-export const PagingSchema: Raw<Paging> = v.pipe(
-  JsonObjectSchema,
-  v.object({ cursor: v.exactOptional(v.pipe(v.string(), v.regex(CURSOR_PATTERN))), limit: v.exactOptional(LimitSchema) }),
-);
+export const pagingEntries: { cursor: Optional<string>; limit: Optional<number> } = {
+  cursor: v.exactOptional(v.pipe(v.string(), v.regex(CURSOR_PATTERN))),
+  limit: v.exactOptional(LimitSchema),
+};
 
-export const PageIdSchema: Raw<{ pageId: string }> = v.object({ pageId: UuidSchema });
+export const PagingSchema: Raw<Paging> = v.pipe(JsonObjectSchema, v.object(pagingEntries));
 
-/** The params of a view method as a Store tool takes them. */
-export const ofPage = <Params>(params: Raw<Params>): Raw<Params & { pageId: string }> =>
-  v.intersect([params, PageIdSchema]);
+/**
+ * The params of a view method as a Store tool takes them: one object of the method's entries and `pageId`, so that
+ * its JSON Schema is a single object, as an MCP `inputSchema` must be.
+ */
+export const ofPage = <Entries extends v.ObjectEntries>(
+  entries: Entries,
+): v.ObjectSchema<Entries & { pageId: Raw<string> }, undefined> => v.object({ ...entries, pageId: UuidSchema });

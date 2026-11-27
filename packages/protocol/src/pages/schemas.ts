@@ -7,7 +7,7 @@ import {
   JsonObjectSchema,
   NameSchema,
   type Optional,
-  PageIdSchema,
+  pagingEntries,
   PagingSchema,
   type Raw,
   TimestampSchema,
@@ -42,23 +42,21 @@ const PageContentSchema: Raw<PageContent> = v.variant("kind", [
   v.object({ kind: v.literal("type"), typeId: IdSchema, typeVersion: CountSchema }),
 ]);
 
-const PageOpSchema: Raw<{ opId: string; pageId: string }> = v.object({ opId: UuidSchema, pageId: UuidSchema });
+const pageOp = { opId: UuidSchema, pageId: UuidSchema };
 
 export const PAGES_TOOL_PARAMS: { readonly [T in keyof PagesTools]: Raw<PagesTools[T]["params"]> } = {
-  pages_publish: v.intersect([
-    PageOpSchema,
-    v.object({
-      baseVersion: CountSchema,
-      title: NameSchema,
-      description: v.exactOptional(DescriptionSchema),
-      content: PageContentSchema,
-    }),
-  ]),
+  pages_publish: v.object({
+    ...pageOp,
+    baseVersion: CountSchema,
+    title: NameSchema,
+    description: v.exactOptional(DescriptionSchema),
+    content: PageContentSchema,
+  }),
   pages_get: v.object({ pageId: UuidSchema, version: v.exactOptional(CountSchema) }),
   pages_list: PagingSchema,
-  pages_versions: v.intersect([PageIdSchema, PagingSchema]),
-  pages_set_access: v.intersect([PageOpSchema, v.object({ access: AccessSchema })]),
-  pages_delete: PageOpSchema,
+  pages_versions: v.object({ pageId: UuidSchema, ...pagingEntries }),
+  pages_set_access: v.object({ ...pageOp, access: AccessSchema }),
+  pages_delete: v.object(pageOp),
 };
 
 const versions = v.object({

@@ -4,9 +4,12 @@
 
 ```ts
 
+import { Agent } from '@agentpages/server';
+import { McpServer } from '@modelcontextprotocol/server';
 import { Store } from '@agentpages/server';
 
-export { Store }
+// @public
+export const createAgentServer: (store: Store) => (principal: Agent) => McpServer;
 
 // (No @packageDocumentation comment for this package)
 

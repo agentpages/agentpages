@@ -64,7 +64,7 @@ export interface World {
   /** Stops the Store and starts it again over what it saved. */
   restart: () => void;
   /** The tools the Store lists. */
-  tools: readonly string[];
+  tools: Store["tools"];
   /** Every log record the Store wrote, oldest first. */
   logs: LogRecord[];
   /** The storage as it is on disk, without faults. */

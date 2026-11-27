@@ -21,15 +21,21 @@ const TOOL_PARAMS: { readonly [T in ToolName]: Raw<Tools[T]["params"]> } = {
 /** What JSON Schema says of the checks it cannot make itself: an object, or a text that holds base64. */
 const STANDS_FOR: Record<string, JsonObject> = { raw_transform: { type: "object" }, raw_check: { type: "string", contentEncoding: "base64" } };
 
+/** A JSON Schema of one object, as MCP asks of the `inputSchema` of a tool. */
+export interface ToolInputSchema extends JsonObject {
+  type: "object";
+}
+
 /**
- * The `inputSchema` of a tool, as JSON Schema 2020-12. It accepts every valid input. JSON objects the protocol does
+ * The `inputSchema` of a tool, as JSON Schema 2020-12: one object, with no `allOf`. It accepts every valid input. JSON objects the protocol does
  * not interpret, and maps keyed by id, are plain objects in it, and a `blob` is a string that says it holds base64:
  * their content is checked by `TOOL_SCHEMAS` alone.
  */
-export const toolInputSchema = (tool: ToolName): JsonObject => ({
+export const toolInputSchema = (tool: ToolName): ToolInputSchema => ({
   ...toJsonSchema(TOOL_PARAMS[tool], {
     target: "draft-2020-12",
     errorMode: "ignore",
     overrideAction: ({ valibotAction }) => STANDS_FOR[valibotAction.type],
   }),
+  type: "object",
 });

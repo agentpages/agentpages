@@ -6,6 +6,7 @@ import {
   IdSchema,
   NameSchema,
   ofPage,
+  pagingEntries,
   PagingSchema,
   type Raw,
   TimestampSchema,
@@ -29,24 +30,24 @@ export const FileInfoSchema: Raw<FileInfo> = v.object({
   updatedBy: ActorSchema,
 });
 
-const put = v.object({ opId: UuidSchema, id: IdSchema, name: NameSchema, mimeType: NameSchema, blob: Base64Schema });
+const put = { opId: UuidSchema, id: IdSchema, name: NameSchema, mimeType: NameSchema, blob: Base64Schema };
 const stored = v.object({ file: FileInfoSchema });
-const get = v.object({ id: IdSchema });
+const get = { id: IdSchema };
 const got = v.object({ file: FileInfoSchema, blob: Base64Schema });
 const listed = v.object({ files: v.array(FileInfoSchema), nextCursor: v.exactOptional(v.string()) });
-const remove = v.object({ opId: UuidSchema, id: IdSchema });
+const remove = { opId: UuidSchema, id: IdSchema };
 
 export const FILES_METHOD_SCHEMAS: ExchangeSchemas<FilesMethods> = {
-  "agentpages/files/put": exchange(put, stored),
-  "agentpages/files/get": exchange(get, got),
+  "agentpages/files/put": exchange(v.object(put), stored),
+  "agentpages/files/get": exchange(v.object(get), got),
   "agentpages/files/list": exchange(PagingSchema, listed),
-  "agentpages/files/delete": exchange(remove, EmptySchema),
+  "agentpages/files/delete": exchange(v.object(remove), EmptySchema),
 };
 
 export const FILES_TOOL_PARAMS: { readonly [T in keyof FilesTools]: Raw<FilesTools[T]["params"]> } = {
   files_put: ofPage(put),
   files_get: ofPage(get),
-  files_list: ofPage(PagingSchema),
+  files_list: ofPage(pagingEntries),
   files_delete: ofPage(remove),
 };
 

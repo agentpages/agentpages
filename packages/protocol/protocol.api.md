@@ -553,6 +553,9 @@ export interface Issue {
 // @public (undocumented)
 export type Issues = readonly [Issue, ...Issue[]];
 
+// @public (undocumented)
+export const isToolName: (name: string) => name is ToolName;
+
 // @public
 export type JsonObject = Record<string, unknown>;
 
@@ -631,6 +634,9 @@ export const MAX_DIAGNOSTICS = 50;
 
 // @public (undocumented)
 export const MAX_LIMIT = 100;
+
+// @public
+export const maxRequestBytes: (capability: Capability) => number;
 
 // @public
 export type McpUiCsp = JsonObject;
@@ -724,6 +730,9 @@ export interface Opened {
 // @public (undocumented)
 export const PAGE_RESOURCE_MIME_TYPE = "text/html;profile=mcp-app";
 
+// @public
+export const PAGE_RESOURCE_URI_TEMPLATE = "ui://agentpages/{pageId}/{version}";
+
 // @public (undocumented)
 export type PageContent = {
     kind: "html";
@@ -753,6 +762,12 @@ export interface PageInfo {
     // (undocumented)
     version: number;
 }
+
+// @public
+export const pageOfResourceUri: (uri: string) => {
+    pageId: string;
+    version: number;
+} | undefined;
 
 // @public
 export const pageResourceUri: (input: {
@@ -998,6 +1013,9 @@ export interface RenderTools {
 }
 
 // @public
+export const REQUEST_CAP_SLACK_BYTES = 1048576;
+
+// @public
 export const RETRY_BASE_MS = 250;
 
 // @public
@@ -1192,6 +1210,9 @@ export const toBase64: (bytes: Uint8Array) => string;
 // @public (undocumented)
 export const toJsonRpcError: (input: Failure) => JsonRpcError;
 
+// @public
+export const TOOL_DESCRIPTIONS: { readonly [T in ToolName]: string; };
+
 // @public (undocumented)
 export const TOOL_SCHEMAS: ExchangeSchemas<Tools>;
 
@@ -1219,7 +1240,13 @@ export interface ToolInfo<T extends ToolName> {
 }
 
 // @public
-export const toolInputSchema: (tool: ToolName) => JsonObject;
+export interface ToolInputSchema extends JsonObject {
+    // (undocumented)
+    type: "object";
+}
+
+// @public
+export const toolInputSchema: (tool: ToolName) => ToolInputSchema;
 
 // @public (undocumented)
 export type ToolName = keyof Tools;

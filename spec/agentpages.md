@@ -299,6 +299,8 @@ The Store is an MCP server. MCP is the only agent interface.
 - A failure returns `isError: true` with `structuredContent` of `{ "error": "<Name>" } & ErrorData`, using the names of section 4.6, and the same JSON as one text content block. `[STORE-3]`
 - Store tools declare no `outputSchema`. `[STORE-4]`
 - Every tool that changes anything takes an `opId`. `[STORE-5]`
+- The request cap of a Store is 1048576 bytes plus twice the largest of `maxHtmlBytes`, the base64 length of `maxFileBytes` bytes, and `maxOpsPerCommit × maxDocumentBytes`. A limit of a feature the Store does not advertise counts as 0. `[STORE-6]`
+- A transport refuses a request whose body is larger than the request cap with HTTP status 413, before the Store sees it: no check of section 2.1 runs, and the answer is no error of section 4.6. `[STORE-7]`
 
 ### 5.1 Access
 

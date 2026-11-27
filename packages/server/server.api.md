@@ -13,6 +13,7 @@ import { LogRecord } from '@agentpages/protocol';
 import { PageInfo } from '@agentpages/protocol';
 import { Problem } from '@agentpages/protocol';
 import { Storage as Storage_2 } from '@agentpages/storage';
+import { ToolName } from '@agentpages/protocol';
 
 // @public
 export type Agent = Extract<Principal, {
@@ -139,7 +140,7 @@ export interface Store {
     readonly capability: Capability;
     host(request: HostCall): Promise<Answer>;
     sweep(limit: number): Promise<number>;
-    readonly tools: readonly string[];
+    readonly tools: readonly ToolName[];
     view(request: ViewCall): Promise<Answer>;
 }
 
