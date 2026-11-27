@@ -168,6 +168,18 @@ test("[REL-2] a repeat that carries a field the spec does not know is the same r
   expect(first.kind).toBe("result");
 });
 
+/** More bytes than an array of the engine holds numbers. */
+const HUGE_BYTES = 2 ** 27;
+
+test("[REL-2] a request whose params are larger than any array of numbers is applied once and gets the first result again", async () => {
+  const target = world({ config: { capability: { ...ADVERTISED, limits: { ...limits, maxHtmlBytes: HUGE_BYTES } } } });
+  const request: [string, unknown] = ["pages_publish", { ...publishing({ page: 1, baseVersion: 0, op: 1 }), content: { kind: "html", html: "x".repeat(HUGE_BYTES) } }];
+  const first = await call(target, request);
+
+  expect(await call(target, request)).toStrictEqual(first);
+  expect(resultOf(TOOL_SCHEMAS.pages_publish.result, first).version).toBe(1);
+});
+
 const withCsp = (hosts: unknown): [string, unknown] => [
   "pages_publish",
   { ...publishing({ page: 1, baseVersion: 0, op: 1 }), content: { kind: "html", html: HTML, csp: { hosts, none: null } } },

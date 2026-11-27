@@ -1,5 +1,5 @@
 import type { Actor, Viewer } from "@agentpages/protocol";
-import { base64url, bytesOf, sha256 } from "../pipeline/digest.js";
+import { base64url, type Bytes, bytesOf, joined, sha256 } from "../pipeline/digest.js";
 import type { Principal, Visitor } from "./principal.js";
 
 const MIN_KEY_BYTES = 32;
@@ -11,10 +11,10 @@ const OUTER_PAD = 0x5c;
  * HMAC-SHA-256, as https://www.rfc-editor.org/rfc/rfc2104 defines it. It needs nothing of the platform but its
  * SHA-256.
  */
-const hmac = async (key: number[], message: number[]): Promise<number[]> => {
+const hmac = async (key: Bytes, message: Bytes): Promise<Bytes> => {
   const block = key.length > BLOCK_BYTES ? await sha256(key) : key;
-  const padded = (pad: number): number[] => Array.from({ length: BLOCK_BYTES }, (_, at) => (block[at] ?? 0) ^ pad);
-  return sha256([...padded(OUTER_PAD), ...(await sha256([...padded(INNER_PAD), ...message]))]);
+  const padded = (pad: number): Bytes => Uint8Array.from({ length: BLOCK_BYTES }, (_, at) => (block[at] ?? 0) ^ pad);
+  return sha256(joined(padded(OUTER_PAD), await sha256(joined(padded(INNER_PAD), message))));
 };
 
 /** Who makes a request, and the page the request names when it names one. */
