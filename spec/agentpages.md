@@ -38,10 +38,11 @@ Because the Store is the single owner of data, a write through a view is visible
 
 ### 2.1 Common rules
 
-- Ids (`collection`, document `id`, file `id`, `typeId`, thread and entry `id`) are chosen by the caller and match `^[A-Za-z0-9_-]{1,128}$`. Any other value returns `InvalidParams`. `[COMMON-1]`
+- Ids (`collection`, document `id`, file `id`, `typeId`) are chosen by the caller and match `^[A-Za-z0-9_-]{1,128}$`. Any other value returns `InvalidParams`. `[COMMON-1]`
 - A `pageId` and an `opId` are UUIDs chosen by the caller. Any other value returns `InvalidParams`. `[COMMON-2]`
 - Timestamps are RFC 3339 strings. `[COMMON-3]`
-- Every list takes `cursor?` and `limit?` (1 to 100, default 100) and returns `nextCursor` exactly when more items exist. `[COMMON-4]`
+- Every method that takes `cursor?` also takes `limit?` (1 to 100, default 100) and returns `nextCursor` exactly when more items exist. `[COMMON-4]`
+- A caller without access gets `Forbidden`, whatever else is wrong with the request. `[COMMON-5]`
 
 ## 3. Extension identifier
 
@@ -53,6 +54,8 @@ The extension is `io.github.agentpages/agentpages`, following the MCP extension 
     "version": "0.1",
     "limits": {
       "requestTimeoutMs": 30000,
+      "syncIntervalMs": 30000,
+      "maxHtmlBytes": 1048576,
       "opRetentionSeconds": 86400,
       "commitRetentionSeconds": 604800
     },
@@ -79,13 +82,15 @@ JSON documents owned by the page and kept across its versions. Every change is a
 ```ts
 type Scope = "page" | "viewer";
 
+type Actor = { kind: "viewer"; id: string } | { kind: "anonymous" } | { kind: "agent" };
+
 interface Document {
   collection: string;
   id: string;
   data: Record<string, unknown>;
   revision: number;
   updatedAt: string;
-  updatedBy: string | null;
+  updatedBy: Actor;
 }
 
 type Op =
@@ -103,7 +108,7 @@ interface Commit {
   seq: number;
   opId: string;
   at: string;
-  by: string | null;
+  by: Actor;
   changes: Change[];
 }
 ```
@@ -120,12 +125,12 @@ interface Commit {
 - `page` scope documents are shared by every viewer of the page. `[STATE-5]`
 - `viewer` scope documents are private to the current viewer. `[STATE-6]`
 - `viewer` scope with an anonymous viewer returns `Unauthenticated`. `[STATE-7]`
-- `by` and `updatedBy` are the id of the viewer who made the change, or `null` for an anonymous viewer or an agent. `[STATE-8]`
+- `by` and `updatedBy` name who made the change. `[STATE-8]`
 
 **Commits**
 
 - `commit` applies all of its ops or none of them. `[STATE-9]`
-- Each scope of a page has its own log. A successful commit gets the next `seq`, starting at 1, with no gaps. `[STATE-10]`
+- A page has one log for its `page` scope and one for each viewer's `viewer` scope. A successful commit gets the next `seq` of its log, starting at 1, with no gaps. `[STATE-10]`
 - A `put` replaces the whole document. `[STATE-11]`
 - A `delete` of a missing document changes nothing and produces no `Change`. `[STATE-12]`
 - A commit whose ops change nothing still succeeds and takes a `seq`. `[STATE-13]`
@@ -135,23 +140,23 @@ interface Commit {
 **Revisions**
 
 - Each `(scope, collection, id)` has a revision counter that starts at 0 and never resets. Every `put`, and every `delete` of an existing document, increases it by 1. A document created after a delete continues the count. `[STATE-16]`
-- An op with `ifRevision` succeeds only if the counter equals it. Otherwise the whole commit returns `Conflict`. `ifRevision: 0` means the document has never existed. `[STATE-17]`
+- An op with `ifRevision` succeeds only if the counter equals it. Otherwise the whole commit returns `Conflict`. `ifRevision: 0` instead means the document does not exist now. `[STATE-17]`
 
 **Reading**
 
-- `list` orders by `id`, ascending by code point. `seq` is the log position the response reflects. `[STATE-18]`
-- `commits` returns the commits with `seq` greater than `since`, in order, and the current `seq`. `[STATE-19]`
+- `list` orders by `id`, ascending by code point. `seq` is a log position the response is at least as new as. `[STATE-18]`
+- `commits` returns up to `limit` commits with `seq` greater than `since`, in order, and the current `seq`. A `since` greater than the current `seq` returns `InvalidParams`. `[STATE-19]`
 - A Store keeps commits for at least `commitRetentionSeconds`. `commits` with a `since` older than what it keeps returns `ResyncRequired`. `[STATE-20]`
 
 **Live changes**
 
-If `liveChanges` is `true`, the host MUST send each `page` scope commit to every open view of the page, including the one that made it. `[STATE-21]`
+If `liveChanges` is `true`, the host sends each `page` scope commit to every open view of the page, and each `viewer` scope commit to every open view of that viewer on the page, including the view that made it. `[STATE-21]`
 
 ```json
-{ "method": "agentpages/state/committed", "params": { "commit": { "seq": 4, "opId": "…", "at": "…", "by": null, "changes": [] } } }
+{ "method": "agentpages/state/committed", "params": { "scope": "page", "commit": { "seq": 4, "opId": "…", "at": "…", "by": { "kind": "agent" }, "changes": [] } } }
 ```
 
-Delivery is at least once and in any order. A view MUST apply commits in `seq` order, ignore a `seq` it has already applied, and fetch any gap with `commits`. `[STATE-22]`
+Delivery is best effort: a commit can arrive more than once, out of order, or not at all. A view MUST apply commits in `seq` order, ignore a `seq` it has already applied, and fetch any gap with `commits`. `[STATE-22]`
 
 ### 4.2 Trees
 
@@ -165,11 +170,13 @@ interface TreeNode {
 }
 ```
 
-- Exactly the documents with `parent: null` are roots. `[TREE-1]`
-- Siblings are ordered by `index`, ascending by code point, then by `id`. `[TREE-2]`
-- A commit that would leave a tree document with a missing parent, or would create a cycle, returns `Conflict`. `[TREE-3]`
+- Exactly the documents with `parent: null` are roots. `parent` names a document of the same collection. `[TREE-1]`
+- `index` matches `^[0-9A-Za-z]*[1-9A-Za-z]$`. Any other value returns `InvalidParams`. `[TREE-2]`
+- Siblings are ordered by `index`, ascending by code point, then by `id`. `[TREE-3]`
+- A commit that would leave a tree document with a missing parent, or would create a cycle, returns `Conflict`. `[TREE-4]`
+- Deleting a tree document also deletes all its descendants in the same commit. Each is a `Change`. `[TREE-5]`
 
-A client moves a node by putting it with a new `parent` or `index`, and removes a subtree by deleting every node in it in one commit. To insert between two siblings, a client picks an `index` that sorts between theirs.
+A client moves a node by putting it with a new `parent` or `index`. To insert between two siblings, it picks an `index` that sorts between theirs; because no `index` ends in `0`, one always exists. A client SHOULD end a new `index` with a few random characters so that two clients inserting at the same place do not pick the same one. If two siblings do share an `index`, a client inserting between them gives one of them a new `index` in the same commit.
 
 ### 4.3 Identity
 
@@ -199,7 +206,7 @@ interface FileInfo {
   mimeType: string;
   size: number;
   updatedAt: string;
-  updatedBy: string | null;
+  updatedBy: Actor;
 }
 ```
 
@@ -224,8 +231,10 @@ A failed view method returns a JSON-RPC error with one of these codes and this `
 ```ts
 interface ErrorData {
   requestId: string;
+  message: string;
   retryable: boolean;
   retryAfterMs?: number;
+  opIndex?: number;
 }
 ```
 
@@ -235,14 +244,15 @@ interface ErrorData {
 | `Conflict` | `-32051` | no | The request was based on stale data. Read again, then decide. |
 | `Unauthenticated` | `-32052` | no | The viewer is anonymous and must not be. |
 | `Forbidden` | `-32053` | no | The caller may not do this. |
-| `LimitExceeded` | `-32054` | no | The request is too large. |
-| `Unavailable` | `-32055` | yes | A temporary failure. Nothing was changed. |
+| `LimitExceeded` | `-32054` | no | The request is too large, or a quota is used up. |
+| `Unavailable` | `-32055` | yes | A temporary failure. The outcome is unknown. |
 | `RateLimited` | `-32056` | yes | Too many requests. Carries `retryAfterMs`. |
 | `ResyncRequired` | `-32057` | no | The commit log no longer reaches `since`. List again. |
 | `InvalidParams` | `-32602` | no | The request is malformed. |
 | `Internal` | `-32603` | no | A defect. Logged with its cause. |
 
-`retryable` MUST equal the table. `[ERR-2]`
+- `retryable` MUST equal the table. `[ERR-2]`
+- `message` says what was wrong in words a developer or an agent can act on. `opIndex` is the position of the failing op in a commit. `[ERR-3]`
 
 ## 5. Store
 
@@ -266,7 +276,7 @@ A page's `access` is `private`, `link-read` or `link-write`. With a link setting
 | `[ACCESS-4]` | Link holder | nothing | read | read and write |
 
 - Read covers opening the page and reading its `page` scope state, files and comments. Write adds changing `page` scope state and files, and commenting. `[ACCESS-5]`
-- A viewer with read access can always read and write their own `viewer` scope state. `[ACCESS-6]`
+- A signed-in viewer with read access can read and write their own `viewer` scope state. `[ACCESS-6]`
 - Access does not depend on whether a viewer is anonymous. `[ACCESS-7]`
 
 A Store MAY refuse anonymous viewers altogether.
@@ -302,6 +312,9 @@ type PageContent =
 
 - `pages_publish` succeeds only if `baseVersion` equals the page's current version, where a page that does not exist has version 0. Otherwise the Store returns `Conflict`. Success creates version `baseVersion + 1`. `[PAGES-7]`
 - A published version never changes. `[PAGES-8]`
+- `html` larger than `maxHtmlBytes` returns `LimitExceeded`. `[PAGES-17]`
+- A deleted `pageId` is never used again. Every request that names it returns `NotFound`, except `pages_delete`. `[PAGES-18]`
+- When a page's current version changes, the host reloads every open view of it. `[PAGES-19]`
 - `csp` and `permissions` belong to a version: a version published without them has none. `[PAGES-9]`
 - A new page is `private`. `[PAGES-10]`
 - `pages_get` without `version` returns the current version. `[PAGES-11]`
@@ -347,12 +360,13 @@ interface Entry {
 | Id | Tool | Input | Output |
 |---|---|---|---|
 | `[COMMENTS-1]` | `comments_list` | `{ pageId, status?, cursor?, limit? }` | `{ threads: Thread[], nextCursor?: string }` |
-| `[COMMENTS-2]` | `comments_reply` | `{ opId, pageId, threadId, id, body }` | `Thread` |
+| `[COMMENTS-2]` | `comments_reply` | `{ opId, pageId, threadId, body }` | `Thread` |
 | `[COMMENTS-3]` | `comments_resolve` | `{ opId, pageId, threadId }` | `Thread` |
 
 - `entries` has at least one entry and is ordered oldest first. `[COMMENTS-4]`
 - `comments_list` orders threads by the `createdAt` of their first entry, oldest first. `[COMMENTS-5]`
 - `comments_resolve` on a resolved thread succeeds. `[COMMENTS-6]`
+- The `id` of an entry added by `comments_reply` is its `opId`. `[COMMENTS-7]`
 
 ## 6. Types
 
@@ -389,8 +403,10 @@ interface TypeContent {
 - `types_list` orders by `typeId`, ascending by code point. `[TYPES-6]`
 - A page whose content is `{ typeId, typeVersion }` renders that type version's `html`, `csp` and `permissions`. `[TYPES-7]`
 - `pages_publish` with a type or type version that does not exist returns `NotFound`. `[TYPES-8]`
-- In the `page` scope of a typed page, a commit that puts a document into a collection the type does not declare, or whose `data` does not match that collection's `schema`, returns `InvalidParams`. `[TYPES-9]`
+- In the `page` scope of a typed page, a commit that puts a document into a collection the type does not declare, or whose `data` does not match that collection's `schema`, returns `InvalidParams`. The type version is the one the page names when the commit arrives. `[TYPES-9]`
 - A page moves to a newer type version only by publishing a new page version that names it. `[TYPES-10]`
+- Documents already stored are not checked again when a page moves to another type version. `[TYPES-11]`
+- A collection is a tree in every version of a type or in none. `types_publish` that changes this returns `InvalidParams`. `[TYPES-12]`
 
 ## 7. Reliability
 
@@ -399,39 +415,49 @@ A client must be able to assume that the network fails, that requests arrive twi
 ### 7.1 Idempotency
 
 - Every request that changes anything carries an `opId`. `[REL-1]`
-- A Store that receives an `opId` it has already completed MUST return the original result and change nothing. `[REL-2]`
+- However many times and however close together a Store receives an `opId`, it applies the request once and answers every copy with the same result. `[REL-2]`
 - An `opId` reused with different params returns `InvalidParams`. `[REL-3]`
 - A Store remembers an `opId` for at least `opRetentionSeconds`. `[REL-4]`
-- A request that failed left nothing behind, so the same `opId` can be sent again. `[REL-5]`
+- A client MUST NOT send an `opId` it first sent more than `opRetentionSeconds` ago. It reports that request as failed with an unknown outcome. `[REL-5]`
 
 ### 7.2 Durability
 
 - A Store answers a changing request with success only after the change is durable. `[REL-6]`
-- Every changing request is applied completely or not at all, including across a crash. `[REL-7]`
+- A changing request and the record of its `opId` are saved together, completely or not at all, including across a crash. `[REL-7]`
+- A request the Store answered with an error other than `Unavailable` changed nothing. `[REL-8]`
 
 ### 7.3 Timeouts and retries
 
-- A client MUST give up on a request after `requestTimeoutMs` and treat it as a retryable failure. `[REL-8]`
-- A client retries only a timeout or an error with `retryable: true`, and always with the same `opId`. `[REL-9]`
-- Only the client that originated a request retries it. A host MUST NOT retry a view's request on its behalf. `[REL-10]`
-- The wait before retry `n` (from 0) is a random time between 0 and `min(30000, 250 × 2ⁿ)` milliseconds, and at least `retryAfterMs` when the error carries one. `[REL-11]`
-- A client stops after 6 attempts and reports the last error to its caller. `[REL-12]`
+These rules bind a view. An agent's tool descriptions tell it to repeat a failed call with the same `opId`.
 
-### 7.4 Reconnection
+- A view gives up on a request after `requestTimeoutMs` and treats it as a retryable failure with an unknown outcome. `[REL-9]`
+- A view retries only a timeout or an error with `retryable: true`, and always with the same `opId`. `[REL-10]`
+- Only the view that originated a request retries it. A host MUST NOT retry a view's request on its behalf. `[REL-11]`
+- The wait before retry `n` (from 0) is `retryAfterMs`, or 0 without one, plus a random time between 0 and `250 × 2ⁿ` milliseconds. `[REL-12]`
+- A view stops after 6 attempts and reports the last error to the page. `[REL-13]`
 
-- After any interruption, a view calls `commits` with the last `seq` it applied before it shows state as current. `[REL-13]`
-- On `ResyncRequired`, a view discards its copy and lists again. `[REL-14]`
-- A view that cannot reach its host keeps new commits in order, and sends them unchanged, one at a time, when it can. `[REL-15]`
-- A queued commit that returns a non-retryable error is reported to the page and removed from the queue. It is never dropped silently. `[REL-16]`
+### 7.4 Staying in sync
 
-### 7.5 Overload and liveness
+- A view that lists documents and then follows commits starts from the smallest `seq` any of its `list` responses returned. `[REL-14]`
+- A view that follows commits calls `commits` at least once every `syncIntervalMs`, and after any interruption before it shows state as current. `[REL-15]`
+- On `ResyncRequired`, a view discards its copy and lists again. `[REL-16]`
+- A host passes a new page version or a deleted page to its open views by reloading or closing them. A view never carries a `seq` from one page to another. `[REL-17]`
 
-- A Store that limits request rates MUST answer with `RateLimited` and a `retryAfterMs`. `[REL-17]`
-- A host that gets no answer to an MCP Apps `ping` within `requestTimeoutMs` MUST tell the viewer the page stopped responding and offer to reload it. The rest of the host keeps working. `[REL-18]`
+### 7.5 Unsent commits
 
-### 7.6 Logging
+- A view sends its commits one at a time, in the order the page made them. `[REL-18]`
+- A commit that exhausts its attempts stays first in line. The view tries it again at the next `syncIntervalMs`. `[REL-19]`
+- When a commit returns an error that is not retryable, the view reports that commit and every commit behind it to the page as failed, and removes them. None is dropped silently and none is sent. `[REL-20]`
+- A view tells the page whether it has unsent commits. They do not survive a reload. `[REL-21]`
 
-A Store and a host emit one log record for every request they handle. `[REL-19]`
+### 7.6 Overload and liveness
+
+- A Store that limits request rates MUST answer with `RateLimited` and a `retryAfterMs`. `[REL-22]`
+- A host that gets no answer to an MCP Apps `ping` within `requestTimeoutMs` MUST tell the viewer the page stopped responding and offer to reload it. The rest of the host keeps working. `[REL-23]`
+
+### 7.7 Logging
+
+A Store and a host emit one log record for every request they handle. `[REL-24]`
 
 ```ts
 interface LogRecord {
@@ -439,7 +465,9 @@ interface LogRecord {
   requestId: string;
   opId?: string;
   pageId?: string;
-  actor: string | null;
+  scope?: Scope;
+  seq?: number;
+  actor: Actor;
   method: string;
   outcome: "ok" | "error";
   error?: string;
@@ -448,9 +476,10 @@ interface LogRecord {
 }
 ```
 
-- `requestId` is the one returned in `ErrorData`, so a reported error can be traced to its record. `[REL-20]`
-- `Internal` errors carry a `cause`. `[REL-21]`
-- A log record MUST NOT contain document data, file contents, HTML or credentials. `[REL-22]`
+- A host chooses the `requestId` of a view request and passes it to the Store, so both records and the `ErrorData` share it. `[REL-25]`
+- `seq` is the commit a request created. `[REL-26]`
+- `Internal` errors carry a `cause`. `[REL-27]`
+- No field of a log record, `cause` included, contains document data, file contents, HTML or credentials. `[REL-28]`
 
 ## 8. Security
 
