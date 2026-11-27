@@ -41,7 +41,7 @@ Because the Store is the single owner of data, a write through a view is visible
 - Ids (`collection`, document `id`, a tree node's `parent`, file `id`, `typeId`, an export `format`, `requestId`, and every id the Store chooses) match `^[A-Za-z0-9_-]{1,128}$`. `[COMMON-1]`
 - A `pageId` and an `opId` are UUIDs chosen by the caller, written in lowercase as `8-4-4-4-12` hexadecimal digits. `[COMMON-2]`
 - Timestamps are real UTC dates and times, written as `YYYY-MM-DDTHH:mm:ss.sssZ`. `[COMMON-3]`
-- Every `limit` is 1 to 100 and defaults to 100. A method that takes `cursor?` returns `nextCursor` exactly when more items exist. `[COMMON-4]`
+- Every `limit` is 1 to 100 and defaults to 100. A method that takes `cursor?` returns `nextCursor` exactly when more items exist. A `cursor` is opaque: the caller sends back a `nextCursor` unchanged, with the same other parameters. `[COMMON-4]`
 - A request is checked in this order, and the first check that fails decides the error: it is well formed (`InvalidParams`); the page or type it names exists, unless the request creates it (`NotFound`); the caller has access (`Forbidden`); the viewer is signed in where that is required (`Unauthenticated`); it is within the limits (`LimitExceeded`). `[COMMON-5]`
 - Every number in a request, a result or an advertised capability is an integer from 0 to 2^53 − 1. `[COMMON-6]`
 - `title`, `name` and `mimeType` are 1 to 255 characters. `description` and `quote` are at most 1024. `body` and `instructions` are at most 65536. A character is a Unicode code point. `[COMMON-7]`
@@ -309,7 +309,7 @@ A page's `access` is `private`, `link-read` or `link-write`. With a link setting
 - A signed-in viewer with read access can read and write their own `viewer` scope state. `[ACCESS-6]`
 - Access does not depend on whether a viewer is anonymous. `[ACCESS-7]`
 
-- A link holder is a viewer who presents the page's current `url`, which contains a secret. Setting `access` to `private` ends that `url`, and a later link setting issues a new one. `[ACCESS-8]`
+- A link holder is a viewer who presents the page's current `url`, which contains a secret. Setting `access` to `private` ends that `url`, and a later link setting issues a new one. A change between `link-read` and `link-write` keeps the `url`. `[ACCESS-8]`
 
 A Store MAY refuse anonymous viewers altogether.
 
@@ -343,18 +343,18 @@ type PageContent =
 | `[PAGES-6]` | `pages_delete` | `{ opId, pageId }` | `{}` |
 
 - `pages_publish` succeeds only if `baseVersion` equals the page's current version, where a page that does not exist has version 0. Otherwise the Store returns `Conflict`. Success creates version `baseVersion + 1`. `[PAGES-7]`
-- A published version never changes. `[PAGES-8]`
+- A published version never changes. Its `title` and `description` belong to it, as its content does. `[PAGES-8]`
 - The `html` of a page or a type, when larger than `maxHtmlBytes` in UTF-8 bytes, returns `LimitExceeded`. `[PAGES-17]`
 - A deleted `pageId` is never used again. Every request that names it returns `NotFound`, except `pages_delete`. `[PAGES-18]`
 - When a page's current version changes, the host reloads every open view of it. `[PAGES-19]`
 - `csp` and `permissions` belong to a version: a version published without them has none. `[PAGES-9]`
 - A new page is `private`. `[PAGES-10]`
-- `pages_get` without `version` returns the current version. `[PAGES-11]`
+- `pages_get` without `version` returns the current version. With a `version` the page does not have, it returns `NotFound`, as `types_get` does for a type. `[PAGES-11]`
 - `pages_list` returns the caller's pages, most recently updated first. `[PAGES-12]`
-- A page's `updatedAt` changes when a version is published or its `access` changes, and at no other time. `[PAGES-20]`
+- A page's `updatedAt` changes when a version is published or its `access` changes to a different value, and at no other time. `[PAGES-20]`
 - `pages_versions` orders by `version`, ascending. `[PAGES-13]`
 - `pages_delete` removes the page with its versions, state, files and comments. `[PAGES-14]`
-- `pages_delete` of a missing page succeeds. `[PAGES-15]`
+- `pages_delete` of a missing page succeeds. A `pageId` that never existed stays free to publish. `[PAGES-15]`
 - Each version of `kind: "html"` is an MCP resource at `ui://agentpages/{pageId}/{version}` with MIME type `text/html;profile=mcp-app` and its `csp` and `permissions` under `_meta.ui`. `[PAGES-16]`
 
 A host treats a version's `csp` and `permissions` as MCP Apps specifies.
