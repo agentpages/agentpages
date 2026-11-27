@@ -1,5 +1,5 @@
-import type { Answer, Capability, Problem, Schema } from "@agentpages/protocol";
-import type { Principal } from "../access/principal.js";
+import type { Answer, Capability, Problem, Schema, Scope } from "@agentpages/protocol";
+import type { Principal, Visitor } from "../access/principal.js";
 import type { Ports } from "../ports/ports.js";
 import type { Key, Tx } from "@agentpages/storage";
 import type { Outcome } from "./outcome.js";
@@ -40,6 +40,7 @@ export interface Context<P, T, Who extends Principal = Principal> extends Reques
 interface Names {
   opId?: string;
   pageId?: string;
+  scope?: Scope;
 }
 
 /** Where a request points. */
@@ -61,6 +62,8 @@ export interface Spec<P, T, R, Who extends Principal> {
   /** The limit the request breaks. */
   limits?: (params: P, capability: Capability) => Problem | undefined;
   run: (context: Context<P, T, Who>, tx: Tx) => Promise<Outcome<R>>;
+  /** What the log record says the request created. */
+  created?: (result: R) => { seq: number };
 }
 
 export interface Schemas<P, R> {
@@ -73,3 +76,6 @@ export interface Handler<P, R, Who extends Principal> {
   readonly schemas: Schemas<P, R>;
   readonly answer: (call: Call<Who>) => Promise<Answer>;
 }
+
+/** A method of a view, ready to answer for the page behind the link its host holds. */
+export type Shown<P, R> = (url: string) => Handler<P, R, Visitor>;

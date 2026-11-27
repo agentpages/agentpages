@@ -7,7 +7,7 @@ import {
   guards,
   having,
   markup,
-  ofBytes,
+  objectOfBytes,
   opens,
   page,
   PUBLISH,
@@ -27,12 +27,6 @@ import {
 
 /** The params that publish a version of type 1 with these collections. */
 const declaring = (baseVersion: number, collections: unknown): unknown => having(type(1, baseVersion), ["collections", collections]);
-
-/** A schema whose JSON has exactly `bytes` UTF-8 bytes. */
-const schemaOfBytes = (bytes: number): unknown => {
-  const empty = new TextEncoder().encode(JSON.stringify({ description: "" })).length;
-  return { description: ofBytes(bytes - empty) };
-};
 
 const tree = { ...collection({}), tree: true };
 
@@ -190,12 +184,12 @@ export const TYPES_CASES: Cases = {
     };
   },
 
-  "[TYPES-12] a stale baseVersion is a conflict, even when the request also changes what is a tree": async (driver) => {
+  "[TYPES-12] a change of what is a tree is malformed, even when the baseVersion is stale": async (driver) => {
     const alice = actingAs(driver, agent(1));
     await alice.ok(TYPE_PUBLISH, declaring(0, withTree));
     return {
       got: await Promise.all([0, 2].map((baseVersion) => alice.fails(TYPE_PUBLISH, declaring(baseVersion, treeMadeFlat)))),
-      want: times(2, "Conflict"),
+      want: times(2, "InvalidParams"),
     };
   },
 
@@ -232,8 +226,8 @@ export const TYPES_CASES: Cases = {
   "[TYPES-15] a schema larger than maxSchemaBytes, as UTF-8 JSON without whitespace, is beyond the limit": async (driver) => {
     const alice = actingAs(driver, agent(1));
     const { maxSchemaBytes } = driver.capability.limits;
-    const largest = schemaOfBytes(maxSchemaBytes);
-    const tooLarge = await alice.fails(TYPE_PUBLISH, declaring(0, { small: flat, tooLarge: collection(schemaOfBytes(maxSchemaBytes + 1)) }));
+    const largest = objectOfBytes(maxSchemaBytes);
+    const tooLarge = await alice.fails(TYPE_PUBLISH, declaring(0, { small: flat, tooLarge: collection(objectOfBytes(maxSchemaBytes + 1)) }));
     const missing = await alice.fails(TYPE_GET, readingType(1));
     const deck = await alice.ok(TYPE_PUBLISH, declaring(0, { small: flat, largest: collection(largest) }));
     return {

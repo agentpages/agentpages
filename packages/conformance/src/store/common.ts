@@ -9,6 +9,7 @@ import {
   GET,
   having,
   htmlOfBytes,
+  inPagesOfTwo,
   inTurn,
   LINK_READ,
   LIST,
@@ -33,19 +34,6 @@ import {
   withPage,
   withVersions,
 } from "./kit.js";
-
-interface Paging {
-  limit: number;
-  cursor?: string | undefined;
-}
-
-/** The first three pages of a list, two items at a time. */
-const inPagesOfTwo = async <R extends { nextCursor?: string }>(fetch: (paging: Paging) => Promise<R>): Promise<[R, R, R]> => {
-  const first = await fetch({ limit: 2 });
-  const second = await fetch({ limit: 2, cursor: first.nextCursor });
-  const third = await fetch({ limit: 2, cursor: second.nextCursor });
-  return [first, second, third];
-};
 
 /** What a caller is told who is over a limit of html on an existing page, a deleted page and an existing type. */
 const overTheLimit = (session: Session, bytes: number): Promise<string[]> =>

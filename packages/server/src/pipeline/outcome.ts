@@ -4,6 +4,8 @@ import type { ErrorName } from "@agentpages/protocol";
 export interface Refusal {
   error: Exclude<ErrorName, "RateLimited">;
   message: string;
+  /** The op of a commit that is to blame. */
+  opIndex?: number;
 }
 
 export type Outcome<T> = { ok: true; value: T } | { ok: false; refusal: Refusal };

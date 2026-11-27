@@ -11,7 +11,7 @@ export interface Operation<P, T, R, Who extends Principal> {
   schemas: Schemas<P, R>;
   spec: Spec<P, T, R, Who>;
   /** Everything that happens in the transaction, from finding the target on. */
-  inside: (place: Place<P, T, Who>) => (request: Request<P, Who>, tx: Tx) => Promise<Outcome<unknown>>;
+  inside: (place: Place<P, T, Who>) => (request: Request<P, Who>, tx: Tx) => Promise<Outcome<R>>;
 }
 
 interface Attempt<P, T, R, Who extends Principal> {
@@ -25,8 +25,11 @@ interface Attempt<P, T, R, Who extends Principal> {
 
 interface Decided {
   answer: Settled;
-  cause: { cause?: string };
+  /** What the log record says beside the outcome. */
+  noted: Pick<LogRecord, "seq" | "cause">;
 }
+
+const plain = (answer: Settled): Decided => ({ answer, noted: {} });
 
 const failed = (requestId: string, refusal: Refusal): Settled => ({
   kind: "failure",
@@ -55,6 +58,10 @@ const rateLimited = (requestId: string, retryAfterMs: number): Settled => ({
 
 const none = (): undefined => {};
 
+/** What a request that succeeded created, for its log record. */
+const createdBy = <P, T, R, Who extends Principal>(spec: Spec<P, T, R, Who>, outcome: Outcome<R>): { seq?: number } =>
+  outcome.ok ? { ...spec.created?.(outcome.value) } : {};
+
 /** Half of a surrogate pair: text that is not well-formed Unicode, and so cannot be part of a key. */
 const LONE_SURROGATE = /\p{Surrogate}/u;
 
@@ -82,18 +89,19 @@ const turnedAway = <P, T, R, Who extends Principal>(attempt: Attempt<P, T, R, Wh
 };
 
 /** The checks of a request in the order the spec gives them. The first that fails decides the answer. */
-const decide = async <P, T, R, Who extends Principal>(attempt: Attempt<P, T, R, Who>): Promise<Settled> => {
+const decide = async <P, T, R, Who extends Principal>(attempt: Attempt<P, T, R, Who>): Promise<Decided> => {
   const { operation, call, requestId, at, checked, place } = attempt;
   const { deps, method, principal } = call;
   const turned = await turnedAway(attempt);
-  if (turned !== undefined) return turned;
-  if (!checked.ok) return { kind: "failure", failure: invalidParams({ requestId, issues: checked.issues }) };
+  if (turned !== undefined) return plain(turned);
+  if (!checked.ok) return plain({ kind: "failure", failure: invalidParams({ requestId, issues: checked.issues }) });
   const malformed = operation.spec.malformed?.(checked.value, deps);
-  if (malformed !== undefined) return failed(requestId, malformed);
-  if (place === undefined) return failed(requestId, nowhere());
+  if (malformed !== undefined) return plain(failed(requestId, malformed));
+  if (place === undefined) return plain(failed(requestId, nowhere()));
   const request = { deps, method, principal, requestId, at, params: checked.value };
-  const run = (tx: Tx): Promise<Outcome<unknown>> => operation.inside(place)(request, tx);
-  return settled(requestId, (await transact({ storage: deps.storage, locks: place.locks, run })) ?? STORAGE_DOWN);
+  const run = (tx: Tx): Promise<Outcome<R>> => operation.inside(place)(request, tx);
+  const outcome = (await transact({ storage: deps.storage, locks: place.locks, run })) ?? STORAGE_DOWN;
+  return { answer: settled(requestId, outcome), noted: createdBy(operation.spec, outcome) };
 };
 
 const causeOf = (error: unknown): string => (error instanceof Error ? error.name : typeof error);
@@ -102,7 +110,7 @@ const crashed =
   (requestId: string) =>
   (error: unknown): Decided => ({
     answer: failed(requestId, { error: "Internal", message: "The Store failed. Its log has the cause." }),
-    cause: { cause: causeOf(error) },
+    noted: { cause: causeOf(error) },
   });
 
 const verdictOf = (answer: Settled): { outcome: "ok" } | { outcome: "error"; error: string } =>
@@ -129,7 +137,7 @@ export const handle = async <P, T, R, Who extends Principal>(
   const checked = validate(operation.schemas.params, call.input);
   const place = checked.ok ? operation.spec.target(checked.value, call.deps) : undefined;
   const attempt = { operation, call, requestId, at, checked, place };
-  const { answer, cause } = await decide(attempt).then((decided): Decided => ({ answer: decided, cause: {} }), crashed(requestId));
+  const { answer, noted } = await decide(attempt).catch(crashed(requestId));
   await written(logger, {
     at,
     requestId,
@@ -137,7 +145,7 @@ export const handle = async <P, T, R, Who extends Principal>(
     actor: await actorOf(call.principal),
     method: call.method,
     ...verdictOf(answer),
-    ...cause,
+    ...noted,
     durationMs: clock.now() - started,
   });
   return answer;

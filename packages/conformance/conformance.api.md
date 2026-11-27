@@ -25,6 +25,13 @@ export interface Driver {
         viewer: Viewing;
         requestId: string;
     }): Promise<Answer>;
+    view(request: {
+        method: string;
+        params: unknown;
+        viewer: Viewing;
+        url: string;
+        requestId: string;
+    }): Promise<Answer>;
 }
 
 // @public
@@ -58,6 +65,7 @@ export interface Touched {
 
 // @public
 export interface Viewing {
+    name?: string;
     // (undocumented)
     subject?: string;
 }

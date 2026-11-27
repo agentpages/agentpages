@@ -143,6 +143,7 @@ export interface Store {
     readonly capability: Capability;
     host(request: HostCall): Promise<Answer>;
     readonly tools: readonly string[];
+    view(request: ViewCall): Promise<Answer>;
 }
 
 // @public (undocumented)
@@ -163,6 +164,18 @@ export interface ToolCall {
 
 // @public
 export const unlimited: RateLimiter;
+
+// @public (undocumented)
+export interface ViewCall {
+    // (undocumented)
+    method: string;
+    // (undocumented)
+    params: unknown;
+    // (undocumented)
+    principal: Visitor;
+    requestId: string;
+    url: string;
+}
 
 // @public
 export type Visitor = Exclude<Principal, Agent>;
