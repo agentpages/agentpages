@@ -51,6 +51,10 @@ An operation declares its target, the access it needs and its checks, and brings
 
 A storage that fails, or a rate limiter whose promise rejects, makes the answer `Unavailable`. A stored record that is not what the Store saved, such as a page without an owner, is a defect. Anything else that is thrown is a defect: the answer is `Internal`, and the log record names the cause.
 
+## Files
+
+A files operation is declared once, as a state operation is. A file is two rows under its page: its `FileInfo`, and its bytes as the storage takes them, so a list reads no bytes and deleting the page deletes its files with it. `maxFileBytes` is the largest value the storage must take. A put decodes the `blob` once, and what the Store remembers of it is the `FileInfo` alone. The Store keeps `name` and `mimeType` as they came and serves no file by URL.
+
 ## Sweep
 
 A files operation is declared once, as a state operation is. A file is two rows under its page: its `FileInfo`, and its bytes as the storage takes them, so a list reads no bytes and deleting the page deletes its files with it. `maxFileBytes` is the largest value the storage must take. A put decodes the `blob` once, and what the Store remembers of it is the `FileInfo` alone. The Store keeps `name` and `mimeType` as they came and serves no file by URL.

@@ -40,8 +40,8 @@ export const IDENTITY_CASES: Cases = {
     await alice.ok(PUBLISH, page(1, 1)).then(() => alice.ok(SET_ACCESS, sharing(1, PRIVATE)));
     const relinked = await alice.ok(SET_ACCESS, sharing(1, LINK_WRITE));
     return {
-      got: [again, await idOf(driver, [2, relinked.url]), new Set([bob, carol, bobElsewhere]).size, new Set([url, relinked.url]).size],
-      want: [bob, bob, 3, 2],
+      got: [again, await idOf(driver, [2, relinked.url]), new Set([bob, carol, bobElsewhere]).size, new Set([url, relinked.url]).size, [bob, carol, bobElsewhere].map((id) => typeof id)],
+      want: [bob, bob, 3, 2, ["string", "string", "string"]],
     };
   },
 };
