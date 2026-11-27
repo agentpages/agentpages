@@ -1,0 +1,9 @@
+{
+  "path": ["packages", "scripts", "tests"],
+  "format": ["typescript", "javascript"],
+  "ignore": ["**/dist/**", "**/node_modules/**"],
+  "minLines": 4,
+  "minTokens": 30,
+  "threshold": 0,
+  "reporters": ["console"]
+}

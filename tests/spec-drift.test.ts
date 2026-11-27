@@ -17,7 +17,7 @@ test("the spec advertises the package's extension, version and features", () => 
   const features = Object.fromEntries(FEATURES.map((feature) => [feature, expect.any(Object) as unknown]));
 
   expect(advertisedCapability()).toStrictEqual({
-    [EXTENSION_ID]: { version: PROTOCOL_VERSION, ...features },
+    [EXTENSION_ID]: { version: PROTOCOL_VERSION, limits: expect.any(Object) as unknown, ...features },
   });
 });
 

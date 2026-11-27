@@ -1,6 +1,6 @@
-import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { failOn, trackedFiles } from "./shared.ts";
 
 const allowedPlaces = [
   /^[A-Z]+\.md$/u,
@@ -14,10 +14,7 @@ const allowedPlaces = [
 
 const isInDocsFolder = (file: string): boolean => file.split("/").includes("docs");
 
-const listMarkdownFiles = (): string[] =>
-  execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "*.md"], { encoding: "utf8" })
-    .split("\n")
-    .filter((file) => file !== "" && existsSync(file));
+const listMarkdownFiles = (): string[] => trackedFiles("*.md").filter((file) => existsSync(file));
 
 const isMisplaced = (file: string): boolean =>
   isInDocsFolder(file) || !allowedPlaces.some((place) => place.test(file));
@@ -38,7 +35,4 @@ const problems = [
   ...files.flatMap(brokenLinks),
 ];
 
-problems.forEach((problem) => {
-  console.error(problem);
-});
-process.exitCode = problems.length === 0 ? 0 : 1;
+failOn(problems);
