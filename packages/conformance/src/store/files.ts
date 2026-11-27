@@ -1,6 +1,6 @@
 import { type Empty, type FileInfo, type FilesGetResult, type FilesLimits, type FilesListResult, type FilesPutResult, METHOD_SCHEMAS, toBase64 } from "@agentpages/protocol";
 import type { Driver } from "../contract.js";
-import { actingAs, agent, anonymous, type Cases, type Check, DELETE, deleting, having, inPagesOfTwo, inTurn, LINK_READ, LINK_WRITE, ofLength, opId, page, PRIVATE, PUBLISH, SET_ACCESS, sharing, text, tick, timeOf, times, viewer } from "./kit.js";
+import { actingAs, agent, anonymous, type Cases, type Check, DELETE, deleting, having, inPagesOfTwo, inTurn, LINK_READ, LINK_WRITE, linkOf, ofLength, opId, page, PRIVATE, PUBLISH, SET_ACCESS, sharing, text, tick, timeOf, times, viewer } from "./kit.js";
 import { onEach, opOf, type StateOp, type Surface, toolsOf, twoSides, viewOf } from "./surface.js";
 
 const PUT: StateOp<FilesPutResult> = opOf("files/put", METHOD_SCHEMAS["agentpages/files/put"]);
@@ -206,9 +206,7 @@ const outcomes = (surface: Surface): Promise<string[]> =>
 
 /** What a signed-in link holder and an anonymous one get on page `n` of agent 1, which has this access and the file `a`. */
 const heldWith = async (driver: Driver, [n, access]: [number, string]): Promise<string[][]> => {
-  const alice = actingAs(driver, agent(1));
-  await alice.ok(PUBLISH, page(n, 0));
-  const { url } = await alice.ok(SET_ACCESS, sharing(n, access));
+  const url = await linkOf(driver, [n, access]);
   await toolsOf(driver, { by: 1, on: n }).ok(PUT, putting("a"));
   return Promise.all([viewer(2, url), anonymous(url)].map((visit) => outcomes(viewOf(driver, visit))));
 };
