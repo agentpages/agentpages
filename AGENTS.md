@@ -23,7 +23,7 @@ A fact is written once. Link to it; do not restate it.
 6. **Subtract before adding.** Prefer the smallest diff, and deletion over addition.
 7. **Safe retries.** Retrying a request never duplicates its effect. Callers choose ids.
 8. **Self-documenting code.** Small functions with plain names. No comments except public API docs and links to an external constraint. No lint or type suppressions.
-9. **Prove it works.** Tests assert behavior through public APIs. "It compiles" is not evidence.
+9. **Prove it works.** A test states a requirement from the spec and checks it through a package's public API. It must fail when the behavior breaks and survive a rewrite of the internals. No tests of private functions, no mocks of our own packages, no assertions that restate the implementation. "It compiles" is not evidence.
 
 ## Rules and their enforcers
 
@@ -37,6 +37,7 @@ A rule that has been broken twice gets an enforcer: a type first, then a lint ru
 | Packages resolve for every consumer | `pnpm lint:packages` |
 | Bundle budgets | `pnpm size` |
 | Behavior | `pnpm test` |
+| Tests import only a package's entry point | `pnpm lint:deps` |
 | Design rules 1 to 8 | review |
 
 `pnpm check` runs all of them, locally and in CI.

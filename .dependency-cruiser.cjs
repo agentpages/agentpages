@@ -13,6 +13,12 @@ module.exports = {
   forbidden: [
     { name: "no-circular", severity: "error", from: {}, to: { circular: true } },
     {
+      name: "tests-use-public-api",
+      severity: "error",
+      from: { path: "\\.test\\.ts$" },
+      to: { path: "^packages/[^/]+/src/(?!index\\.ts$)" },
+    },
+    {
       name: "protocol-is-a-leaf",
       severity: "error",
       from: { path: pkg("protocol") },
