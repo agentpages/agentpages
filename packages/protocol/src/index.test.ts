@@ -1,10 +1,10 @@
 import { expect, test } from "vitest";
-import { isCapability } from "./index.js";
+import { isFeature } from "./index.js";
 
-test("recognises declared capabilities", () => {
-  expect(isCapability("storage")).toBe(true);
+test("recognises spec features", () => {
+  expect(isFeature("state")).toBe(true);
 });
 
-test("rejects unknown capabilities", () => {
-  expect(isCapability("camera")).toBe(false);
+test("rejects unknown features", () => {
+  expect(isFeature("camera")).toBe(false);
 });

@@ -1,8 +1,8 @@
 # Contributing
 
-1. `pnpm install`
-2. Make your change with a test.
-3. `pnpm check` must pass.
-4. `pnpm changeset` to describe any change to a published package.
+Read [AGENTS.md](AGENTS.md). It is the standard for every change.
 
-Package boundaries are listed in the README and enforced by `.dependency-cruiser.cjs`. Changes to the wire protocol need a version bump in `@agentpages/protocol`.
+```bash
+pnpm install
+pnpm check
+```

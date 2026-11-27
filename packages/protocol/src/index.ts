@@ -1,8 +1,10 @@
-export const PROTOCOL_VERSION = "0.1.0";
+export const PROTOCOL_VERSION = "0.1";
 
-export const CAPABILITIES = ["storage", "identity", "model", "files"] as const;
+export const EXTENSION_ID = "io.github.kuki1029/agentpages";
 
-export type Capability = (typeof CAPABILITIES)[number];
+export const FEATURES = ["state", "identity", "files"] as const;
 
-export const isCapability = (value: string): value is Capability =>
-  CAPABILITIES.some((capability) => capability === value);
+export type Feature = (typeof FEATURES)[number];
+
+export const isFeature = (value: string): value is Feature =>
+  FEATURES.some((feature) => feature === value);
