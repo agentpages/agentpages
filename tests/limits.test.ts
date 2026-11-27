@@ -115,6 +115,7 @@ test("a file larger than the Store's limit exceeds it", () => {
 
   expect(problem).toStrictEqual({ error: "LimitExceeded", message: about("4 bytes") });
   expect(problem?.message).toContain("maxFileBytes 3");
+  expect(fileProblem({ blob: "AAAAAA==", limits: { maxFileBytes: 4 } })).toBeUndefined();
 });
 
 test("html larger than the Store's limit, in UTF-8 bytes, exceeds it", () => {
@@ -130,6 +131,7 @@ test("html larger than the Store's limit, in UTF-8 bytes, exceeds it", () => {
 
   expect(problem).toStrictEqual({ error: "LimitExceeded", message: about("4 bytes") });
   expect(problem?.message).toContain("maxHtmlBytes 3");
+  expect(htmlProblem({ html: "éé", limits: { ...LIMITS, maxHtmlBytes: 4 } })).toBeUndefined();
 });
 
 test("a schema larger than the Store's limit, as UTF-8 JSON without whitespace, exceeds it", () => {
