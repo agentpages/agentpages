@@ -6,13 +6,14 @@ import {
   CountSchema,
   DescriptionSchema,
   IdSchema,
+  ofPage,
   PagingSchema,
   type Raw,
   TimestampSchema,
   UuidSchema,
 } from "../common/schemas.js";
 import { ViewerSchema } from "../identity/schemas.js";
-import type { CommentsResolveParams, CommentsTools } from "./tools.js";
+import type { CommentsListResult, CommentsTools } from "./tools.js";
 import type { Thread } from "./types.js";
 
 const StatusSchema: Raw<Thread["status"]> = v.picklist(["open", "resolved"]);
@@ -31,26 +32,26 @@ export const ThreadSchema: Raw<Thread> = v.object({
   ),
 });
 
-const ThreadOpSchema: Raw<CommentsResolveParams> = v.object({
-  opId: UuidSchema,
-  pageId: UuidSchema,
-  threadId: IdSchema,
+/** The params of each comments tool without the page they name. */
+export const COMMENTS_PARAMS: { readonly [T in keyof CommentsTools]: Raw<Omit<CommentsTools[T]["params"], "pageId">> } = {
+  comments_list: v.intersect([v.object({ status: v.exactOptional(StatusSchema) }), PagingSchema]),
+  comments_reply: v.object({ opId: UuidSchema, threadId: IdSchema, body: BodySchema }),
+  comments_resolve: v.object({ opId: UuidSchema, threadId: IdSchema }),
+};
+
+export const ThreadsSchema: Raw<CommentsListResult> = v.object({
+  threads: v.array(ThreadSchema),
+  nextCursor: v.exactOptional(v.string()),
 });
 
 export const COMMENTS_TOOL_PARAMS: { readonly [T in keyof CommentsTools]: Raw<CommentsTools[T]["params"]> } = {
-  comments_list: v.intersect([
-    v.object({ pageId: UuidSchema, status: v.exactOptional(StatusSchema) }),
-    PagingSchema,
-  ]),
-  comments_reply: v.intersect([ThreadOpSchema, v.object({ body: BodySchema })]),
-  comments_resolve: ThreadOpSchema,
+  comments_list: ofPage(COMMENTS_PARAMS.comments_list),
+  comments_reply: ofPage(COMMENTS_PARAMS.comments_reply),
+  comments_resolve: ofPage(COMMENTS_PARAMS.comments_resolve),
 };
 
 export const COMMENTS_TOOL_SCHEMAS: ExchangeSchemas<CommentsTools> = {
-  comments_list: exchange(
-    COMMENTS_TOOL_PARAMS.comments_list,
-    v.object({ threads: v.array(ThreadSchema), nextCursor: v.exactOptional(v.string()) }),
-  ),
+  comments_list: exchange(COMMENTS_TOOL_PARAMS.comments_list, ThreadsSchema),
   comments_reply: exchange(COMMENTS_TOOL_PARAMS.comments_reply, ThreadSchema),
   comments_resolve: exchange(COMMENTS_TOOL_PARAMS.comments_resolve, ThreadSchema),
 };

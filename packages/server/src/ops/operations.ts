@@ -19,7 +19,7 @@ type ToolNotYet =
   | "pages_export";
 
 /** Host operations of later units, answered the same way. */
-type HostOperationNotYet = "comments_start";
+type HostOperationNotYet = "comments_start" | "pages_heads" | "comments_list" | "comments_reply" | "comments_resolve";
 
 /** Methods of later units, and the requests that go to a view and never to a Store. */
 type MethodNotYet = keyof FilesMethods | keyof ViewMethods;
