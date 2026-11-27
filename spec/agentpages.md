@@ -38,11 +38,15 @@ Because the Store is the single owner of data, a write through a view is visible
 
 ### 2.1 Common rules
 
-- Ids (`collection`, document `id`, file `id`, `typeId`) are chosen by the caller and match `^[A-Za-z0-9_-]{1,128}$`. Any other value returns `InvalidParams`. `[COMMON-1]`
-- A `pageId` and an `opId` are UUIDs chosen by the caller. Any other value returns `InvalidParams`. `[COMMON-2]`
-- Timestamps are RFC 3339 strings. `[COMMON-3]`
-- Every method that takes `cursor?` also takes `limit?` (1 to 100, default 100) and returns `nextCursor` exactly when more items exist. `[COMMON-4]`
-- A caller without access gets `Forbidden`, whatever else is wrong with the request. `[COMMON-5]`
+- Ids (`collection`, document `id`, file `id`, `typeId`, and every id the Store chooses) match `^[A-Za-z0-9_-]{1,128}$`. `[COMMON-1]`
+- A `pageId` and an `opId` are UUIDs chosen by the caller, written in lowercase as `8-4-4-4-12` hexadecimal digits. `[COMMON-2]`
+- Timestamps are UTC, written as `YYYY-MM-DDTHH:mm:ss.sssZ`. `[COMMON-3]`
+- Every `limit` is 1 to 100 and defaults to 100. A method that takes `cursor?` returns `nextCursor` exactly when more items exist. `[COMMON-4]`
+- A request is checked in this order, and the first check that fails decides the error: it is well formed (`InvalidParams`); the page or type it names exists, unless the request creates it (`NotFound`); the caller has access (`Forbidden`); the viewer is signed in where that is required (`Unauthenticated`). `[COMMON-5]`
+- Counts and positions (`seq`, `since`, `revision`, `ifRevision`, `version`, `baseVersion`, `typeVersion`, `size`, and the numbers of a viewport and a target) are integers from 0 to 2^53 − 1. `[COMMON-6]`
+- `title`, `name` and `mimeType` are 1 to 255 characters. `description` and `quote` are at most 1024. `body` and `instructions` are at most 65536. `[COMMON-7]`
+- Base64 uses the standard alphabet with padding (RFC 4648, section 4). `[COMMON-8]`
+- A value that breaks a rule of this section returns `InvalidParams`. `[COMMON-9]`
 
 ## 3. Extension identifier
 
@@ -69,6 +73,7 @@ The extension is `io.github.agentpages/agentpages`, following the MCP extension 
 ```
 
 - A Store advertises this object under `capabilities.extensions`. `[EXT-1]`
+- The numbers above are examples. Each Store chooses its own and advertises them. `[EXT-5]`
 - A host advertises the same object, without `render`, in the `ui/initialize` result under `hostCapabilities.experimental`. `[EXT-2]`
 - `state`, `identity`, `files` and `render` are features. A feature is available exactly when its key is present. `[EXT-3]`
 - A host MUST answer a method of an absent feature with JSON-RPC error `-32601`. `[EXT-4]`
@@ -137,7 +142,7 @@ interface Commit {
 - A `delete` of a missing document changes nothing and produces no `Change`. `[STATE-12]`
 - A commit whose ops change nothing still succeeds and takes a `seq`. `[STATE-13]`
 - A commit with more than `maxOpsPerCommit` ops, or with two ops on the same document, returns `InvalidParams`. `[STATE-14]`
-- `data` larger than `maxDocumentBytes`, measured as UTF-8 JSON, returns `LimitExceeded`. `[STATE-15]`
+- `data` larger than `maxDocumentBytes`, measured as UTF-8 JSON without whitespace, returns `LimitExceeded`. `[STATE-15]`
 
 **Revisions**
 
@@ -162,7 +167,7 @@ Delivery is best effort: a commit can arrive more than once, out of order, or no
 
 ### 4.2 Trees
 
-A type can declare a collection to be a tree (section 6). Tree documents carry their position in `data`:
+A type can declare a collection to be a tree (section 6). The rules below apply to that collection in the `page` scope. Tree documents carry their position in `data`:
 
 ```ts
 interface TreeNode {
@@ -228,7 +233,7 @@ interface FileInfo {
 
 ### 4.5 Requests to the view
 
-These go from the host to the view. A page that shows documents one at a time, such as a deck showing one slide, lets its host ask for a particular one. A typed page produces the export formats its type declares (section 6).
+These go from the host to the view. A page that shows documents one at a time, such as a deck showing one slide, lets its host ask for a particular one. A typed page produces the export formats its type declares (section 6). These requests belong to no feature: a view that does not implement one answers `-32601`.
 
 | Id | Method | Params | Result |
 |---|---|---|---|
@@ -276,7 +281,7 @@ interface ErrorData {
 The Store is an MCP server. MCP is the only agent interface.
 
 - Every Store tool MUST declare `_meta.ui.visibility: ["model"]`, so that no view can call it. `[STORE-1]`
-- A tool returns its output as `structuredContent`. `pages_render` adds one image. `[STORE-2]`
+- A tool returns its output as `structuredContent`, and the same JSON as one text content block. `pages_render` adds one image. `[STORE-2]`
 - A failure returns `isError: true` with `structuredContent` of `{ "error": "<Name>" } & ErrorData`, using the names of section 4.6. `[STORE-3]`
 - Store tools declare no `outputSchema`. `[STORE-4]`
 - Every tool that changes anything takes an `opId`. `[STORE-5]`
@@ -312,11 +317,11 @@ interface PageInfo {
 }
 
 type PageContent =
-  | { html: string; csp?: McpUiCsp; permissions?: McpUiPermissions }
-  | { typeId: string; typeVersion: number };
+  | { kind: "html"; html: string; csp?: McpUiCsp; permissions?: McpUiPermissions }
+  | { kind: "type"; typeId: string; typeVersion: number };
 ```
 
-`html` is a complete HTML document. `csp` and `permissions` are the MCP Apps `_meta.ui.csp` and `_meta.ui.permissions` objects.
+`html` is a complete HTML document. `csp` and `permissions` are the MCP Apps `_meta.ui.csp` and `_meta.ui.permissions` objects. The protocol carries them, and the `JsonSchema` of a type, as JSON objects it does not interpret.
 
 | Id | Tool | Input | Output |
 |---|---|---|---|
@@ -339,7 +344,7 @@ type PageContent =
 - `pages_versions` orders by `version`, ascending. `[PAGES-13]`
 - `pages_delete` removes the page with its versions, state, files and comments. `[PAGES-14]`
 - `pages_delete` of a missing page succeeds. `[PAGES-15]`
-- Each version with `html` is an MCP resource at `ui://agentpages/{pageId}/{version}` with MIME type `text/html;profile=mcp-app` and its `csp` and `permissions` under `_meta.ui`. `[PAGES-16]`
+- Each version of `kind: "html"` is an MCP resource at `ui://agentpages/{pageId}/{version}` with MIME type `text/html;profile=mcp-app` and its `csp` and `permissions` under `_meta.ui`. `[PAGES-16]`
 
 A host treats a version's `csp` and `permissions` as MCP Apps specifies.
 
@@ -510,7 +515,7 @@ interface TypeContent {
 - `types_publish` follows the `baseVersion` rule of `pages_publish`, and a published type version never changes. `[TYPES-4]`
 - Only a type's owner can publish a new version of it. Any MCP principal can read a type and publish pages of it. `[TYPES-5]`
 - `types_list` orders by `typeId`, ascending by code point. `[TYPES-6]`
-- A page whose content is `{ typeId, typeVersion }` renders that type version's `html`, `csp` and `permissions`. `[TYPES-7]`
+- A page whose content has `kind: "type"` renders that type version's `html`, `csp` and `permissions`. `[TYPES-7]`
 - `pages_publish` with a type or type version that does not exist returns `NotFound`. `[TYPES-8]`
 - In the `page` scope of a typed page, a commit that puts a document into a collection the type does not declare, or whose `data` does not match that collection's `schema`, returns `InvalidParams`. The type version is the one the page names when the commit arrives. `[TYPES-9]`
 - A page moves to a newer type version only by publishing a new page version that names it. `[TYPES-10]`
@@ -586,7 +591,7 @@ interface LogRecord {
 }
 ```
 
-- A host chooses the `requestId` of a view request and passes it to the Store, so both records and the `ErrorData` share it. `[REL-25]`
+- A host chooses the `requestId` of a view request and passes it to the Store, so both records and the `ErrorData` share it. The Store chooses the `requestId` of a tool call. `[REL-25]`
 - `seq` is the commit a request created. `[REL-26]`
 - `Internal` errors carry a `cause`. `[REL-27]`
 - No field of a log record, `cause` included, contains document data, file contents, HTML or credentials. `[REL-28]`
@@ -606,7 +611,7 @@ The sandbox, origin and CSP requirements of MCP Apps apply in full. In addition:
 
 `version` is `major.minor`. Later versions under this identifier only add optional fields, methods or features. A breaking change uses a new extension identifier, as SEP-2133 requires. The identifier is final at 1.0 (section 10).
 
-A receiver MUST ignore fields it does not know. `[VER-1]`
+A receiver MUST ignore fields it does not know. Such fields are not part of the params a Store compares for a repeated `opId`. `[VER-1]`
 
 ## 10. Open questions
 
