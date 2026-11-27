@@ -6,6 +6,7 @@ An open protocol and runtime for pages that agents publish. A host renders the p
 
 - Protocol: [spec/agentpages.md](spec/agentpages.md)
 - How we work: [AGENTS.md](AGENTS.md)
+
 ## Packages
 
 | Package | Role | May depend on |
