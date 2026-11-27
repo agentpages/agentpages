@@ -26,6 +26,19 @@ export const base64Size: (blob: string) => number;
 // @public
 export const BODY_PATTERN: RegExp;
 
+// @public (undocumented)
+export interface Call {
+    // (undocumented)
+    method: string;
+    // (undocumented)
+    params?: unknown;
+    // (undocumented)
+    timeoutMs: number;
+}
+
+// @public (undocumented)
+export type Cancel = () => void;
+
 // @public
 export interface Capability {
     // (undocumented)
@@ -163,6 +176,9 @@ export interface Committed {
     // (undocumented)
     scope: Scope;
 }
+
+// @public
+export const createPeer: (ports: PeerPorts, handlers: PeerHandlers) => Peer;
 
 // @public
 export const CURSOR_PATTERN: RegExp;
@@ -472,6 +488,9 @@ export const HOST_OPERATION_SCHEMAS: ExchangeSchemas<HostOperations>;
 // @public
 export const HOST_OPERATIONS: { readonly [O in HostOperationName]: HostOperationInfo<O>; };
 
+// @public
+export type HostCapability = Omit<Capability, "render">;
+
 // @public (undocumented)
 export interface HostOperationInfo<O extends HostOperationName> {
     // (undocumented)
@@ -507,6 +526,15 @@ export interface HostOperations {
 }
 
 // @public
+export interface HostRequest {
+    // (undocumented)
+    input: unknown;
+    // (undocumented)
+    operation: string;
+    requestId: string;
+}
+
+// @public
 export const htmlProblem: (input: {
     html: string;
     limits: Limits;
@@ -529,6 +557,47 @@ export interface IdentityMethods {
         result: IdentityGetResult;
     };
 }
+
+// @public (undocumented)
+export interface Implementation {
+    // (undocumented)
+    name: string;
+    // (undocumented)
+    version: string;
+}
+
+// @public
+export const indexBetween: (bounds: {
+    after?: string;
+    before?: string;
+}, random: () => number) => string;
+
+// @public
+export interface InitializeParams {
+    // (undocumented)
+    appCapabilities: Empty;
+    // (undocumented)
+    appInfo: Implementation;
+    // (undocumented)
+    protocolVersion: string;
+}
+
+// @public
+export interface InitializeResult {
+    // (undocumented)
+    hostCapabilities: {
+        experimental: Record<typeof EXTENSION_ID, HostCapability>;
+    };
+    // (undocumented)
+    hostContext: Empty;
+    // (undocumented)
+    hostInfo: Implementation;
+    // (undocumented)
+    protocolVersion: string;
+}
+
+// @public
+export const InitializeResultSchema: Schema<InitializeResult>;
 
 // @public
 export const invalidParams: (input: {
@@ -556,6 +625,9 @@ export type Issues = readonly [Issue, ...Issue[]];
 // @public
 export type JsonObject = Record<string, unknown>;
 
+// @public (undocumented)
+export const JSONRPC_VERSION: JsonRpcMessage["jsonrpc"];
+
 // @public
 export interface JsonRpcError {
     // (undocumented)
@@ -564,6 +636,61 @@ export interface JsonRpcError {
     data: ErrorData;
     // (undocumented)
     message: string;
+}
+
+// @public (undocumented)
+export interface JsonRpcFailed {
+    // (undocumented)
+    error: {
+        code: number;
+        message: string;
+        data?: unknown;
+    };
+    // (undocumented)
+    id: JsonRpcId;
+    // (undocumented)
+    jsonrpc: "2.0";
+}
+
+// @public (undocumented)
+export type JsonRpcId = string | number;
+
+// @public (undocumented)
+export type JsonRpcMessage = JsonRpcRequest | JsonRpcNotification | JsonRpcResult | JsonRpcFailed;
+
+// @public
+export const JsonRpcMessageSchema: Schema<JsonRpcMessage>;
+
+// @public (undocumented)
+export interface JsonRpcNotification {
+    // (undocumented)
+    jsonrpc: "2.0";
+    // (undocumented)
+    method: string;
+    // (undocumented)
+    params?: unknown;
+}
+
+// @public (undocumented)
+export interface JsonRpcRequest {
+    // (undocumented)
+    id: JsonRpcId;
+    // (undocumented)
+    jsonrpc: "2.0";
+    // (undocumented)
+    method: string;
+    // (undocumented)
+    params?: unknown;
+}
+
+// @public (undocumented)
+export interface JsonRpcResult {
+    // (undocumented)
+    id: JsonRpcId;
+    // (undocumented)
+    jsonrpc: "2.0";
+    // (undocumented)
+    result: unknown;
 }
 
 // @public
@@ -633,6 +760,9 @@ export const MAX_DIAGNOSTICS = 50;
 export const MAX_LIMIT = 100;
 
 // @public
+export const MCP_APPS_VERSION = "2026-01-26";
+
+// @public
 export type McpUiCsp = JsonObject;
 
 // @public
@@ -655,6 +785,9 @@ export interface MethodInfo<M extends MethodName> extends Route {
 
 // @public (undocumented)
 export type MethodName = keyof Methods;
+
+// @public
+export const methodNotFound: () => JsonRpcFailed["error"];
 
 // @public (undocumented)
 export const METHODS: { readonly [M in MethodName]: MethodInfo<M>; };
@@ -903,6 +1036,43 @@ export interface Paging {
 export const PDF_FORMAT = "pdf";
 
 // @public (undocumented)
+export interface Peer {
+    close(): void;
+    // (undocumented)
+    notify(message: {
+        method: string;
+        params?: unknown;
+    }): void;
+    request(call: Call): Promise<Reply>;
+}
+
+// @public (undocumented)
+export interface PeerHandlers {
+    // (undocumented)
+    notification(message: {
+        method: string;
+        params: unknown;
+    }): void;
+    // (undocumented)
+    request(message: {
+        method: string;
+        params: unknown;
+    }): Promise<Served>;
+}
+
+// @public (undocumented)
+export interface PeerPorts {
+    id: () => JsonRpcId;
+    // (undocumented)
+    port: Port;
+    // (undocumented)
+    timers: Timers;
+}
+
+// @public (undocumented)
+export const PING = "ping";
+
+// @public (undocumented)
 export interface Place {
     // (undocumented)
     node?: {
@@ -913,6 +1083,13 @@ export interface Place {
     selector: string;
     // (undocumented)
     text?: string;
+}
+
+// @public
+export interface Port {
+    listen(receive: (data: unknown) => void): Cancel;
+    // (undocumented)
+    post(message: JsonRpcMessage): void;
 }
 
 // @public
@@ -997,8 +1174,27 @@ export interface RenderTools {
     };
 }
 
+// @public (undocumented)
+export type Reply = {
+    kind: "result";
+    result: unknown;
+} | {
+    kind: "error";
+    error: JsonRpcFailed["error"];
+} | {
+    kind: "timeout";
+} | {
+    kind: "closed";
+};
+
 // @public
 export const RETRY_BASE_MS = 250;
+
+// @public
+export const retryWaitMs: (retry: {
+    attempt: number;
+    retryAfterMs?: number;
+}, random: () => number) => number;
 
 // @public
 export interface Route {
@@ -1034,6 +1230,13 @@ export const schemaProblem: (input: {
 
 // @public (undocumented)
 export type Scope = "page" | "viewer";
+
+// @public
+export type Served = {
+    result: unknown;
+} | {
+    error: JsonRpcFailed["error"];
+};
 
 // @public
 export const SETTLE_QUIET_MS = 500;
@@ -1167,6 +1370,12 @@ export type Target = {
     id: string;
 };
 
+// @public
+export interface TeardownParams {
+    // (undocumented)
+    reason: string;
+}
+
 // @public (undocumented)
 export interface Thread {
     // (undocumented)
@@ -1181,6 +1390,11 @@ export interface Thread {
     status: "open" | "resolved";
     // (undocumented)
     version: number;
+}
+
+// @public (undocumented)
+export interface Timers {
+    after(ms: number, run: () => void): Cancel;
 }
 
 // @public
@@ -1366,6 +1580,15 @@ export interface TypesTools {
 }
 
 // @public (undocumented)
+export const UI_INITIALIZE = "ui/initialize";
+
+// @public (undocumented)
+export const UI_INITIALIZED = "ui/notifications/initialized";
+
+// @public (undocumented)
+export const UI_TEARDOWN = "ui/resource-teardown";
+
+// @public (undocumented)
 export type Underscored<Path extends string> = Path extends `${infer Head}/${infer Tail}` ? `${Head}_${Underscored<Tail>}` : Path;
 
 // @public (undocumented)
@@ -1430,6 +1653,16 @@ export interface ViewportCheck {
 
 // @public
 export const viewportProblem: (input: ViewportCheck) => Problem | undefined;
+
+// @public
+export interface ViewRequest {
+    // (undocumented)
+    method: string;
+    // (undocumented)
+    params: unknown;
+    requestId: string;
+    url: string;
+}
 
 // @public (undocumented)
 export interface ViewRevealParams {

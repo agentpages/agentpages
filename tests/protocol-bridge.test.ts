@@ -142,6 +142,16 @@ test("a notification reaches its handler and gets no answer", async () => {
   ]);
 });
 
+const MARK = { jsonrpc: "2.0", method: "mark" };
+
+const NOTHING = { requests: [], notifications: [], posted: MARK };
+
+/** What the handlers of a peer were called with, and the first thing it posted that no test took, up to a mark. */
+const heardAndSaid = async ({ peer, other, requests, notifications }: Subject): Promise<unknown> => {
+  peer.notify({ method: MARK.method });
+  return { requests, notifications, posted: await other.next() };
+};
+
 const NOT_MESSAGES: unknown[] = [
   "text",
   null,
@@ -164,19 +174,18 @@ const NOT_MESSAGES: unknown[] = [
 ];
 
 test("[RPC-2] what is not a JSON-RPC 2.0 request, notification or answer is dropped", async () => {
-  const { peer, other, requests, notifications } = subject();
+  const target = subject();
+  const { peer, other } = target;
   const reply = peer.request({ method: "asked", timeoutMs: 1000 });
   const asked = await other.next();
   await NOT_MESSAGES.reduce<Promise<void>>((before, data) => before.then(() => other.send(data)), Promise.resolve());
   const dropped = await settled(reply);
   await other.send({ jsonrpc: "2.0", id: 1, result: "the answer" });
-  peer.notify({ method: "mark" });
 
   expect(asked).toMatchObject({ id: 1 });
   expect(dropped).toBe(PENDING);
   expect(await reply).toStrictEqual({ kind: "result", result: "the answer" });
-  expect([requests, notifications]).toStrictEqual([[], []]);
-  expect(await other.next()).toStrictEqual({ jsonrpc: "2.0", method: "mark" });
+  expect(await heardAndSaid(target)).toStrictEqual(NOTHING);
 });
 
 test("[RPC-3] a request with no answer after timeoutMs resolves timeout, and an answer that comes later or twice is ignored", async () => {
@@ -199,19 +208,18 @@ test("[RPC-3] a request with no answer after timeoutMs resolves timeout, and an 
 });
 
 test("a closed peer resolves every pending request closed, stops their timers and hears nothing more", async () => {
-  const { peer, other, timers, requests, notifications } = subject();
+  const target = subject();
+  const { peer, other, timers } = target;
   const pending = [peer.request({ method: "one", timeoutMs: 1000 }), peer.request({ method: "two", timeoutMs: 2000 })];
   const ids = [idOf(await other.next()), idOf(await other.next())];
   peer.close();
   await other.send({ jsonrpc: "2.0", id: ids[0], result: "after the close" });
   await other.send({ jsonrpc: "2.0", id: "host-1", method: "asked" });
   await other.send({ jsonrpc: "2.0", method: "told" });
-  peer.notify({ method: "mark" });
 
   expect(await Promise.all(pending)).toStrictEqual([{ kind: "closed" }, { kind: "closed" }]);
   expect([timers.waiting(), timers.staleCancels()]).toStrictEqual([0, 0]);
-  expect([requests, notifications]).toStrictEqual([[], []]);
-  expect(await other.next()).toStrictEqual({ jsonrpc: "2.0", method: "mark" });
+  expect(await heardAndSaid(target)).toStrictEqual(NOTHING);
 });
 
 const HOST_INFO = { name: "host", version: "1.0.0" };
