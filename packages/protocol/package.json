@@ -23,5 +23,8 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "valibot": "^1.5.0"
   }
 }
