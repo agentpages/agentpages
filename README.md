@@ -2,7 +2,7 @@
 
 An open protocol and runtime for pages that agents publish. A host renders the page in a sandboxed iframe; the page gets shared state, viewer identity and files; agents publish, version, share and discuss pages through an MCP server. It extends [MCP Apps](https://modelcontextprotocol.io/seps/1865-mcp-apps-interactive-user-interfaces-for-mcp), so it works with any agent, harness or frontend.
 
-> Status: protocol 0.1 draft. `@agentpages/protocol` implements its types, `@agentpages/server` the pages, types, state, trees, identity, files, comments and heads of a Store, `@agentpages/sqlite` keeps a Store in a SQLite file, and `@agentpages/mcp` serves a Store over MCP, without a transport. The client, host and react packages are placeholders. Nothing is published.
+> Status: protocol 0.1 draft. `@agentpages/protocol` implements its types, `@agentpages/server` the pages, types, state, trees, identity, files, comments and heads of a Store, `@agentpages/sqlite` keeps a Store in a SQLite file, `@agentpages/host` serves a view of a page from the host's side, and `@agentpages/mcp` serves a Store over MCP, without a transport. The client and react packages are placeholders. Nothing is published.
 
 - Protocol: [spec/agentpages.md](spec/agentpages.md)
 - How we work: [AGENTS.md](AGENTS.md)

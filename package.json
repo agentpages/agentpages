@@ -57,6 +57,7 @@
   ],
   "devDependencies": {
     "@agentpages/conformance": "workspace:*",
+    "@agentpages/host": "workspace:*",
     "@agentpages/mcp": "workspace:*",
     "@agentpages/protocol": "workspace:*",
     "@agentpages/server": "workspace:*",

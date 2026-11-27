@@ -4,9 +4,9 @@
 
 ```ts
 
-import { PROTOCOL_VERSION } from '@agentpages/host';
+import { Mounted } from '@agentpages/host';
 
-export { PROTOCOL_VERSION }
+export { Mounted }
 
 // (No @packageDocumentation comment for this package)
 
