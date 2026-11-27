@@ -38,14 +38,14 @@ Because the Store is the single owner of data, a write through a view is visible
 
 ### 2.1 Common rules
 
-- Ids (`collection`, document `id`, file `id`, `typeId`, and every id the Store chooses) match `^[A-Za-z0-9_-]{1,128}$`. `[COMMON-1]`
+- Ids (`collection`, document `id`, a tree node's `parent`, file `id`, `typeId`, an export `format`, `requestId`, and every id the Store chooses) match `^[A-Za-z0-9_-]{1,128}$`. `[COMMON-1]`
 - A `pageId` and an `opId` are UUIDs chosen by the caller, written in lowercase as `8-4-4-4-12` hexadecimal digits. `[COMMON-2]`
-- Timestamps are UTC, written as `YYYY-MM-DDTHH:mm:ss.sssZ`. `[COMMON-3]`
+- Timestamps are real UTC dates and times, written as `YYYY-MM-DDTHH:mm:ss.sssZ`. `[COMMON-3]`
 - Every `limit` is 1 to 100 and defaults to 100. A method that takes `cursor?` returns `nextCursor` exactly when more items exist. `[COMMON-4]`
-- A request is checked in this order, and the first check that fails decides the error: it is well formed (`InvalidParams`); the page or type it names exists, unless the request creates it (`NotFound`); the caller has access (`Forbidden`); the viewer is signed in where that is required (`Unauthenticated`). `[COMMON-5]`
-- Counts and positions (`seq`, `since`, `revision`, `ifRevision`, `version`, `baseVersion`, `typeVersion`, `size`, and the numbers of a viewport and a target) are integers from 0 to 2^53 − 1. `[COMMON-6]`
-- `title`, `name` and `mimeType` are 1 to 255 characters. `description` and `quote` are at most 1024. `body` and `instructions` are at most 65536. `[COMMON-7]`
-- Base64 uses the standard alphabet with padding (RFC 4648, section 4). `[COMMON-8]`
+- A request is checked in this order, and the first check that fails decides the error: it is well formed (`InvalidParams`); the page or type it names exists, unless the request creates it (`NotFound`); the caller has access (`Forbidden`); the viewer is signed in where that is required (`Unauthenticated`); it is within the limits (`LimitExceeded`). `[COMMON-5]`
+- Every number in a request, a result or an advertised capability is an integer from 0 to 2^53 − 1. `[COMMON-6]`
+- `title`, `name` and `mimeType` are 1 to 255 characters. `description` and `quote` are at most 1024. `body` and `instructions` are at most 65536. A character is a Unicode code point. `[COMMON-7]`
+- Base64 uses the standard alphabet with padding (RFC 4648, section 4), in canonical form: unused bits are zero. `[COMMON-8]`
 - A value that breaks a rule of this section returns `InvalidParams`. `[COMMON-9]`
 
 ## 3. Extension identifier
@@ -118,6 +118,11 @@ interface Commit {
   by: Actor;
   changes: Change[];
 }
+
+interface Committed {
+  scope: Scope;
+  commit: Commit;
+}
 ```
 
 | Id | Method | Params | Result |
@@ -157,7 +162,7 @@ interface Commit {
 
 **Live changes**
 
-If `liveChanges` is `true`, the host sends each `page` scope commit to every open view of the page, and each `viewer` scope commit to every open view of that viewer on the page, including the view that made it. `[STATE-21]`
+If `liveChanges` is `true`, the host sends each `page` scope commit to every open view of the page, and each `viewer` scope commit to every open view of that viewer on the page, including the view that made it. The params of the notification are a `Committed`. `[STATE-21]`
 
 ```json
 { "method": "agentpages/state/committed", "params": { "scope": "page", "commit": { "seq": 4, "opId": "…", "at": "…", "by": { "kind": "agent" }, "changes": [] } } }
@@ -282,7 +287,7 @@ The Store is an MCP server. MCP is the only agent interface.
 
 - Every Store tool MUST declare `_meta.ui.visibility: ["model"]`, so that no view can call it. `[STORE-1]`
 - A tool returns its output as `structuredContent`, and the same JSON as one text content block. `pages_render` adds one image. `[STORE-2]`
-- A failure returns `isError: true` with `structuredContent` of `{ "error": "<Name>" } & ErrorData`, using the names of section 4.6. `[STORE-3]`
+- A failure returns `isError: true` with `structuredContent` of `{ "error": "<Name>" } & ErrorData`, using the names of section 4.6, and the same JSON as one text content block. `[STORE-3]`
 - Store tools declare no `outputSchema`. `[STORE-4]`
 - Every tool that changes anything takes an `opId`. `[STORE-5]`
 
@@ -334,7 +339,7 @@ type PageContent =
 
 - `pages_publish` succeeds only if `baseVersion` equals the page's current version, where a page that does not exist has version 0. Otherwise the Store returns `Conflict`. Success creates version `baseVersion + 1`. `[PAGES-7]`
 - A published version never changes. `[PAGES-8]`
-- `html` larger than `maxHtmlBytes` returns `LimitExceeded`. `[PAGES-17]`
+- The `html` of a page or a type, when larger than `maxHtmlBytes` in UTF-8 bytes, returns `LimitExceeded`. `[PAGES-17]`
 - A deleted `pageId` is never used again. Every request that names it returns `NotFound`, except `pages_delete`. `[PAGES-18]`
 - When a page's current version changes, the host reloads every open view of it. `[PAGES-19]`
 - `csp` and `permissions` belong to a version: a version published without them has none. `[PAGES-9]`
@@ -352,6 +357,7 @@ A host treats a version's `csp` and `permissions` as MCP Apps specifies.
 
 - The Store exposes each method of sections 4.1 and 4.4 as a tool with the same params plus `pageId`, and the same result and errors. The tool name drops `agentpages/`, then replaces `/` with `_`: `state_get`, `state_list`, `state_commit`, `state_commits`, `files_put`, `files_get`, `files_list`, `files_delete`. `[TOOLS-1]`
 - Agents use `page` scope only. A tool call with `viewer` scope returns `Forbidden`. `[TOOLS-2]`
+- A Store lists the state tools exactly when it advertises `state`, and the files tools exactly when it advertises `files`. `[TOOLS-3]`
 
 An agent follows other people's edits by calling `state_commits` with the last `seq` it saw.
 

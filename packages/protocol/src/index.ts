@@ -1,10 +1,49 @@
-export const PROTOCOL_VERSION = "0.1";
-
-export const EXTENSION_ID = "io.github.agentpages/agentpages";
-
-export const FEATURES = ["state", "identity", "files", "render"] as const;
-
-export type Feature = (typeof FEATURES)[number];
-
-export const isFeature = (value: string): value is Feature =>
-  FEATURES.some((feature) => feature === value);
+export type * from "./comments/tools.js";
+export type * from "./comments/types.js";
+export * from "./common/constants.js";
+export * from "./common/patterns.js";
+export * from "./common/retries.js";
+export type * from "./common/types.js";
+export * from "./common/validate.js";
+export * from "./errors/failure.js";
+export * from "./errors/projections.js";
+export { FailureSchema } from "./errors/schemas.js";
+export * from "./errors/table.js";
+export type * from "./errors/types.js";
+export * from "./extension/constants.js";
+export * from "./extension/features.js";
+export * from "./extension/names.js";
+export * from "./extension/schemas.js";
+export type * from "./extension/types.js";
+export * from "./files/limits.js";
+export type * from "./files/methods.js";
+export type * from "./files/types.js";
+export type * from "./identity/methods.js";
+export type * from "./identity/types.js";
+export * from "./jsonrpc/constants.js";
+export type * from "./jsonrpc/types.js";
+export * from "./logging/schemas.js";
+export type * from "./logging/types.js";
+export * from "./pages/limits.js";
+export * from "./pages/resources.js";
+export type * from "./pages/tools.js";
+export type * from "./pages/types.js";
+export * from "./registry/method-schemas.js";
+export * from "./registry/methods.js";
+export * from "./registry/tool-input-schema.js";
+export * from "./registry/tool-schemas.js";
+export * from "./registry/tools.js";
+export * from "./render/constants.js";
+export * from "./render/limits.js";
+export type * from "./render/tools.js";
+export type * from "./render/types.js";
+export * from "./state/limits.js";
+export type * from "./state/methods.js";
+export type * from "./state/types.js";
+export * from "./trees/schemas.js";
+export type * from "./trees/types.js";
+export { TypeInfoSchema } from "./types/schemas.js";
+export type * from "./types/tools.js";
+export type * from "./types/types.js";
+export * from "./view/constants.js";
+export type * from "./view/methods.js";

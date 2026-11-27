@@ -35,6 +35,18 @@
     {
       "path": "packages/host/dist/index.js",
       "limit": "10 kB"
+    },
+    {
+      "name": "protocol: METHODS and TOOLS only",
+      "path": "packages/protocol/dist/index.js",
+      "import": "{ METHODS, TOOLS }",
+      "limit": "500 B"
+    },
+    {
+      "name": "protocol: error helpers of a client",
+      "path": "packages/protocol/dist/index.js",
+      "import": "{ fromJsonRpcError, failure, toJsonRpcError }",
+      "limit": "3.5 kB"
     }
   ],
   "devDependencies": {
@@ -42,10 +54,13 @@
     "@arethetypeswrong/cli": "^0.18.5",
     "@changesets/cli": "^3.0.3",
     "@microsoft/api-extractor": "^7.60.1",
+    "@size-limit/esbuild": "^14.3.0",
     "@size-limit/file": "^14.3.0",
     "@stryker-mutator/core": "^10.1.1",
     "@stryker-mutator/vitest-runner": "^10.1.1",
     "@types/node": "^22.20.7",
+    "ajv": "^8.20.0",
+    "fast-check": "^4.11.0",
     "jscpd": "^5.4.3",
     "knip": "^6.48.0",
     "oxc-parser": "^0.160.0",

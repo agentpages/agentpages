@@ -5,7 +5,313 @@
 ```ts
 
 // @public (undocumented)
+export type Actor = {
+    kind: "viewer";
+    id: string;
+} | {
+    kind: "anonymous";
+} | {
+    kind: "agent";
+};
+
+// @public
+export const BASE64_PATTERN: RegExp;
+
+// @public
+export const base64Size: (blob: string) => number;
+
+// @public
+export const BODY_PATTERN: RegExp;
+
+// @public
+export interface Capability {
+    // (undocumented)
+    files?: FilesLimits;
+    // (undocumented)
+    identity?: Empty;
+    // (undocumented)
+    limits: Limits;
+    // (undocumented)
+    render?: RenderLimits;
+    // (undocumented)
+    state?: StateLimits;
+    // (undocumented)
+    version: string;
+}
+
+// @public (undocumented)
+export const CapabilitySchema: Schema<Capability>;
+
+// @public (undocumented)
+export interface Change {
+    // (undocumented)
+    collection: string;
+    // (undocumented)
+    document: Document_2 | null;
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    revision: number;
+}
+
+// @public (undocumented)
+export interface CommentsListParams {
+    // (undocumented)
+    cursor?: string;
+    // (undocumented)
+    limit?: number;
+    // (undocumented)
+    pageId: string;
+    // (undocumented)
+    status?: Thread["status"];
+}
+
+// @public (undocumented)
+export interface CommentsListResult {
+    // (undocumented)
+    nextCursor?: string;
+    // (undocumented)
+    threads: Thread[];
+}
+
+// @public (undocumented)
+export interface CommentsReplyParams {
+    // (undocumented)
+    body: string;
+    // (undocumented)
+    opId: string;
+    // (undocumented)
+    pageId: string;
+    // (undocumented)
+    threadId: string;
+}
+
+// @public (undocumented)
+export interface CommentsResolveParams {
+    // (undocumented)
+    opId: string;
+    // (undocumented)
+    pageId: string;
+    // (undocumented)
+    threadId: string;
+}
+
+// @public (undocumented)
+export interface CommentsTools {
+    // (undocumented)
+    comments_list: {
+        params: CommentsListParams;
+        result: CommentsListResult;
+    };
+    // (undocumented)
+    comments_reply: {
+        params: CommentsReplyParams;
+        result: Thread;
+    };
+    // (undocumented)
+    comments_resolve: {
+        params: CommentsResolveParams;
+        result: Thread;
+    };
+}
+
+// @public (undocumented)
+export interface Commit {
+    // (undocumented)
+    at: string;
+    // (undocumented)
+    by: Actor;
+    // (undocumented)
+    changes: Change[];
+    // (undocumented)
+    opId: string;
+    // (undocumented)
+    seq: number;
+}
+
+// @public (undocumented)
+export interface CommitCheck {
+    // (undocumented)
+    limits: StateLimits;
+    // (undocumented)
+    ops: Op[];
+}
+
+// @public
+export const commitLimitProblem: (input: CommitCheck) => Problem | undefined;
+
+// @public
+export const commitProblem: (check: CommitCheck) => Problem | undefined;
+
+// @public (undocumented)
+export interface Committed {
+    // (undocumented)
+    commit: Commit;
+    // (undocumented)
+    scope: Scope;
+}
+
+// @public (undocumented)
+export const DEFAULT_LIMIT = 100;
+
+// @public
+export const DESCRIPTION_PATTERN: RegExp;
+
+// @public (undocumented)
+export type Diagnostic = {
+    kind: "script-error";
+    message: string;
+} | {
+    kind: "request-failed";
+    url: string;
+    reason: "csp" | "network" | "http";
+    status?: number;
+} | {
+    kind: "image-broken";
+    at: Place;
+    src: string;
+} | {
+    kind: "clipped";
+    at: Place;
+    axis: "x" | "y";
+    overflowPx: number;
+} | {
+    kind: "outside-viewport";
+    at: Place;
+    overflowPx: number;
+} | {
+    kind: "bridge-error";
+    method: string;
+    error: string;
+};
+
+// @public
+export const DOC_ATTRIBUTE = "data-agentpages-doc";
+
+// @public (undocumented)
+interface Document_2 {
+    // (undocumented)
+    collection: string;
+    // (undocumented)
+    data: Record<string, unknown>;
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    revision: number;
+    // (undocumented)
+    updatedAt: string;
+    // (undocumented)
+    updatedBy: Actor;
+}
+export { Document_2 as Document }
+
+// @public
+export type Empty = Record<string, never>;
+
+// @public (undocumented)
+export interface Entry {
+    // (undocumented)
+    author: Viewer | null;
+    // (undocumented)
+    body: string;
+    // (undocumented)
+    createdAt: string;
+    // (undocumented)
+    id: string;
+}
+
+// @public (undocumented)
+export const ERROR_NAMES: readonly ["NotFound", "Conflict", "Unauthenticated", "Forbidden", "LimitExceeded", "Unavailable", "RateLimited", "ResyncRequired", "InvalidParams", "Internal"];
+
+// @public (undocumented)
+export interface ErrorData {
+    // (undocumented)
+    message: string;
+    // (undocumented)
+    opIndex?: number;
+    // (undocumented)
+    requestId: string;
+    // (undocumented)
+    retryable: boolean;
+    // (undocumented)
+    retryAfterMs?: number;
+}
+
+// @public (undocumented)
+export type ErrorName = (typeof ERROR_NAMES)[number];
+
+// @public (undocumented)
+export const ERRORS: {
+    readonly NotFound: {
+        readonly code: -32_050;
+        readonly retryable: false;
+    };
+    readonly Conflict: {
+        readonly code: -32_051;
+        readonly retryable: false;
+    };
+    readonly Unauthenticated: {
+        readonly code: -32_052;
+        readonly retryable: false;
+    };
+    readonly Forbidden: {
+        readonly code: -32_053;
+        readonly retryable: false;
+    };
+    readonly LimitExceeded: {
+        readonly code: -32_054;
+        readonly retryable: false;
+    };
+    readonly Unavailable: {
+        readonly code: -32_055;
+        readonly retryable: true;
+    };
+    readonly RateLimited: {
+        readonly code: -32_056;
+        readonly retryable: true;
+    };
+    readonly ResyncRequired: {
+        readonly code: -32_057;
+        readonly retryable: false;
+    };
+    readonly InvalidParams: {
+        readonly code: -32_602;
+        readonly retryable: false;
+    };
+    readonly Internal: {
+        readonly code: -32_603;
+        readonly retryable: false;
+    };
+};
+
+// @public (undocumented)
+export interface Exchange {
+    // (undocumented)
+    params: unknown;
+    // (undocumented)
+    result: unknown;
+}
+
+// @public (undocumented)
+export type ExchangeSchemas<M> = { readonly [K in keyof M]: M[K] extends Exchange ? {
+        readonly params: Schema<M[K]["params"]>;
+        readonly result: Schema<M[K]["result"]>;
+    } : never; };
+
+// @public (undocumented)
 export const EXTENSION_ID = "io.github.agentpages/agentpages";
+
+// @public
+export type Failure = Named<ErrorData>;
+
+// @public
+export const failure: (input: FailureInput) => Failure;
+
+// @public
+export type FailureInput = Named<Omit<ErrorData, "retryable">>;
+
+// @public (undocumented)
+export const FailureSchema: Schema<Failure>;
 
 // @public (undocumented)
 export type Feature = (typeof FEATURES)[number];
@@ -14,10 +320,1002 @@ export type Feature = (typeof FEATURES)[number];
 export const FEATURES: readonly ["state", "identity", "files", "render"];
 
 // @public (undocumented)
+export interface FileInfo {
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    mimeType: string;
+    // (undocumented)
+    name: string;
+    // (undocumented)
+    size: number;
+    // (undocumented)
+    updatedAt: string;
+    // (undocumented)
+    updatedBy: Actor;
+}
+
+// @public
+export const fileProblem: (input: {
+    blob: string;
+    limits: FilesLimits;
+}) => Problem | undefined;
+
+// @public (undocumented)
+export interface FilesDeleteParams {
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    opId: string;
+}
+
+// @public (undocumented)
+export interface FilesGetParams {
+    // (undocumented)
+    id: string;
+}
+
+// @public (undocumented)
+export interface FilesGetResult {
+    // (undocumented)
+    blob: string;
+    // (undocumented)
+    file: FileInfo;
+}
+
+// @public (undocumented)
+export interface FilesLimits {
+    // (undocumented)
+    maxFileBytes: number;
+}
+
+// @public (undocumented)
+export interface FilesListResult {
+    // (undocumented)
+    files: FileInfo[];
+    // (undocumented)
+    nextCursor?: string;
+}
+
+// @public (undocumented)
+export interface FilesMethods {
+    // (undocumented)
+    "agentpages/files/delete": {
+        params: FilesDeleteParams;
+        result: Empty;
+    };
+    // (undocumented)
+    "agentpages/files/get": {
+        params: FilesGetParams;
+        result: FilesGetResult;
+    };
+    // (undocumented)
+    "agentpages/files/list": {
+        params: Paging;
+        result: FilesListResult;
+    };
+    // (undocumented)
+    "agentpages/files/put": {
+        params: FilesPutParams;
+        result: FilesPutResult;
+    };
+}
+
+// @public (undocumented)
+export interface FilesPutParams {
+    // (undocumented)
+    blob: string;
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    mimeType: string;
+    // (undocumented)
+    name: string;
+    // (undocumented)
+    opId: string;
+}
+
+// @public (undocumented)
+export interface FilesPutResult {
+    // (undocumented)
+    file: FileInfo;
+}
+
+// @public
+export const fromJsonRpcError: (input: unknown) => Failure | undefined;
+
+// @public
+export const hasFeature: (capability: Capability, feature: Feature) => boolean;
+
+// @public
+export const htmlProblem: (input: {
+    html: string;
+    limits: Limits;
+}) => Problem | undefined;
+
+// @public (undocumented)
+export const ID_PATTERN: RegExp;
+
+// @public (undocumented)
+export interface IdentityGetResult {
+    // (undocumented)
+    viewer: Viewer | null;
+}
+
+// @public (undocumented)
+export interface IdentityMethods {
+    // (undocumented)
+    "agentpages/identity/get": {
+        params: Empty;
+        result: IdentityGetResult;
+    };
+}
+
+// @public
+export const invalidParams: (input: {
+    requestId: string;
+    issues: Issues;
+}) => Failure;
+
+// @public (undocumented)
 export const isFeature: (value: string) => value is Feature;
 
 // @public (undocumented)
+export interface Issue {
+    // (undocumented)
+    readonly message: string;
+    // (undocumented)
+    readonly path?: readonly PropertyKey[];
+}
+
+// @public (undocumented)
+export type Issues = readonly [Issue, ...Issue[]];
+
+// @public
+export type JsonObject = Record<string, unknown>;
+
+// @public
+export interface JsonRpcError {
+    // (undocumented)
+    code: number;
+    // (undocumented)
+    data: ErrorData;
+    // (undocumented)
+    message: string;
+}
+
+// @public
+export type JsonSchema = JsonObject;
+
+// @public (undocumented)
+export interface Limits {
+    // (undocumented)
+    commitRetentionSeconds: number;
+    // (undocumented)
+    exportTimeoutMs: number;
+    // (undocumented)
+    maxHtmlBytes: number;
+    // (undocumented)
+    opRetentionSeconds: number;
+    // (undocumented)
+    requestTimeoutMs: number;
+    // (undocumented)
+    syncIntervalMs: number;
+}
+
+// @public (undocumented)
+export interface LogRecord {
+    // (undocumented)
+    actor: Actor;
+    // (undocumented)
+    at: string;
+    // (undocumented)
+    cause?: string;
+    // (undocumented)
+    durationMs: number;
+    // (undocumented)
+    error?: string;
+    // (undocumented)
+    method: string;
+    // (undocumented)
+    opId?: string;
+    // (undocumented)
+    outcome: "ok" | "error";
+    // (undocumented)
+    pageId?: string;
+    // (undocumented)
+    requestId: string;
+    // (undocumented)
+    scope?: Scope;
+    // (undocumented)
+    seq?: number;
+}
+
+// @public (undocumented)
+export const LogRecordSchema: Schema<LogRecord>;
+
+// @public
+export const MAX_ATTEMPTS = 6;
+
+// @public (undocumented)
+export const MAX_COUNT: number;
+
+// @public (undocumented)
+export const MAX_DIAGNOSTICS = 50;
+
+// @public (undocumented)
+export const MAX_LIMIT = 100;
+
+// @public
+export type McpUiCsp = JsonObject;
+
+// @public
+export type McpUiPermissions = JsonObject;
+
+// @public
+export const METHOD_NOT_FOUND = -32601;
+
+// @public (undocumented)
+export const METHOD_PREFIX = "agentpages/";
+
+// @public (undocumented)
+export const METHOD_SCHEMAS: ExchangeSchemas<Methods>;
+
+// @public (undocumented)
+export interface MethodInfo<M extends MethodName> extends Route {
+    // (undocumented)
+    readonly mutates: Mutates<Methods[M]["params"]>;
+}
+
+// @public (undocumented)
+export type MethodName = keyof Methods;
+
+// @public (undocumented)
+export const METHODS: { readonly [M in MethodName]: MethodInfo<M>; };
+
+// @public
+export interface Methods extends StateMethods, IdentityMethods, FilesMethods, ViewMethods {}
+
+// @public (undocumented)
+export type Mutates<Params> = Params extends {
+    opId: string;
+} ? true : false;
+
+// @public
+export const NAME_PATTERN: RegExp;
+
+// @public
+export type Named<Data> = (Data & {
+    error: "RateLimited";
+    retryAfterMs: number;
+}) | (Data & {
+    error: Exclude<ErrorName, "RateLimited">;
+});
+
+// @public (undocumented)
+export const NOTIFICATION_SCHEMAS: { readonly [N in NotificationName]: {
+        readonly params: Schema<Notifications[N]["params"]>;
+    }; };
+
+// @public (undocumented)
+export type NotificationName = keyof Notifications;
+
+// @public (undocumented)
+export const NOTIFICATIONS: { readonly [N in NotificationName]: Route; };
+
+// @public (undocumented)
+export interface Notifications {
+    // (undocumented)
+    "agentpages/state/committed": {
+        params: Committed;
+    };
+}
+
+// @public (undocumented)
+export type Op = {
+    op: "put";
+    collection: string;
+    id: string;
+    data: Record<string, unknown>;
+    ifRevision?: number;
+} | {
+    op: "delete";
+    collection: string;
+    id: string;
+    ifRevision?: number;
+};
+
+// @public (undocumented)
+export const PAGE_RESOURCE_MIME_TYPE = "text/html;profile=mcp-app";
+
+// @public (undocumented)
+export type PageContent = {
+    kind: "html";
+    html: string;
+    csp?: McpUiCsp;
+    permissions?: McpUiPermissions;
+} | {
+    kind: "type";
+    typeId: string;
+    typeVersion: number;
+};
+
+// @public (undocumented)
+export interface PageInfo {
+    // (undocumented)
+    access: "private" | "link-read" | "link-write";
+    // (undocumented)
+    description?: string;
+    // (undocumented)
+    pageId: string;
+    // (undocumented)
+    title: string;
+    // (undocumented)
+    updatedAt: string;
+    // (undocumented)
+    url: string;
+    // (undocumented)
+    version: number;
+}
+
+// @public
+export const pageResourceUri: (input: {
+    pageId: string;
+    version: number;
+}) => string;
+
+// @public (undocumented)
+export interface PagesDeleteParams {
+    // (undocumented)
+    opId: string;
+    // (undocumented)
+    pageId: string;
+}
+
+// @public (undocumented)
+export interface PagesExportParams {
+    // (undocumented)
+    fileId: string;
+    // (undocumented)
+    format: string;
+    // (undocumented)
+    name: string;
+    // (undocumented)
+    opId: string;
+    // (undocumented)
+    pageId: string;
+    // (undocumented)
+    version?: number;
+}
+
+// @public (undocumented)
+export type PagesExportResult = Omit<RenderResult, "image"> & {
+    file: FileInfo;
+};
+
+// @public (undocumented)
+export interface PagesGetParams {
+    // (undocumented)
+    pageId: string;
+    // (undocumented)
+    version?: number;
+}
+
+// @public (undocumented)
+export type PagesGetResult = PageInfo & {
+    content: PageContent;
+};
+
+// @public (undocumented)
+export interface PagesListResult {
+    // (undocumented)
+    nextCursor?: string;
+    // (undocumented)
+    pages: PageInfo[];
+}
+
+// @public (undocumented)
+export interface PagesPublishParams {
+    // (undocumented)
+    baseVersion: number;
+    // (undocumented)
+    content: PageContent;
+    // (undocumented)
+    description?: string;
+    // (undocumented)
+    opId: string;
+    // (undocumented)
+    pageId: string;
+    // (undocumented)
+    title: string;
+}
+
+// @public (undocumented)
+export interface PagesSetAccessParams {
+    // (undocumented)
+    access: PageInfo["access"];
+    // (undocumented)
+    opId: string;
+    // (undocumented)
+    pageId: string;
+}
+
+// @public (undocumented)
+export interface PagesTools {
+    // (undocumented)
+    pages_delete: {
+        params: PagesDeleteParams;
+        result: Empty;
+    };
+    // (undocumented)
+    pages_get: {
+        params: PagesGetParams;
+        result: PagesGetResult;
+    };
+    // (undocumented)
+    pages_list: {
+        params: Paging;
+        result: PagesListResult;
+    };
+    // (undocumented)
+    pages_publish: {
+        params: PagesPublishParams;
+        result: PageInfo;
+    };
+    // (undocumented)
+    pages_set_access: {
+        params: PagesSetAccessParams;
+        result: PageInfo;
+    };
+    // (undocumented)
+    pages_versions: {
+        params: PagesVersionsParams;
+        result: PagesVersionsResult;
+    };
+}
+
+// @public (undocumented)
+export interface PagesVersionsParams {
+    // (undocumented)
+    cursor?: string;
+    // (undocumented)
+    limit?: number;
+    // (undocumented)
+    pageId: string;
+}
+
+// @public (undocumented)
+export interface PagesVersionsResult {
+    // (undocumented)
+    nextCursor?: string;
+    // (undocumented)
+    versions: {
+        version: number;
+        createdAt: string;
+    }[];
+}
+
+// @public (undocumented)
+export interface Paging {
+    // (undocumented)
+    cursor?: string;
+    // (undocumented)
+    limit?: number;
+}
+
+// @public
+export const PDF_FORMAT = "pdf";
+
+// @public (undocumented)
+export interface Place {
+    // (undocumented)
+    node?: {
+        collection: string;
+        id: string;
+    };
+    // (undocumented)
+    selector: string;
+    // (undocumented)
+    text?: string;
+}
+
+// @public
+export interface Problem {
+    // (undocumented)
+    error: "InvalidParams" | "LimitExceeded";
+    // (undocumented)
+    message: string;
+    // (undocumented)
+    opIndex?: number;
+}
+
+// @public (undocumented)
 export const PROTOCOL_VERSION = "0.1";
+
+// @public (undocumented)
+export interface RenderInput {
+    // (undocumented)
+    pageId: string;
+    // (undocumented)
+    target: Target;
+    // (undocumented)
+    theme: "light" | "dark";
+    // (undocumented)
+    version?: number;
+    // (undocumented)
+    viewport: {
+        width: number;
+        height: number;
+    };
+}
+
+// @public (undocumented)
+export interface RenderLimits {
+    // (undocumented)
+    maxDocumentHeight: number;
+    // (undocumented)
+    maxHeight: number;
+    // (undocumented)
+    maxWidth: number;
+    // (undocumented)
+    settleTimeoutMs: number;
+}
+
+// @public (undocumented)
+export interface RenderResult {
+    // (undocumented)
+    diagnostics: Diagnostic[];
+    // (undocumented)
+    diagnosticsTruncated: boolean;
+    // (undocumented)
+    image: {
+        mimeType: "image/png";
+        width: number;
+        height: number;
+    };
+    // (undocumented)
+    seq: number;
+    // (undocumented)
+    settled: boolean;
+    // (undocumented)
+    version: number;
+}
+
+// @public (undocumented)
+export interface RenderTools {
+    // (undocumented)
+    pages_export: {
+        params: PagesExportParams;
+        result: PagesExportResult;
+    };
+    // (undocumented)
+    pages_render: {
+        params: RenderInput;
+        result: RenderResult;
+    };
+}
+
+// @public
+export const RETRY_BASE_MS = 250;
+
+// @public
+export interface Route {
+    // (undocumented)
+    readonly feature: Feature | null;
+    // (undocumented)
+    readonly to: "host" | "view";
+}
+
+// @public
+export interface Schema<T> {
+    // (undocumented)
+    readonly "~standard": {
+        readonly version: 1;
+        readonly vendor: "agentpages";
+        readonly validate: (input: unknown) => {
+            readonly value: T;
+        } | {
+            readonly issues: Issues;
+        };
+        readonly types?: {
+            readonly input: unknown;
+            readonly output: T;
+        };
+    };
+}
+
+// @public (undocumented)
+export type Scope = "page" | "viewer";
+
+// @public
+export const SETTLE_QUIET_MS = 500;
+
+// @public (undocumented)
+export interface StateCommitParams {
+    // (undocumented)
+    opId: string;
+    // (undocumented)
+    ops: Op[];
+    // (undocumented)
+    scope: Scope;
+}
+
+// @public (undocumented)
+export interface StateCommitResult {
+    // (undocumented)
+    commit: Commit;
+}
+
+// @public (undocumented)
+export interface StateCommitsParams {
+    // (undocumented)
+    limit?: number;
+    // (undocumented)
+    scope: Scope;
+    // (undocumented)
+    since: number;
+}
+
+// @public (undocumented)
+export interface StateCommitsResult {
+    // (undocumented)
+    commits: Commit[];
+    // (undocumented)
+    seq: number;
+}
+
+// @public (undocumented)
+export interface StateGetParams {
+    // (undocumented)
+    collection: string;
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    scope: Scope;
+}
+
+// @public (undocumented)
+export interface StateGetResult {
+    // (undocumented)
+    document: Document_2 | null;
+}
+
+// @public (undocumented)
+export interface StateLimits {
+    // (undocumented)
+    liveChanges: boolean;
+    // (undocumented)
+    maxDocumentBytes: number;
+    // (undocumented)
+    maxOpsPerCommit: number;
+}
+
+// @public (undocumented)
+export interface StateListParams {
+    // (undocumented)
+    collection: string;
+    // (undocumented)
+    cursor?: string;
+    // (undocumented)
+    limit?: number;
+    // (undocumented)
+    scope: Scope;
+}
+
+// @public (undocumented)
+export interface StateListResult {
+    // (undocumented)
+    documents: Document_2[];
+    // (undocumented)
+    nextCursor?: string;
+    // (undocumented)
+    seq: number;
+}
+
+// @public (undocumented)
+export interface StateMethods {
+    // (undocumented)
+    "agentpages/state/commit": {
+        params: StateCommitParams;
+        result: StateCommitResult;
+    };
+    // (undocumented)
+    "agentpages/state/commits": {
+        params: StateCommitsParams;
+        result: StateCommitsResult;
+    };
+    // (undocumented)
+    "agentpages/state/get": {
+        params: StateGetParams;
+        result: StateGetResult;
+    };
+    // (undocumented)
+    "agentpages/state/list": {
+        params: StateListParams;
+        result: StateListResult;
+    };
+}
+
+// @public (undocumented)
+export type Target = {
+    kind: "viewport";
+    y: number;
+} | {
+    kind: "document";
+} | {
+    kind: "node";
+    collection: string;
+    id: string;
+};
+
+// @public (undocumented)
+export interface Thread {
+    // (undocumented)
+    entries: Entry[];
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    pageId: string;
+    // (undocumented)
+    quote?: string;
+    // (undocumented)
+    status: "open" | "resolved";
+    // (undocumented)
+    version: number;
+}
+
+// @public
+export const TIMESTAMP_PATTERN: RegExp;
+
+// @public (undocumented)
+export const toJsonRpcError: (input: Failure) => JsonRpcError;
+
+// @public (undocumented)
+export const TOOL_SCHEMAS: ExchangeSchemas<Tools>;
+
+// @public
+export const TOOL_VISIBILITY: readonly ["model"];
+
+// @public (undocumented)
+export interface ToolError {
+    // (undocumented)
+    content: [{
+        type: "text";
+        text: string;
+    }];
+    // (undocumented)
+    isError: true;
+    // (undocumented)
+    structuredContent: Failure;
+}
+
+// @public (undocumented)
+export interface ToolInfo<T extends ToolName> {
+    // (undocumented)
+    readonly mutates: Mutates<Tools[T]["params"]>;
+    readonly requires: readonly Feature[];
+}
+
+// @public
+export const toolInputSchema: (tool: ToolName) => JsonObject;
+
+// @public (undocumented)
+export type ToolName = keyof Tools;
+
+// @public
+export function toolName<M extends string>(method: M): ToolNameOf<M>;
+
+// @public (undocumented)
+export type ToolNameOf<M extends string> = M extends `${typeof METHOD_PREFIX}${infer Path}` ? Underscored<Path> : never;
+
+// @public (undocumented)
+export const TOOLS: { readonly [T in ToolName]: ToolInfo<T>; };
+
+// @public
+export interface Tools extends ToolsOf<StateMethods>, ToolsOf<FilesMethods>, PagesTools, CommentsTools, RenderTools, TypesTools {}
+
+// @public
+export type ToolsOf<M> = { [K in keyof M & string as ToolNameOf<K>]: M[K] extends Exchange ? {
+        params: M[K]["params"] & {
+            pageId: string;
+        };
+        result: M[K]["result"];
+    } : never; };
+
+// @public (undocumented)
+export const toToolError: (failed: Failure) => ToolError;
+
+// @public (undocumented)
+export const TREE_INDEX_PATTERN: RegExp;
+
+// @public (undocumented)
+export interface TreeNode {
+    // (undocumented)
+    [field: string]: unknown;
+    // (undocumented)
+    index: string;
+    // (undocumented)
+    parent: string | null;
+}
+
+// @public
+export const TreeNodeSchema: Schema<TreeNode>;
+
+// @public (undocumented)
+export interface TypeContent {
+    // (undocumented)
+    csp?: McpUiCsp;
+    // (undocumented)
+    html: string;
+    // (undocumented)
+    permissions?: McpUiPermissions;
+}
+
+// @public (undocumented)
+export interface TypeInfo {
+    // (undocumented)
+    collections: Record<string, {
+        schema: JsonSchema;
+        tree?: true;
+    }>;
+    // (undocumented)
+    description: string;
+    // (undocumented)
+    exports: Record<string, {
+        title: string;
+        mimeType: string;
+        extension: string;
+    }>;
+    // (undocumented)
+    instructions: string;
+    // (undocumented)
+    title: string;
+    // (undocumented)
+    typeId: string;
+    // (undocumented)
+    updatedAt: string;
+    // (undocumented)
+    version: number;
+}
+
+// @public (undocumented)
+export const TypeInfoSchema: Schema<TypeInfo>;
+
+// @public (undocumented)
+export interface TypesGetParams {
+    // (undocumented)
+    typeId: string;
+    // (undocumented)
+    version?: number;
+}
+
+// @public (undocumented)
+export type TypesGetResult = TypeInfo & {
+    content: TypeContent;
+};
+
+// @public (undocumented)
+export interface TypesListResult {
+    // (undocumented)
+    nextCursor?: string;
+    // (undocumented)
+    types: TypeInfo[];
+}
+
+// @public (undocumented)
+export interface TypesPublishParams {
+    // (undocumented)
+    baseVersion: number;
+    // (undocumented)
+    collections: TypeInfo["collections"];
+    // (undocumented)
+    content: TypeContent;
+    // (undocumented)
+    description: string;
+    // (undocumented)
+    exports: TypeInfo["exports"];
+    // (undocumented)
+    instructions: string;
+    // (undocumented)
+    opId: string;
+    // (undocumented)
+    title: string;
+    // (undocumented)
+    typeId: string;
+}
+
+// @public (undocumented)
+export interface TypesTools {
+    // (undocumented)
+    types_get: {
+        params: TypesGetParams;
+        result: TypesGetResult;
+    };
+    // (undocumented)
+    types_list: {
+        params: Paging;
+        result: TypesListResult;
+    };
+    // (undocumented)
+    types_publish: {
+        params: TypesPublishParams;
+        result: TypeInfo;
+    };
+}
+
+// @public (undocumented)
+export type Underscored<Path extends string> = Path extends `${infer Head}/${infer Tail}` ? `${Head}_${Underscored<Tail>}` : Path;
+
+// @public (undocumented)
+export const UUID_PATTERN: RegExp;
+
+// @public
+export const validate: <T>(schema: Schema<T>, input: unknown) => Validation<T>;
+
+// @public (undocumented)
+export type Validation<T> = {
+    ok: true;
+    value: T;
+} | {
+    ok: false;
+    issues: Issues;
+};
+
+// @public (undocumented)
+export const VERSION_PATTERN: RegExp;
+
+// @public (undocumented)
+export interface Viewer {
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    name?: string;
+}
+
+// @public (undocumented)
+export interface ViewExportParams {
+    // (undocumented)
+    format: string;
+}
+
+// @public (undocumented)
+export interface ViewExportResult {
+    // (undocumented)
+    blob: string;
+}
+
+// @public (undocumented)
+export interface ViewMethods {
+    // (undocumented)
+    "agentpages/view/export": {
+        params: ViewExportParams;
+        result: ViewExportResult;
+    };
+    // (undocumented)
+    "agentpages/view/reveal": {
+        params: ViewRevealParams;
+        result: Empty;
+    };
+}
+
+// @public (undocumented)
+export interface ViewportCheck {
+    // (undocumented)
+    limits: RenderLimits;
+    // (undocumented)
+    viewport: RenderInput["viewport"];
+}
+
+// @public
+export const viewportProblem: (input: ViewportCheck) => Problem | undefined;
+
+// @public (undocumented)
+export interface ViewRevealParams {
+    // (undocumented)
+    collection: string;
+    // (undocumented)
+    id: string;
+}
 
 // (No @packageDocumentation comment for this package)
 
