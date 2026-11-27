@@ -31,3 +31,7 @@ A `Schema<T>` is a [Standard Schema](https://standardschema.dev), so it works wh
 ## Report a failure
 
 `failure` builds a `Failure` with the `retryable` the spec gives its error. `toJsonRpcError` and `toToolError` turn it into what a view method and a Store tool return. `fromJsonRpcError` reads it back.
+
+## Speak to the other side of the iframe
+
+`createPeer` is one end of the JSON-RPC conversation between a view and its host, over a `Port` and `Timers` its caller supplies: it matches answers to requests, resolves `timeout` or `closed` in place of one, and drops what is not JSON-RPC. `InitializeResultSchema` reads the `ui/initialize` result of a host that advertises agentpages. `indexBetween` makes the `index` of a tree document placed between two siblings, and `retryWaitMs` the wait before a retry.
