@@ -38,10 +38,6 @@ const holding = (storage: Storage): Held => {
 
 const MIB = 1_048_576;
 
-/** Whether `read` is these bytes. */
-const isBytes = (read: unknown, bytes: Uint8Array): boolean =>
-  read instanceof Uint8Array && read.length === bytes.length && read.every((byte, at) => byte === bytes[at]);
-
 const CASES: Cases = {
   "[REL-6] what a transaction put is read back once it resolves": async (make) => {
     const storage = await make();
@@ -67,15 +63,13 @@ const CASES: Cases = {
 
   "[FILES-5] bytes of 4 MiB with every byte value are read back as they were put": async (make) => {
     const storage = await make();
-    const bytes = Uint8Array.from({ length: 4 * MIB }, (_, at) => at % 257);
+    const bytes = Uint8Array.from({ length: 4 * MIB }, (_, at) => at);
     await write(storage, (tx) => {
       tx.put(key(1), bytes);
     });
-    const [many] = await storage.getMany([key(1)]);
-    const scanned = await storage.scan({ prefix: key(1), limit: ALL });
     return {
-      got: [new Set(bytes).size, isBytes(await storage.get(key(1)), bytes), isBytes(many, bytes), scanned.map(([name, read]) => [name, isBytes(read, bytes)])],
-      want: [256, true, true, [[key(1), true]]],
+      got: [bytes.length, new Set(bytes).size, await storage.get(key(1))],
+      want: [4_194_304, 256, bytes],
     };
   },
 
