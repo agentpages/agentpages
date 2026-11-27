@@ -38,14 +38,14 @@ A test states a requirement from the spec, names its tag (`STATE-3`) in the titl
 
 | Rule | Enforcer |
 |---|---|
-| Package layering | `pnpm lint:deps` |
-| Tests import only a package's entry point | `pnpm lint:deps` |
+| Package layering, no import cycles | `pnpm lint` |
+| Tests import only a package's entry point | `pnpm lint` |
 | No unused code or dependencies | `pnpm lint:unused` |
 | Strict types, no casts, no `any`, no suppressions | `pnpm typecheck`, `pnpm lint` |
-| No comments beyond API docs and external links | `pnpm lint` |
+| No comments beyond API docs and external links, no inline suppressions | `pnpm lint:source` |
 | No guards for states the types rule out | `pnpm lint` |
 | Functions: 40 lines, 2 parameters, depth 2, complexity 8 at most | `pnpm lint` |
-| Static imports only | `pnpm lint` |
+| Static imports only | `pnpm lint:source` |
 | Behavior | `pnpm test` |
 | Tests detect every code change | `pnpm test:mutation` |
 | Spec and code agree on version and features | `pnpm test` |

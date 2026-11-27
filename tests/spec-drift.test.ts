@@ -5,7 +5,7 @@ import { expect, test } from "vitest";
 const spec = readFileSync(new URL("../spec/agentpages.md", import.meta.url), "utf8");
 
 const advertisedCapability = (): unknown => {
-  const example = /```json\n([\s\S]*?)```/.exec(spec);
+  const example = /```json\n([\s\S]*?)```/u.exec(spec);
   return JSON.parse(example?.[1] ?? "") as unknown;
 };
 

@@ -3,13 +3,13 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 const allowedPlaces = [
-  /^[A-Z]+\.md$/,
-  /^spec\/[a-z-]+\.md$/,
-  /^(.+\/)?README\.md$/,
-  /^packages\/[a-z-]+\/CHANGELOG\.md$/,
-  /^\.changeset\/[^/]+\.md$/,
-  /^\.github\/pull_request_template\.md$/,
-  /^packages\/[a-z-]+\/[a-z-]+\.api\.md$/,
+  /^[A-Z]+\.md$/u,
+  /^spec\/[a-z-]+\.md$/u,
+  /^(.+\/)?README\.md$/u,
+  /^packages\/[a-z-]+\/CHANGELOG\.md$/u,
+  /^\.changeset\/[^/]+\.md$/u,
+  /^\.github\/pull_request_template\.md$/u,
+  /^packages\/[a-z-]+\/[a-z-]+\.api\.md$/u,
 ];
 
 const isInDocsFolder = (file: string): boolean => file.split("/").includes("docs");
@@ -23,9 +23,9 @@ const isMisplaced = (file: string): boolean =>
   isInDocsFolder(file) || !allowedPlaces.some((place) => place.test(file));
 
 const relativeLinks = (file: string): string[] =>
-  [...readFileSync(file, "utf8").matchAll(/\]\(([^)#\s]+)(?:#[^)]*)?\)/g)]
+  [...readFileSync(file, "utf8").matchAll(/\]\(([^)#\s]+)(?:#[^)]*)?\)/gu)]
     .map((match) => match[1] ?? "")
-    .filter((target) => !/^[a-z]+:/.test(target));
+    .filter((target) => !/^[a-z]+:/u.test(target));
 
 const brokenLinks = (file: string): string[] =>
   relativeLinks(file)

@@ -5,5 +5,6 @@
   "mutate": ["packages/*/src/**/*.ts", "!**/*.test.ts"],
   "reporters": ["clear-text"],
   "thresholds": { "high": 100, "low": 100, "break": 100 },
-  "tempDirName": "reports/stryker-tmp"
+  "tempDirName": "reports/stryker-tmp",
+  "ignorePatterns": ["tsconfig.json"]
 }

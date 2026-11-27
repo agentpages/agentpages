@@ -1,10 +1,8 @@
 /spec/ @kuki1029
 /AGENTS.md @kuki1029
 /.github/ @kuki1029
-/lint/ @kuki1029
 /scripts/ @kuki1029
 /*.config.* @kuki1029
-/.dependency-cruiser.mjs @kuki1029
 /stryker.config.json @kuki1029
 /tsconfig*.json @kuki1029
 /package.json @kuki1029
