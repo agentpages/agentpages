@@ -554,7 +554,7 @@ interface TypeContent {
 - In the `page` scope of a typed page, a commit that puts a document into a collection the type does not declare, or whose `data` does not match that collection's `schema`, returns `InvalidParams`. The type version is the one the page names when the commit arrives. `[TYPES-9]`
 - A page moves to a newer type version only by publishing a new page version that names it. `[TYPES-10]`
 - Documents already stored are not checked again when a page moves to another type version. `[TYPES-11]`
-- A collection is a tree in every version of a type or in none. `types_publish` that changes this returns `InvalidParams`. `[TYPES-12]`
+- A collection is a tree in every version of a type or in none. `types_publish` that changes this returns `InvalidParams`. It is checked against the published versions, after `baseVersion`. `[TYPES-12]`
 - A key of `exports` is an id, as in section 2.1, other than `pdf`. Any other key returns `InvalidParams`. `[TYPES-13]`
 - A `schema` that is not valid JSON Schema 2020-12, or that refers to anything outside itself, returns `InvalidParams`. `[TYPES-14]`
 - A `schema` larger than `maxSchemaBytes`, as UTF-8 JSON without whitespace, returns `LimitExceeded`. `[TYPES-15]`
@@ -634,6 +634,7 @@ interface LogRecord {
 - `seq` is the commit a request created. `[REL-26]`
 - `Internal` errors carry a `cause`. `[REL-27]`
 - No field of a log record, `cause` included, contains document data, file contents, HTML or credentials. `[REL-28]`
+- A log record that cannot be written is lost and does not change the answer to its request. `[REL-32]`
 
 ## 8. Security
 
