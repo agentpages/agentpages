@@ -1,8 +1,7 @@
 import type { Schema, Thread } from "@agentpages/protocol";
 import type { Tx } from "@agentpages/storage";
-import { NEED } from "../access/permits.js";
 import type { Principal } from "../access/principal.js";
-import { rememberedBy } from "../pages/keys.js";
+import { toChange } from "../pages/arrival.js";
 import type { Page } from "../pages/records.js";
 import { type Context, countIn, type Handler, type Memory, mutation, type Outcome, parsed, refuse, type Target } from "../pipeline/index.js";
 import type { Arrival } from "../state/scope.js";
@@ -62,8 +61,8 @@ const asItWas = <P>({ result, thread }: Recalling<P>): Memory<P, Page, Thread, P
 /** An operation that changes a thread of a page the caller may write to, and returns the thread. */
 export const commenting = <P extends { opId: string }>(arrival: Arrival<P, Thread>, { thread, run }: Comment<P>): Handler<P, Thread, Principal> =>
   mutation<P, Page, Thread, Principal>(arrival.schemas, {
-    target: signedIn(arrival.page(NEED.write)),
-    remembers: (_, page) => rememberedBy(page.info.pageId),
+    remembers: toChange(arrival).remembers,
+    target: signedIn(toChange(arrival).target),
     memory: asItWas({ result: arrival.schemas.result, thread }),
     run,
   });

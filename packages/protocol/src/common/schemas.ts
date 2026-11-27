@@ -1,8 +1,9 @@
 import * as v from "valibot";
+import { isBase64 } from "./bytes.js";
 import { MAX_COUNT, MAX_LIMIT } from "./constants.js";
 import {
-  BASE64_PATTERN,
   BODY_PATTERN,
+  CURSOR_PATTERN,
   DESCRIPTION_PATTERN,
   ID_PATTERN,
   NAME_PATTERN,
@@ -90,7 +91,12 @@ export const TimestampSchema: Raw<string> = v.pipe(
   }),
 );
 
-export const Base64Schema: Raw<string> = v.pipe(v.string(), v.regex(BASE64_PATTERN));
+export const Base64Schema: Raw<string> = v.pipe(
+  v.string(),
+  v.rawCheck(({ dataset, addIssue }) => {
+    if (dataset.typed && !isBase64(dataset.value)) addIssue({ expected: "canonical base64" });
+  }),
+);
 
 export const NameSchema: Raw<string> = v.pipe(v.string(), v.regex(NAME_PATTERN));
 
@@ -106,7 +112,7 @@ export const EmptySchema: Raw<Empty> = v.pipe(JsonObjectSchema, v.object({}));
 
 export const PagingSchema: Raw<Paging> = v.pipe(
   JsonObjectSchema,
-  v.object({ cursor: v.exactOptional(v.string()), limit: v.exactOptional(LimitSchema) }),
+  v.object({ cursor: v.exactOptional(v.pipe(v.string(), v.regex(CURSOR_PATTERN))), limit: v.exactOptional(LimitSchema) }),
 );
 
 export const PageIdSchema: Raw<{ pageId: string }> = v.object({ pageId: UuidSchema });

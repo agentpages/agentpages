@@ -35,3 +35,17 @@ export const resolved = (opNumber: number): [string, unknown] => ["comments_reso
 /** A `pages_heads` of a host, for an anonymous viewer who presents `url`. */
 export const heads = (target: World, url: string): Promise<Answer> =>
   target.host({ operation: "pages_heads", input: { url }, principal: { kind: "anonymous" }, requestId: HOST_REQUEST });
+
+/** Holds every transaction that takes a lock where it would commit, until the returned function is called. */
+export const holdingChanges = (target: World): (() => void) => {
+  const releases: (() => void)[] = [];
+  const released = new Promise<void>((resolve) => {
+    releases.push(resolve);
+  });
+  target.plan((point, { locks }) => (point === "commit" && locks.length > 0 ? released : undefined));
+  return () => {
+    releases.forEach((open) => {
+      open();
+    });
+  };
+};

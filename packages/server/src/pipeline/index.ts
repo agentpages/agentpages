@@ -7,4 +7,4 @@ export { ok, type Outcome, type Refusal, refuse } from "./outcome.js";
 export { list } from "./paging.js";
 export { query } from "./query.js";
 export { inTurn } from "./turns.js";
-export { countIn, type Owned, owned, parsed, recordOf } from "./records.js";
+export { bytesOf, countIn, type Owned, owned, parsed, recordOf } from "./records.js";

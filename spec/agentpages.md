@@ -41,7 +41,7 @@ Because the Store is the single owner of data, a write through a view is visible
 - Ids (`collection`, document `id`, a tree node's `parent`, file `id`, `typeId`, an export `format`, `requestId`, and every id the Store chooses) match `^[A-Za-z0-9_-]{1,128}$`. `[COMMON-1]`
 - A `pageId` and an `opId` are UUIDs chosen by the caller, written in lowercase as `8-4-4-4-12` hexadecimal digits. `[COMMON-2]`
 - Timestamps are real UTC dates and times, written as `YYYY-MM-DDTHH:mm:ss.sssZ`. `[COMMON-3]`
-- Every `limit` is 1 to 100 and defaults to 100. A method that takes `cursor?` returns `nextCursor` exactly when more items exist. A `cursor` is opaque: the caller sends back a `nextCursor` unchanged, with the same other parameters. `[COMMON-4]`
+- Every `limit` is 1 to 100 and defaults to 100. A method that takes `cursor?` returns `nextCursor` exactly when more items exist. A `cursor` is opaque: the caller sends back a `nextCursor` unchanged, with the same other parameters. A cursor is printable ASCII. `[COMMON-4]`
 - A request is checked in this order, and the first check that fails decides the error: it is well formed (`InvalidParams`); the page or type it names exists, unless the request creates it (`NotFound`); the caller has access (`Forbidden`); the viewer is signed in where that is required (`Unauthenticated`); it is within the limits (`LimitExceeded`). An `InvalidParams` that depends on what the Store holds is decided after the limits and before `Conflict`. A limit that depends on what the Store holds is decided after that `InvalidParams` and before `Conflict`. `[COMMON-5]`
 - Every number in a request, a result or an advertised capability is an integer from 0 to 2^53 − 1. `[COMMON-6]`
 - `title`, `name` and `mimeType` are 1 to 255 characters. `description` and `quote` are at most 1024. `body` and `instructions` are at most 65536. A character is a Unicode code point. `[COMMON-7]`
@@ -538,6 +538,7 @@ interface Heads {
 - `comments_start` records the page's current version. The `id` of the thread and of its first entry is the `opId`. `[HOST-5]`
 - A host also uses `comments_list`, `comments_reply` and `comments_resolve` for a viewer, with `url` in place of `pageId`, under the access rules of section 5.1, with the viewer as `author`. `[HOST-6]`
 - A host learns of every change to a page it shows by calling `pages_heads`. On a new `version` it reloads the view. On `NotFound` or `Forbidden` it closes it. On a new `seq` or `viewerSeq` it fetches `commits` from the last `seq` it sent the view. On a new `comments` it lists the threads again. `[HOST-8]`
+- A Store answers `pages_heads` without waiting for a change to the page that is in progress. `[HOST-9]`
 
 ## 6. Types
 

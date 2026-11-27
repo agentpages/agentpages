@@ -1,6 +1,6 @@
 import type { Answer } from "@agentpages/protocol";
 import { expect, test } from "vitest";
-import { comment, heads, REPLY, resolved, THREAD, threadOf, withThread } from "./support/comments.ts";
+import { comment, heads, holdingChanges, REPLY, resolved, THREAD, threadOf, withThread } from "./support/comments.ts";
 import { rowsOfDeleted, savedRows } from "./support/results.ts";
 import { call, errorOf, op, PAGE, saved, viewerId } from "./support/store.ts";
 
@@ -62,16 +62,20 @@ test("[HOST-6] the author of an entry is the viewer under the id they have on th
   ]);
 });
 
-test("[HOST-7] pages_heads makes one read of four rows for a signed-in viewer and of three for an anonymous one, under no lock, and none for a url of another origin", async () => {
+test("[HOST-9] pages_heads answers while a reply to a thread of the page is in progress, with the heads from before it", async () => {
   const { target, url } = await withThread();
-  const reached: unknown[] = [];
-  target.plan((point, { keys, locks }) => reached.push([point, keys.length, locks.length]));
-  const answers = [await comment(target, { operation: "pages_heads", subject: "bob", input: { url } }), await heads(target, url)];
-  const nowhere = await heads(target, "https://elsewhere.test/p/page");
+  const release = holdingChanges(target);
+  const replying = call(target, REPLY);
+  const during = await heads(target, url);
+  release();
+  const replied = await replying;
 
-  expect([...answers.map((answer) => answer.kind), errorOf(nowhere)]).toStrictEqual(["result", "result", "NotFound"]);
-  expect(target.logs.slice(-3).map((record) => [record.method, record.pageId])).toStrictEqual([["pages_heads", PAGE], ["pages_heads", PAGE], ["pages_heads", undefined]]);
-  expect(reached).toStrictEqual([["getMany", 4, 0], ["commit", 0, 0], ["committed", 0, 0], ["getMany", 3, 0], ["commit", 0, 0], ["committed", 0, 0]]);
+  expect(replied.kind).toBe("result");
+  expect(target.logs.slice(-2).map((record) => [record.method, record.pageId])).toStrictEqual([["pages_heads", PAGE], ["comments_reply", PAGE]]);
+  expect([during, await heads(target, url)]).toStrictEqual([
+    { kind: "result", result: { version: 1, seq: 0, comments: 1 } },
+    { kind: "result", result: { version: 1, seq: 0, comments: 2 } },
+  ]);
 });
 
 test("[PAGES-14] pages_delete leaves nothing of the threads of a page but the record that the page is gone", async () => {

@@ -52,3 +52,14 @@ export const WITHOUT_IDENTITY_CASES: Cases = {
     want: { "agentpages/identity/get": UNKNOWN },
   }),
 };
+
+/** What a Store that does not advertise `files` answers where another has its files. */
+export const WITHOUT_FILES_CASES: Cases = {
+  "[EXT-3] [TOOLS-3] files tools and methods are unknown": async (driver) => ({
+    got: [await toolAnswers(driver, "files"), await methodAnswers(driver, "files")],
+    want: [
+      { files_put: UNKNOWN, files_get: UNKNOWN, files_list: UNKNOWN, files_delete: UNKNOWN, pages_export: UNKNOWN, pages_list: { kind: "result", result: { pages: [] } } },
+      { "agentpages/files/put": UNKNOWN, "agentpages/files/get": UNKNOWN, "agentpages/files/list": UNKNOWN, "agentpages/files/delete": UNKNOWN },
+    ],
+  }),
+};

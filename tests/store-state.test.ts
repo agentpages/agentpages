@@ -86,7 +86,7 @@ test("[STATE-6] the scope of one viewer is never that of another, whatever their
   expect((await listOf(target, PAGE)).documents).toStrictEqual([]);
 });
 
-test("[PAGES-6] pages_delete removes the state of the page: every scope, every log and every counter, and no other page's", async () => {
+test("[PAGES-14] pages_delete removes the state of the page: every scope, every log and every counter, and no other page's", async () => {
   const { target, url } = await sharedPage();
   await call(target, ["pages_publish", publishing({ page: 2, baseVersion: 0, op: 9 })]);
   await call(target, committed(3, [put("a"), { ...put("b"), collection: "notes" }]));

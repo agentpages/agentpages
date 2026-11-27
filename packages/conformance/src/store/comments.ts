@@ -1,15 +1,13 @@
 import type { Driver } from "../contract.js";
-import { actingAs, agent, anonymous, type Cases, GET, having, inPagesOfTwo, inTurn, LINK_READ, LINK_WRITE, LIST, page, pageId, PRIVATE, PUBLISH, reading, SET_ACCESS, sharing, text, tick, timeOf, times, viewer } from "./kit.js";
+import { anonymous, type Cases, GET, having, inPagesOfTwo, inTurn, LINK_READ, LINK_WRITE, linkOf, LIST, page, pageId, PRIVATE, PUBLISH, reading, SET_ACCESS, sharing, text, tick, timeOf, times, viewer } from "./kit.js";
 import { authorsOf, byAgent, collected, commentsOf, hostOf, idsOf, REPLY, replying, RESOLVE, resolving, saying, scene, START, THREADS } from "./threads.js";
 
 /** `count` requests that succeeded, as `outcome` reports them. */
 const done = (count: number): string[] => Array.from({ length: count }, () => "done");
 
 /** What a viewer who holds the link of page `n`, which has this access, may do with its threads. */
-const asHolder = async (driver: Driver, [n, access]: [number, string]): Promise<string[]> => {
-  const alice = actingAs(driver, agent(1));
-  await alice.ok(PUBLISH, page(n, 0));
-  const { url } = await alice.ok(SET_ACCESS, sharing(n, access));
+const asHolder = async (driver: Driver, shared: [number, string]): Promise<string[]> => {
+  const url = await linkOf(driver, shared);
   const { id } = await hostOf(driver, viewer(1, url)).ok(START, saying(1));
   const holder = hostOf(driver, viewer(2, url));
   return [

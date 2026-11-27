@@ -1,8 +1,8 @@
 import type { CommentsListResult, Paging, Thread } from "@agentpages/protocol";
 import type { Key, Reader, Value } from "@agentpages/storage";
-import { NEED } from "../access/permits.js";
 import type { Principal } from "../access/principal.js";
 import { type Handler, list, ok, parsed, query } from "../pipeline/index.js";
+import { toRead } from "../pages/arrival.js";
 import type { Arrival } from "../state/scope.js";
 import { statusPrefix, threadsPrefix } from "./keys.js";
 
@@ -29,7 +29,7 @@ interface Listing extends Paging {
 /** Section 5.4 of the spec: the threads of a page, or those of one status, oldest first. */
 export const commentsList = <P extends Listing>(arrival: Arrival<P, CommentsListResult>): Handler<P, CommentsListResult, Principal> =>
   query(arrival.schemas, {
-    target: arrival.page(NEED.read),
+    ...toRead(arrival),
     run: async ({ params, target }, tx) => {
       const { pageId } = target.info;
       const source = params.status === undefined ? everyThread(pageId) : threadsOf(pageId, params.status);

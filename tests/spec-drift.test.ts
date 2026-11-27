@@ -1,5 +1,4 @@
 import {
-  BASE64_PATTERN,
   BODY_PATTERN,
   CapabilitySchema,
   DEFAULT_LIMIT,
@@ -13,6 +12,7 @@ import {
   HOST_OPERATION_SCHEMAS,
   HOST_OPERATIONS,
   ID_PATTERN,
+  isBase64,
   MAX_ATTEMPTS,
   MAX_COUNT,
   MAX_DIAGNOSTICS,
@@ -164,7 +164,7 @@ test("the spec still words the rules the patterns encode", () => {
   expect(spec).toContain("Timestamps are real UTC dates and times");
   expect(spec).toContain("A character is a Unicode code point.");
   expect(spec).toContain("standard alphabet with padding (RFC 4648, section 4), in canonical form: unused bits are zero.");
-  expect(BASE64_PATTERN.test("AA==")).toBe(true);
-  expect(BASE64_PATTERN.test("AB==")).toBe(false);
+  expect(isBase64("AA==")).toBe(true);
+  expect(isBase64("AB==")).toBe(false);
   expect(textIn(/as in section 2\.1, other than `(\w+)`/u)).toBe(PDF_FORMAT);
 });

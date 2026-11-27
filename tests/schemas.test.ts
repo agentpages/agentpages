@@ -18,7 +18,10 @@ import { near, withChange } from "./support/values.ts";
 /** A map keyed by id is a plain object in JSON Schema, which cannot say what its keys and values are. */
 const HAS_ID_KEYED_MAPS = new Set(["types_publish"]);
 
-const exact = TOOL_NAMES.filter((tool) => !HAS_ID_KEYED_MAPS.has(tool));
+/** A blob is a string in JSON Schema, which says that it holds base64 and not that the base64 is canonical. */
+const HAS_BLOBS = new Set(["files_put"]);
+
+const exact = TOOL_NAMES.filter((tool) => !HAS_ID_KEYED_MAPS.has(tool) && !HAS_BLOBS.has(tool));
 
 const standalone = ["TreeNode", "TypeInfo", "LogRecord", "Capability", "agentpages/state/committed params"];
 
@@ -124,4 +127,12 @@ test("an input schema says that document data and a map of collections are objec
       expect(publish(withChange(params, { path: ["collections"], replacement: data, remove: false }))).toBe(isObject(data));
     }),
   );
+});
+
+test("[COMMON-8] an input schema says that a blob is a string of base64, and leaves its canonical form to the Store", () => {
+  const put = inputSchemaVerdict("files_put");
+  const params = { opId: OP_ID, pageId: OP_ID, id: "a", name: "a", mimeType: "a" };
+
+  expect(toolInputSchema("files_put")).toMatchObject({ allOf: [{ properties: { blob: { type: "string", contentEncoding: "base64" } } }, {}] });
+  expect(["AA==", "AB==", 7, null].map((blob) => put({ ...params, blob }))).toStrictEqual([true, true, false, false]);
 });

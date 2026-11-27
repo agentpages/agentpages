@@ -26,6 +26,8 @@ interface Decided {
   answer: Settled;
   /** What the log record says beside the outcome. */
   noted: Pick<LogRecord, "seq" | "cause">;
+  /** What the request was about, once its params say. */
+  names?: Pick<LogRecord, "opId" | "pageId" | "scope">;
 }
 
 const plain = (answer: Settled): Decided => ({ answer, noted: {} });
@@ -124,6 +126,20 @@ const written = (logger: Logger, record: LogRecord): Promise<unknown> =>
     })
     .catch(none);
 
+interface Arrived<Who extends Principal> {
+  call: Call<Who>;
+  requestId: string;
+  at: string;
+}
+
+/** What a request comes to, with what it was about. A defect of the checks of its params is a defect like any other. */
+const answered = async <P, T, R, Who extends Principal>(operation: Operation<P, T, R, Who>, arrived: Arrived<Who>): Promise<Decided> => {
+  const checked = validate(operation.schemas.params, arrived.call.input);
+  const place = checked.ok ? operation.spec.target(checked.value, arrived.call.deps) : undefined;
+  const decided = await decide({ operation, ...arrived, checked, place }).catch(crashed(arrived.requestId));
+  return { ...decided, names: place?.names ?? {} };
+};
+
 /** Answers one request and writes its one log record. An id its host chose badly is replaced, and the request refused. */
 export const handle = async <P, T, R, Who extends Principal>(
   operation: Operation<P, T, R, Who>,
@@ -133,15 +149,12 @@ export const handle = async <P, T, R, Who extends Principal>(
   const started = clock.now();
   const at = new Date(started).toISOString();
   const requestId = ID_PATTERN.test(call.requestId) ? call.requestId : ids.id();
-  const checked = validate(operation.schemas.params, call.input);
-  const place = checked.ok ? operation.spec.target(checked.value, call.deps) : undefined;
-  const attempt = { operation, call, requestId, at, checked, place };
-  const { answer, noted } = await decide(attempt).catch(crashed(requestId));
+  const { answer, noted, names } = await answered(operation, { call, requestId, at }).catch(crashed(requestId));
   await written(logger, {
     at,
     requestId,
-    ...place?.names,
-    actor: await call.deps.actors.actorOf({ principal: call.principal, pageId: place?.names.pageId }),
+    ...names,
+    actor: await call.deps.actors.actorOf({ principal: call.principal, pageId: names?.pageId }),
     method: call.method,
     ...verdictOf(answer),
     ...noted,
