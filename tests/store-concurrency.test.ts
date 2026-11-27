@@ -2,7 +2,8 @@ import { type Answer, TOOL_SCHEMAS } from "@agentpages/protocol";
 import type { Storage } from "@agentpages/storage";
 import * as fc from "fast-check";
 import { expect, test } from "vitest";
-import { BOB, call, callEach, committed, declaring, errorOf, node, op, PAGE, PUBLISHED, publishing, put, transactingAs, resultOf, saved, TREE_PAGE, TYPED_PAGE, world, type World } from "./support/store.ts";
+import { savedRows } from "./support/results.ts";
+import { BOB, call, callEach, committed, declaring, errorOf, node, op, PAGE, PUBLISHED, publishing, put, transactingAs, resultOf, TREE_PAGE, TYPED_PAGE, world, type World } from "./support/store.ts";
 
 type Request = [string, unknown];
 
@@ -181,7 +182,7 @@ test.each([
   await call(target, PUBLISHED);
 
   expect(await oneAfterTheOther(target, [first, second])).toStrictEqual(outcomes);
-  expect(await saved(target.storage)).toStrictEqual([
+  expect(await savedRows(target.storage)).toStrictEqual([
     [`gone/${PAGE}`, {}],
     [expect.stringContaining(op(6)), expect.objectContaining({ result: {} })],
   ]);

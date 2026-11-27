@@ -60,6 +60,7 @@ export interface World {
   host: Store["host"];
   /** A method of a view, for any viewer. */
   view: Store["view"];
+  sweep: Store["sweep"];
   /** Stops the Store and starts it again over what it saved. */
   restart: () => void;
   /** The tools the Store lists. */
@@ -141,6 +142,7 @@ export const world = ({ ports = {}, config = {} }: WorldOptions = {}): World => 
     call: (request) => running.store.call(request),
     host: (request) => running.store.host(request),
     view: (request) => running.store.view(request),
+    sweep: (limit) => running.store.sweep(limit),
     restart: () => {
       running.store = start();
     },

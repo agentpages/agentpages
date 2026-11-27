@@ -2,6 +2,7 @@ import { type Answer, LogRecordSchema, type StateListResult, TOOL_SCHEMAS, valid
 import { ajvSchemaCompiler, type Ports } from "@agentpages/server";
 import type { Storage } from "@agentpages/storage";
 import { expect, test } from "vitest";
+import { savedRows, seqOf } from "./support/results.ts";
 import { ask, BASE_URL, call, callEach, COMMIT, committed, committing, declaring, errorOf, failureOf, op, PAGE, publishing, put, transactingAs, resultOf, saved, sharedPage, uuid, viewerId, world, type World } from "./support/store.ts";
 
 const IDENTITY = "agentpages/identity/get";
@@ -11,8 +12,6 @@ const logged = (fields: object): object => ({ at: "2026-01-01T00:00:00.000Z", re
 
 const listOf = async (target: World, pageId: string): Promise<StateListResult> =>
   resultOf(TOOL_SCHEMAS.state_list.result, await call(target, ["state_list", { pageId, scope: "page", collection: "tasks" }]));
-
-const seqOf = async (answer: Promise<Answer>): Promise<number> => resultOf(TOOL_SCHEMAS.state_commit.result, await answer).commit.seq;
 
 test("[REL-26] the log record of a state request carries its scope, and that of a commit the seq it created or, for a repeat, got back", async () => {
   const { target, url } = await sharedPage();
@@ -100,7 +99,7 @@ test("[PAGES-6] pages_delete removes the state of the page: every scope, every l
   await call(target, ["pages_delete", { opId: op(8), pageId: uuid(2) }]);
 
   expect([other, kept.seq, kept.documents.map((document) => document.id)]).toStrictEqual([1, 1, ["a"]]);
-  expect(await saved(target.storage)).toStrictEqual([
+  expect(await savedRows(target.storage)).toStrictEqual([
     [`gone/${PAGE}`, {}],
     [`gone/${uuid(2)}`, {}],
     [expect.stringContaining(op(7)), expect.objectContaining({ result: {} })],

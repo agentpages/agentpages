@@ -1,9 +1,9 @@
 import type { Key, Reader } from "@agentpages/storage";
-import { countIn, ok, type Outcome, refuse } from "../pipeline/index.js";
+import { countIn, inTurn, ok, type Outcome, refuse } from "../pipeline/index.js";
 import { type DocumentId, documentKey, revisionKey } from "../state/keys.js";
 import { type Before, isChange, type Pending } from "../state/records.js";
 import { type Child, childrenPrefix } from "./keys.js";
-import { type Grove, inTurn } from "./place.js";
+import type { Grove } from "./place.js";
 
 /** A document that the delete of an ancestor deletes, with its counter. */
 export interface Swept extends Child {

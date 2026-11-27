@@ -1,5 +1,6 @@
 import { type Answer, TOOL_SCHEMAS } from "@agentpages/protocol";
 import { expect, test } from "vitest";
+import { rowKeys } from "./support/results.ts";
 import * as fc from "fast-check";
 import { ADVERTISED, call, callEach, committed, errorOf, failureOf, node, PUBLISHED, PAGE, put, remove, resultOf, saved, transactingAs, TREE_PAGE, world, type World } from "./support/store.ts";
 
@@ -82,7 +83,7 @@ test("[TREE-4] a root is under no document, not even under one whose id reads as
   expect(await changedBy(target, committed(5, [remove("top")]))).toStrictEqual(["top", "start"]);
 });
 
-test("a commit to a tree writes and deletes no key outside its page", async () => {
+test("a commit to a tree writes and deletes no row outside its page", async () => {
   const touched: string[] = [];
   const recorded = transactingAs(world().storage, (tx) => ({
     put: (key, value) => {
@@ -99,7 +100,7 @@ test("a commit to a tree writes and deletes no key outside its page", async () =
   touched.length = 0;
   await callEach(target, [committed(2, [node("a", null), node("b", "a")]), committed(3, [node("b", null), node("a", "b")]), committed(4, [remove("b")])]);
 
-  expect(touched.filter((key) => !key.startsWith(`page/${PAGE}/`))).toStrictEqual([]);
+  expect(rowKeys(touched).filter((key) => !key.startsWith(`page/${PAGE}/`))).toStrictEqual([]);
   expect(await idsIn(target)).toStrictEqual([]);
 });
 

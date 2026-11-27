@@ -2,16 +2,36 @@ import type { Agent, Principal } from "../access/principal.js";
 import type { Key, Tx } from "@agentpages/storage";
 import { fingerprint } from "./digest.js";
 import { handle } from "./handle.js";
+import { keep } from "./kept.js";
 import { segment } from "./keys.js";
 import type { Handler, Place, Request, Schemas, Spec, Target } from "./operation.js";
 import { ok, type Outcome, refuse } from "./outcome.js";
 import { settle } from "./query.js";
 import { parsed, recordOf } from "./records.js";
 
-export interface Change<P, T, R, Who extends Principal = Agent> extends Spec<P, T, R, Who> {
-  /** The prefix under which the target keeps the requests it remembers. */
-  remembers: (params: P, target: T) => Key;
+/** Where a page or type keeps the requests it remembers. */
+export interface Remembered {
+  /** What the key of every such request starts with. */
+  prefix: Key;
+  /** The lock of the page or type. */
+  lock: Key;
 }
+
+export interface Change<P, T, R, Who extends Principal = Agent> extends Spec<P, T, R, Who> {
+  remembers: (params: P, target: T) => Remembered;
+}
+
+interface Remembering {
+  key: Key;
+  lock: Key;
+  record: { paramsHash: string; result: unknown; at: string };
+}
+
+/** Saves the record of a request, with a note of when. */
+const remember = (tx: Tx, { key, lock, record }: Remembering): void => {
+  tx.put(key, record);
+  keep(tx, { kind: "op", at: record.at, row: key, lock });
+};
 
 const reused = (): Promise<Outcome<never>> =>
   Promise.resolve(refuse({ error: "InvalidParams", message: "This opId was used before, for a request with other params." }));
@@ -31,14 +51,15 @@ const once =
     const { method, params, principal, at } = request;
     const found = await place.find(request, tx);
     if (!found.ok) return found;
-    const key = `${change.remembers(params, found.value)}${callerOf(principal)}/${params.opId}`;
+    const { prefix, lock } = change.remembers(params, found.value);
+    const key = `${prefix}${callerOf(principal)}/${params.opId}`;
     const paramsHash = await fingerprint([method, params]);
     const stored = await tx.get(key);
     const first = stored && recordOf(stored);
     if (first?.paramsHash === paramsHash) return ok(parsed(schemas.result, first.result));
     const run = first === undefined ? change.run : reused;
     const outcome = await settle({ ...change, run })({ ...request, target: found.value }, tx);
-    if (outcome.ok) tx.put(key, { paramsHash, result: outcome.value, at });
+    if (outcome.ok) remember(tx, { key, lock, record: { paramsHash, result: outcome.value, at } });
     return outcome;
   };
 
