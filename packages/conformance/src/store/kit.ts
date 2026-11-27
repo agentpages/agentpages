@@ -261,5 +261,25 @@ export const ofLength = (count: number): string => String(1).repeat(count);
 
 export const timeOf = (timestamp: string): number => Date.parse(timestamp);
 
+const UINT32 = 4_294_967_296;
+
+/**
+ * Numbers from 0 up to 1 that look random, and are the same every time for the same `seed`. It is mulberry32, so
+ * that what a seed generates depends on no library.
+ */
+export const rng = (seed: number): (() => number) => {
+  const state = { a: seed };
+  return () => {
+    state.a = (state.a + 0x6d_2b_79_f5) >>> 0;
+    const mixed = Math.imul(state.a ^ (state.a >>> 15), 1 | state.a);
+    const again = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+    return ((again ^ (again >>> 14)) >>> 0) / UINT32;
+  };
+};
+
+/** One of `items`, each as likely as the next: the first of those from a place that `next` chooses. */
+export const pick = <T>(next: () => number, items: readonly T[]): T =>
+  items.slice(Math.floor(next() * items.length)).reduce((first) => first);
+
 /** `count` times the same error. */
 export const times = (count: number, error: ErrorName): ErrorName[] => Array.from({ length: count }, () => error);

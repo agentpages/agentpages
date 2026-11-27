@@ -8,9 +8,11 @@ import {
   TOOLS,
   validate,
 } from "@agentpages/protocol";
+import { actorsUnder } from "../access/actor.js";
 import type { Agent, Visitor } from "../access/principal.js";
 import type { Ports } from "../ports/ports.js";
 import type { Handler, Shown } from "../pipeline/index.js";
+import { checksWith } from "../types/checks.js";
 import { HOST_HANDLERS, methodsOf, toolsOf } from "./operations.js";
 
 export interface StoreConfig {
@@ -18,6 +20,11 @@ export interface StoreConfig {
   capability: Omit<Capability, "version">;
   /** What every page `url` starts with: a URL, such as `https://pages.example/p/`. */
   baseUrl: string;
+  /**
+   * The secret the id of a viewer is made with: at least 32 bytes that nobody can guess. A Store with another key
+   * gives every viewer another id.
+   */
+  actorKey: string;
 }
 
 export interface ToolCall {
@@ -78,11 +85,15 @@ const advertised = (config: StoreConfig): Capability => {
   return checked.value;
 };
 
-/** A Store over the given ports. All it keeps is in `ports.storage`. It throws when `config` is not valid. */
+/**
+ * A Store over the given ports. All it knows is in `ports.storage`: in memory it keeps only schemas it compiled. It
+ * throws when `config` is not valid.
+ */
 export const createStore = (ports: Ports, config: StoreConfig): Store => {
   const capability = advertised(config);
   if (!URL.canParse(config.baseUrl)) throw new TypeError("baseUrl must be a URL.");
-  const deps = { ...ports, capability, baseUrl: config.baseUrl };
+  const actors = actorsUnder(config.actorKey);
+  const deps = { ...ports, capability, baseUrl: config.baseUrl, actors, checks: checksWith(ports.compiler) };
   const tools = byName<Handler<unknown, unknown, Agent>>(toolsOf(capability));
   const operations = byName<Handler<unknown, unknown, Visitor>>(HOST_HANDLERS);
   const methods = byName<Shown<unknown, unknown>>(methodsOf(capability));

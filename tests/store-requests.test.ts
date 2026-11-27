@@ -2,7 +2,7 @@ import { type Answer, ID_PATTERN, LogRecordSchema, type PageInfo, TOOL_SCHEMAS, 
 import type { Ports, RateRequest } from "@agentpages/server";
 import type { Storage, Value } from "@agentpages/storage";
 import { expect, test } from "vitest";
-import { ALICE, BASE_URL, BOB, call, committed, declaring, errorOf, failureOf, HOST_REQUEST, HTML, op, open, PAGE, PUBLISHED, publishing, put, readingAs, resultOf, saved, START, uuid, world, type World } from "./support/store.ts";
+import { ALICE, BASE_URL, BOB, call, committed, declaring, errorOf, failureOf, HOST_REQUEST, HTML, op, open, PAGE, PUBLISHED, publishing, put, readingAs, resultOf, saved, START, uuid, viewerId, world, type World } from "./support/store.ts";
 
 const publish = async (target: World): Promise<PageInfo> =>
   resultOf(TOOL_SCHEMAS.pages_publish.result, await call(target, PUBLISHED));
@@ -42,14 +42,14 @@ test("[REL-24] the Store writes one log record for every request it handles, wha
   expect(target.logs.map((record) => validate(LogRecordSchema, record).ok)).toStrictEqual(target.logs.map(() => true));
 });
 
-test("[REL-24] a log record names a viewer by an id that is the same for the same person and never the subject", async () => {
+test("[REL-24] a log record names a viewer by the id they have on the page, which is the same for the same person and never the subject", async () => {
   const target = world();
   const { url } = await publish(target).then(() => share(target, 2));
   const openAs = (subject: string): Promise<Answer> => open(target, { url, subject });
   await openAs("carol@example.com").then(() => openAs("dave@example.com")).then(() => openAs("carol@example.com"));
   const [carol, dave, again] = target.logs.slice(2).map((record) => record.actor);
 
-  expect([carol, dave, again]).toStrictEqual(Array.from({ length: 3 }, () => ({ kind: "viewer", id: expect.stringMatching(/^[0-9a-f]{64}$/u) as unknown })));
+  expect([carol, dave, again]).toStrictEqual(["carol@example.com", "dave@example.com", "carol@example.com"].map((subject) => ({ kind: "viewer", id: viewerId({ subject, pageId: PAGE }) })));
   expect(again).toStrictEqual(carol);
   expect(dave).not.toStrictEqual(carol);
   expect(target.logs.map((record) => validate(LogRecordSchema, record).ok)).toStrictEqual([true, true, true, true, true]);

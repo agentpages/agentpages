@@ -91,27 +91,30 @@ export const toolsOf = (driver: Driver, { by, on }: { by: number; on: number }):
   surfaceOf(({ name }, params) => driver.call({ tool: `state_${name}`, input: Object.assign({}, params, { pageId: pageId(on) }), subject: agent(by) }));
 
 /** A method of the view that shows the page behind the link of `visit`. The link is no part of the params. */
-const asking = (driver: Driver, { url, ...shown }: Visit) => (method: string, params: unknown): Promise<Answer> =>
-  driver.view({ method: `agentpages/${method}`, params, viewer: shown, url, requestId: HOST_REQUEST });
+export const asking = (driver: Driver, { url, ...shown }: Visit) => (method: string, params: unknown): Promise<Answer> =>
+  driver.view({ method, params, viewer: shown, url, requestId: HOST_REQUEST });
 
 /** The state methods of the view a viewer has open. */
 export const viewOf = (driver: Driver, visit: Visit): Surface =>
-  surfaceOf(({ name }, params) => asking(driver, visit)(`state/${name}`, params));
+  surfaceOf(({ name }, params) => asking(driver, visit)(`agentpages/state/${name}`, params));
+
+const IDENTITY_GET = "agentpages/identity/get";
 
 /** What `identity/get` answers a viewer. */
 export const identityOf = async (driver: Driver, visit: Visit): Promise<IdentityGetResult> =>
-  resultIn(METHOD_SCHEMAS["agentpages/identity/get"].result, await asking(driver, visit)("identity/get", {}));
+  resultIn(METHOD_SCHEMAS[IDENTITY_GET].result, await asking(driver, visit)(IDENTITY_GET, {}));
 
 export const identityFails = async (driver: Driver, visit: Visit): Promise<string> =>
-  errorIn(await asking(driver, visit)("identity/get", {}));
+  errorIn(await asking(driver, visit)(IDENTITY_GET, {}));
 
 export const AGENT: Actor = { kind: "agent" };
 
-/** Who the Store says a signed-in viewer is when they change something. */
-export const actorOf = async (driver: Driver, visit: Visit): Promise<Actor> => {
-  const shown = await identityOf(driver, visit);
-  return { kind: "viewer", id: Object.assign({}, shown.viewer).id };
-};
+/** A commit of a signed-in viewer that changes nothing, in their own scope. It needs no more than read access. */
+export const ownCommit = async (driver: Driver, visit: Visit): Promise<Commit> =>
+  (await viewOf(driver, visit).ok(COMMIT, mine(committing([])))).commit;
+
+/** Who the Store says a signed-in viewer is when they change something: who made a commit in their own scope. */
+export const actorOf = async (driver: Driver, visit: Visit): Promise<Actor> => (await ownCommit(driver, visit)).by;
 
 export const limitsOf = (driver: Driver): StateLimits => Object.assign({}, driver.capability.state);
 

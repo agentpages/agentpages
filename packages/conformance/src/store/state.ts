@@ -1,7 +1,10 @@
+import { STATE_ACCESS_CASES } from "./access.js";
 import { COMMIT_CASES } from "./commit.js";
 import { type Cases, having, inPagesOfTwo, inTurn, ofLength, pageId, text, tick, timeOf, times } from "./kit.js";
 import { MODEL_CASES } from "./model.js";
+import { REPEAT_CASES } from "./repeats.js";
 import { SCOPE_CASES } from "./scopes.js";
+import { TYPED_CASES } from "./typed.js";
 import { type ActingCases, after, COMMIT, COMMITS, committing, doc, listing, onBoth, onlyIf, put, remove, seqsAfter, STATE_GET, STATE_LIST, stored, type Surface, within } from "./surface.js";
 
 const MS_PER_SECOND = 1000;
@@ -139,15 +142,16 @@ const ON_BOTH: ActingCases = {
     };
   },
 
-  "[STATE-20] commits are kept for commitRetentionSeconds, and a since older than that must resync": async (acting, driver) => {
-    const { commit } = await acting.ok(COMMIT, committing([]));
+  "[STATE-20] a commit is kept while it is at most commitRetentionSeconds old, and a since before one that is no longer kept must resync": async (acting, driver) => {
+    const old = await acting.ok(COMMIT, committing([]));
     driver.advance(driver.capability.limits.commitRetentionSeconds * MS_PER_SECOND);
-    const kept = await acting.ok(COMMITS, after(0));
-    const fresh = await acting.ok(COMMIT, committing([]));
+    const atTheLimit = await acting.ok(COMMITS, after(0));
     driver.advance(1);
+    const beyond = [await acting.fails(COMMITS, after(0)), await acting.ok(COMMITS, after(1))];
+    const fresh = await acting.ok(COMMIT, committing([]));
     return {
-      got: [kept, await acting.fails(COMMITS, after(0)), await acting.ok(COMMITS, after(1)), await acting.ok(COMMITS, after(2))],
-      want: [{ commits: [commit], seq: 1 }, "ResyncRequired", { commits: [fresh.commit], seq: 2 }, { commits: [], seq: 2 }],
+      got: [atTheLimit, beyond, await acting.fails(COMMITS, { ...after(0), limit: 1 }), await acting.ok(COMMITS, after(1)), await acting.ok(COMMITS, after(2))],
+      want: [{ commits: [old.commit], seq: 1 }, ["ResyncRequired", { commits: [], seq: 1 }], "ResyncRequired", { commits: [fresh.commit], seq: 2 }, { commits: [], seq: 2 }],
     };
   },
 
@@ -171,4 +175,13 @@ const ON_BOTH: ActingCases = {
   },
 };
 
-export const STATE_CASES: Cases = { ...onBoth(ON_BOTH), ...COMMIT_CASES, ...SCOPE_CASES, ...MODEL_CASES };
+/** What a Store that advertises `state` does with it, through the tools of an agent and the methods of a view. */
+export const STATE_CASES: Cases = {
+  ...onBoth(ON_BOTH),
+  ...COMMIT_CASES,
+  ...SCOPE_CASES,
+  ...MODEL_CASES,
+  ...TYPED_CASES,
+  ...STATE_ACCESS_CASES,
+  ...REPEAT_CASES,
+};

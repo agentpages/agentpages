@@ -5,4 +5,4 @@ export type { Context, Deps, Handler, Place, Schemas, Shown, Target } from "./op
 export { ok, type Outcome, refuse } from "./outcome.js";
 export { list } from "./paging.js";
 export { query } from "./query.js";
-export { corrupt, countIn, type Owned, owned, parsed, recordOf } from "./records.js";
+export { countIn, type Owned, owned, parsed, recordOf } from "./records.js";

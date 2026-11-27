@@ -10,7 +10,7 @@ const MS_PER_SECOND = 1000;
 
 type Following<P> = Context<P, Within>;
 
-/** Section 4.1 of the spec: age decides whether a commit is still kept, not what the storage happens to hold. */
+/** Section 4.1 of the spec: a commit is kept while it is at most `commitRetentionSeconds` old, whatever the storage holds. */
 const isKept = ({ at, deps }: Following<unknown>, commit: Commit): boolean =>
   Date.parse(at) - Date.parse(commit.at) <= deps.capability.limits.commitRetentionSeconds * MS_PER_SECOND;
 

@@ -1,6 +1,5 @@
 import { failure, ID_PATTERN, invalidParams, type LogRecord, type Settled, type Validation, validate } from "@agentpages/protocol";
 import type { Tx } from "@agentpages/storage";
-import { actorOf } from "../access/actor.js";
 import type { Principal } from "../access/principal.js";
 import type { Logger } from "../ports/logger.js";
 import type { Call, Place, Request, Schemas, Spec } from "./operation.js";
@@ -142,7 +141,7 @@ export const handle = async <P, T, R, Who extends Principal>(
     at,
     requestId,
     ...place?.names,
-    actor: await actorOf(call.principal),
+    actor: await call.deps.actors.actorOf({ principal: call.principal, pageId: place?.names.pageId }),
     method: call.method,
     ...verdictOf(answer),
     ...noted,

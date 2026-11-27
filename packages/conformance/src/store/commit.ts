@@ -142,6 +142,21 @@ export const COMMIT_CASES: Cases = onBoth({
     };
   },
 
+  "[REL-30] a repeated commit gets its first commit, and an opId used again with other ops is decided after the limits": async (acting, driver) => {
+    const params = committing([]);
+    const tooLarge = put("a", objectOfBytes(limitsOf(driver).maxDocumentBytes + 1));
+    const first = await acting.ok(COMMIT, params);
+    return {
+      got: [
+        await acting.ok(COMMIT, params),
+        await acting.answers(COMMIT, having(params, ["ops", [tooLarge]])),
+        await acting.answers(COMMIT, having(params, ["ops", puts(1)])),
+        await acting.ok(COMMITS, after(0)),
+      ],
+      want: [first, ["LimitExceeded", 0], ["InvalidParams", undefined], { commits: [first.commit], seq: 1 }],
+    };
+  },
+
   "[REL-31] a commit that failed is not remembered": async (acting) => {
     const params = committing([onlyIf(put("a", {}), 1)]);
     const refused = await acting.fails(COMMIT, params);

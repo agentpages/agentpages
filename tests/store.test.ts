@@ -1,9 +1,9 @@
 import { storeSuite } from "@agentpages/conformance";
 import { describe, expect, test } from "vitest";
-import { titlesBeside, world } from "./support/store.ts";
+import { ADVERTISED, titlesBeside, world } from "./support/store.ts";
 
-/** What the suite proves of a Store, by the requirement of the spec each test proves. */
-const TITLES = [
+/** What the suite proves of every Store, by the requirement of the spec each test proves. */
+const CORE = [
   "[COMMON-4] a list without a limit returns 100 items, and nextCursor exactly when more exist",
   "[COMMON-4] every list returns its items in pages of the limit it was given",
   "[COMMON-5] a malformed request is malformed, whatever else is wrong with it",
@@ -60,9 +60,12 @@ const TITLES = [
   "[REL-4] an opId is remembered for at least opRetentionSeconds",
   "[REL-8] a request the Store refuses changes nothing",
   "[REL-30] a repeated opId is recognised only once its page is found",
-  "[REL-29] the opId of a commit belongs to its viewer and its page, and all anonymous viewers of a page are one caller",
-  "[REL-30] a repeated commit is recognised only while its page exists and its caller has access",
+  "[REL-30] a repeat with the same params gets its first result, and an opId used again with other params is decided after the limits",
   "[REL-31] a request that failed is not remembered",
+];
+
+/** What it proves of a Store that advertises `state`. */
+const STATE = [
   "[STATE-1] get returns the document, or null where there is none",
   "[STATE-2] list returns the documents of a collection, and the seq of the log",
   "[STATE-3] commit applies its ops and returns the commit",
@@ -70,7 +73,7 @@ const TITLES = [
   "[STATE-18] list orders by id, ascending by code point, and its seq is the position of the log",
   "[STATE-19] commits returns up to limit commits after since, in order, and a since beyond the seq is malformed",
   "[COMMON-4] list and commits without a limit return 100 items",
-  "[STATE-20] commits are kept for commitRetentionSeconds, and a since older than that must resync",
+  "[STATE-20] a commit is kept while it is at most commitRetentionSeconds old, and a since before one that is no longer kept must resync",
   "[COMMON-9] a state request whose values break a rule of section 2.1 is malformed",
   "[STATE-9] commit applies all of its ops or none of them",
   "[STATE-11] a put replaces the whole document",
@@ -83,6 +86,7 @@ const TITLES = [
   "[STATE-17] an op with ifRevision succeeds only if the counter equals it, and 0 asks that the document does not exist",
   "[REL-2] a commit repeated with its opId is applied once and gets the first commit again",
   "[REL-3] the opId of a commit used again with other params is malformed",
+  "[REL-30] a repeated commit gets its first commit, and an opId used again with other ops is decided after the limits",
   "[REL-31] a commit that failed is not remembered",
   "[STATE-5] page scope documents are shared by every viewer of the page, and with its agent",
   "[STATE-6] viewer scope documents are private to their viewer",
@@ -93,10 +97,6 @@ const TITLES = [
   "[TOOLS-2] a tool call with viewer scope is forbidden",
   "[COMMON-5] a state request is checked in the order of section 2.1",
   "[STATE-10] random commits and reads in the page scope and the scopes of two viewers agree with a model of three logs",
-  "[IDENT-1] identity/get returns the viewer: an id, and a name when they have one",
-  "[IDENT-1] identity/get answers whoever can read the page, and nobody else",
-  "[IDENT-2] the viewer is null for an anonymous viewer",
-  "[IDENT-3] the id is the same for the same person on the same page, and is the id of their Actor in commits",
   "[TYPES-9] on a typed page, a put into a collection the type does not declare, or of data that does not match its schema, is malformed",
   "[TYPES-9] the type version that checks a commit is the one the page names when the commit arrives",
   "[TYPES-11] documents already stored are not checked again when a page moves to another type version",
@@ -105,12 +105,53 @@ const TITLES = [
   "[STATE-1] reading the page scope needs read access: the owner as a viewer has it, and a link holder with either link setting",
   "[STATE-3] a commit to the page scope needs write access: the owner as a viewer has it, and a link holder with link-write",
   "[ACCESS-6] a signed-in viewer with read access reads and writes their own viewer scope",
+  "[REL-29] the opId of a commit belongs to its viewer and its page, and all anonymous viewers of a page are one caller",
+  "[REL-30] a repeated commit is recognised only while its page exists and its caller has access",
 ];
 
-describe("a Store over the memory storage", () => {
-  storeSuite(() => world().driver);
+/** What it proves of a Store that advertises `identity`. */
+const IDENTITY = [
+  "[IDENT-1] identity/get returns the viewer: an id, and a name when they have one",
+  "[IDENT-1] identity/get answers whoever can read the page, and nobody else",
+  "[IDENT-2] the viewer is null for an anonymous viewer",
+  "[IDENT-3] the id is the same for the same person on the same page for as long as the page exists, and another on another page",
+];
 
-  test("the suite registered every test of a Store", ({ task }) => {
-    expect(titlesBeside(task)).toStrictEqual(TITLES);
+/** What it proves of a Store that advertises both. */
+const IDENTITY_IN_STATE = [
+  "[IDENT-3] the id is the id of the viewer's Actor in commits",
+];
+
+/** What it proves of a Store that does not advertise `state`. */
+const WITHOUT_STATE = [
+  "[EXT-3] a Store without state answers every tool that requires state as a tool it does not know, and the others as ever",
+  "[EXT-3] a Store without state answers every state method of a view as a method it does not know",
+];
+
+/** What it proves of a Store that does not advertise `identity`. */
+const WITHOUT_IDENTITY = [
+  "[EXT-3] a Store without identity answers every identity method of a view as a method it does not know",
+];
+
+const { limits, state, identity } = ADVERTISED;
+
+interface Kind {
+  /** What the Store advertises beside its limits. */
+  features: object;
+  titles: string[];
+}
+
+const KINDS: Record<string, Kind> = {
+  "state and identity": { features: { state, identity }, titles: [...CORE, ...STATE, ...IDENTITY, ...IDENTITY_IN_STATE] },
+  "neither state nor identity": { features: {}, titles: [...CORE, ...WITHOUT_STATE, ...WITHOUT_IDENTITY] },
+  "state and no identity": { features: { state }, titles: [...CORE, ...STATE, ...WITHOUT_IDENTITY] },
+  "identity and no state": { features: { identity }, titles: [...CORE, ...WITHOUT_STATE, ...IDENTITY] },
+};
+
+describe.each(Object.entries(KINDS))("a Store over the memory storage, with %s", (_, { features, titles }) => {
+  storeSuite(() => world({ config: { capability: { limits, ...features } } }).driver);
+
+  test("the suite registered every test of such a Store", ({ task }) => {
+    expect(titlesBeside(task)).toStrictEqual(titles);
   });
 });

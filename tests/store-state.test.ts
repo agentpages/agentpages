@@ -2,11 +2,9 @@ import { type Answer, LogRecordSchema, type StateListResult, TOOL_SCHEMAS, valid
 import { ajvSchemaCompiler, type Ports } from "@agentpages/server";
 import type { Storage } from "@agentpages/storage";
 import { expect, test } from "vitest";
-import { ADVERTISED, ask, BASE_URL, call, callEach, COMMIT, committed, committing, declaring, errorOf, failureOf, op, PAGE, publishing, put, readingAs, resultOf, saved, sharedPage, uuid, world, type World } from "./support/store.ts";
+import { ask, BASE_URL, call, callEach, COMMIT, committed, committing, declaring, errorOf, failureOf, op, PAGE, publishing, put, readingAs, resultOf, saved, sharedPage, uuid, viewerId, world, type World } from "./support/store.ts";
 
 const IDENTITY = "agentpages/identity/get";
-
-const VIEWER_ID = /^[0-9a-f]{64}$/u;
 
 /** A log record of a Store whose clock stands still, with these fields beside the ones every record has. */
 const logged = (fields: object): object => ({ at: "2026-01-01T00:00:00.000Z", requestId: expect.any(String) as unknown, durationMs: 0, ...fields });
@@ -16,9 +14,10 @@ const listOf = async (target: World, pageId: string): Promise<StateListResult> =
 
 const seqOf = async (answer: Promise<Answer>): Promise<number> => resultOf(TOOL_SCHEMAS.state_commit.result, await answer).commit.seq;
 
-test("[REL-26] the log record of a state request carries its scope, and that of a commit the seq it created", async () => {
+test("[REL-26] the log record of a state request carries its scope, and that of a commit the seq it created or, for a repeat, got back", async () => {
   const { target, url } = await sharedPage();
   await call(target, committed(3, [put("a", { title: "Quarterly plan" })]));
+  await call(target, committed(6, [put("b")]));
   await call(target, committed(3, [put("a", { title: "Quarterly plan" })]));
   await ask(target, { url, subject: "bob", method: COMMIT, params: { ...committing(4, [put("a")]), scope: "viewer" } });
   await ask(target, { url, method: COMMIT, params: committing(5, [{ ...put("a"), ifRevision: 7 }]) });
@@ -28,37 +27,15 @@ test("[REL-26] the log record of a state request carries its scope, and that of 
 
   expect(records).toStrictEqual([
     logged({ opId: op(3), pageId: PAGE, scope: "page", seq: 1, actor: { kind: "agent" }, method: "state_commit", outcome: "ok" }),
+    logged({ opId: op(6), pageId: PAGE, scope: "page", seq: 2, actor: { kind: "agent" }, method: "state_commit", outcome: "ok" }),
     logged({ opId: op(3), pageId: PAGE, scope: "page", seq: 1, actor: { kind: "agent" }, method: "state_commit", outcome: "ok" }),
-    logged({ opId: op(4), pageId: PAGE, scope: "viewer", seq: 1, actor: { kind: "viewer", id: expect.stringMatching(VIEWER_ID) as unknown }, method: COMMIT, outcome: "ok" }),
+    logged({ opId: op(4), pageId: PAGE, scope: "viewer", seq: 1, actor: { kind: "viewer", id: viewerId({ subject: "bob", pageId: PAGE }) }, method: COMMIT, outcome: "ok" }),
     logged({ opId: op(5), pageId: PAGE, scope: "page", actor: { kind: "anonymous" }, method: COMMIT, outcome: "error", error: "Conflict" }),
     logged({ pageId: PAGE, scope: "page", actor: { kind: "agent" }, method: "state_list", outcome: "ok" }),
     logged({ pageId: PAGE, actor: { kind: "anonymous" }, method: IDENTITY, outcome: "ok" }),
   ]);
-  expect(records.map((record) => validate(LogRecordSchema, record).ok)).toStrictEqual([true, true, true, true, true, true]);
+  expect(records.map((record) => validate(LogRecordSchema, record).ok)).toStrictEqual(records.map(() => true));
   expect(JSON.stringify(target.logs)).not.toMatch(/Quarterly|tasks|secret/u);
-});
-
-const STATE_TOOLS = ["state_get", "state_list", "state_commit", "state_commits"];
-const STATE_METHODS = ["agentpages/state/get", "agentpages/state/list", COMMIT, "agentpages/state/commits"];
-
-/** Whether a Store that advertises these features answers each state tool, each state method and `identity/get`. */
-const answered = async (features: object): Promise<boolean[]> => {
-  const { target, url } = await sharedPage({ config: { capability: { limits: ADVERTISED.limits, ...features } } });
-  const answers = await Promise.all([
-    ...STATE_TOOLS.map((tool) => call(target, [tool, { pageId: PAGE }])),
-    ...[...STATE_METHODS, IDENTITY].map((method) => ask(target, { url, method, params: {} })),
-  ]);
-  return answers.map((answer) => answer.kind !== "unknown-method");
-};
-
-test("[EXT-3] the Store answers the tools and the view methods of a feature exactly when it advertises the feature", async () => {
-  const { state, identity } = ADVERTISED;
-  const [yes, no] = [[true, true, true, true], [false, false, false, false]];
-
-  expect(await answered({})).toStrictEqual([...no, ...no, false]);
-  expect(await answered({ state })).toStrictEqual([...yes, ...yes, false]);
-  expect(await answered({ identity })).toStrictEqual([...no, ...no, true]);
-  expect(await answered({ state, identity })).toStrictEqual([...yes, ...yes, true]);
 });
 
 test("the page of a view request is the one its link names, whatever its params say", async () => {

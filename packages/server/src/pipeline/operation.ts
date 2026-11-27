@@ -1,6 +1,8 @@
 import type { Answer, Capability, Problem, Schema, Scope } from "@agentpages/protocol";
+import type { Actors } from "../access/actor.js";
 import type { Principal, Visitor } from "../access/principal.js";
 import type { Ports } from "../ports/ports.js";
+import type { Checks } from "../types/checks.js";
 import type { Key, Tx } from "@agentpages/storage";
 import type { Outcome } from "./outcome.js";
 
@@ -8,6 +10,10 @@ export interface Deps extends Ports {
   readonly capability: Capability;
   /** A page's `url` is this, its `pageId`, a slash and its secret. */
   readonly baseUrl: string;
+  /** How the Store names who makes a request. */
+  readonly actors: Actors;
+  /** The compiled schemas the Store keeps in memory. */
+  readonly checks: Checks;
 }
 
 /** A request as it arrives. */

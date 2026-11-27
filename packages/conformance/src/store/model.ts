@@ -1,87 +1,17 @@
-import type { Actor, Change, Commit, Document, Op, Scope } from "@agentpages/protocol";
-import * as fc from "fast-check";
+import type { Actor, Change, Commit, Document, Op } from "@agentpages/protocol";
 import type { Driver } from "../contract.js";
 import { actingAs, agent, type Cases, type Check, inTurn, LINK_WRITE, met, page, pageId, PUBLISH, SET_ACCESS, sharing, tick, timeOf, viewer } from "./kit.js";
-import { actorOf, AGENT, COMMIT, COMMITS, STATE_GET, STATE_LIST, type Surface, toolsOf, viewOf } from "./surface.js";
+import { BOBS_OWN, type Caller, CAROLS_OWN, COLLECTIONS, everyRun, IDS, keyOf, type LogName, OWNER, type Request, RUNS, type Seat, type Step, STEPS } from "./runs.js";
+import { AGENT, COMMIT, COMMITS, ownCommit, STATE_GET, STATE_LIST, type Surface, toolsOf, viewOf } from "./surface.js";
 
 /**
- * Pinned, so that the runs are the same every time. `GENERATED` is the checksum of what this seed makes fast-check
- * generate: another version of fast-check may generate other runs, which need a look at what they still reach.
+ * The checksum of the runs the generator makes: a change of the generator makes other runs, which need a look at what
+ * they still reach.
  */
-const SEED = 20_261_127;
-const GENERATED = 363_364_080;
+const GENERATED = 877_561_241;
 const MODULUS = 1_000_000_007;
-const RUNS = 20;
-const STEPS = 40;
-const POOL = 20;
 const FINAL_CHECKS = 3;
 const MS_PER_STEP = 1000;
-
-const COLLECTIONS = ["tasks", "notes"];
-const IDS = ["a", "b", "c", "d"];
-
-type Caller = "agent" | "bob" | "carol";
-type LogName = "page" | "bob" | "carol";
-
-/** Who sends a request, in which scope, and the log the two make it reach. */
-interface Seat {
-  caller: Caller;
-  scope: Scope;
-  log: LogName;
-}
-
-const OWNER: Seat = { caller: "agent", scope: "page", log: "page" };
-const BOBS_OWN: Seat = { caller: "bob", scope: "viewer", log: "bob" };
-const CAROLS_OWN: Seat = { caller: "carol", scope: "viewer", log: "carol" };
-const SEATS: Seat[] = [OWNER, { caller: "bob", scope: "page", log: "page" }, { caller: "carol", scope: "page", log: "page" }, BOBS_OWN, CAROLS_OWN];
-
-/** A commit as it is sent, any number of times: its `opId` is one of a few, so that some are used twice. */
-interface Request {
-  seat: Seat;
-  opId: number;
-  ops: Op[];
-}
-
-interface Named {
-  seat: Seat;
-  collection: string;
-}
-
-type Step =
-  | { kind: "commit"; request: Request }
-  | ({ kind: "get"; id: string } & Named)
-  | ({ kind: "list"; limit: number } & Named)
-  | { kind: "commits"; seat: Seat; since: number; limit: number };
-
-const seat = fc.constantFrom(...SEATS);
-const named = { collection: fc.constantFrom(...COLLECTIONS), id: fc.constantFrom(...IDS) };
-const limit = fc.constantFrom(1, 2, 2, 100);
-
-/** No condition, that the document does not exist, or a revision that is sometimes its counter and sometimes not. */
-const condition = fc.constantFrom<{ ifRevision?: number }[]>({}, {}, {}, {}, {}, { ifRevision: 0 }, { ifRevision: 0 }, { ifRevision: 1 }, { ifRevision: 2 });
-
-const op: fc.Arbitrary<Op> = fc
-  .oneof(
-    { weight: 3, arbitrary: fc.record({ op: fc.constant<"put">("put"), ...named, data: fc.record({ n: fc.nat({ max: 9 }) }, { noNullPrototype: true }), condition }) },
-    { weight: 1, arbitrary: fc.record({ op: fc.constant<"delete">("delete"), ...named, condition }) },
-  )
-  .map(({ condition: asked, ...change }) => Object.assign(change, asked));
-
-const keyOf = ({ collection, id }: { collection: string; id: string }): string => `${collection}/${id}`;
-
-const request: fc.Arbitrary<Request> = fc.record({ seat, opId: fc.nat({ max: 11 }), ops: fc.uniqueArray(op, { minLength: 1, maxLength: 2, selector: keyOf }) });
-
-const stepOf = (requests: Request[]): fc.Arbitrary<Step> =>
-  fc.oneof(
-    { weight: 5, arbitrary: fc.record({ kind: fc.constant<"commit">("commit"), request: fc.constantFrom(...requests) }) },
-    { weight: 1, arbitrary: fc.record({ kind: fc.constant<"get">("get"), seat, ...named }) },
-    { weight: 2, arbitrary: fc.record({ kind: fc.constant<"list">("list"), seat, collection: named.collection, limit }) },
-    { weight: 1, arbitrary: fc.record({ kind: fc.constant<"commits">("commits"), seat, since: fc.constantFrom(0, 1, 2, 3, 5, 99), limit }) },
-  );
-
-const steps: fc.Arbitrary<Step[]> = fc
-  .array(request, { minLength: POOL, maxLength: POOL })
-  .chain((requests) => fc.array(stepOf(requests), { minLength: STEPS, maxLength: STEPS }));
 
 /** One scope as the model keeps it: what `list` returns, every counter, and the log. */
 interface Log {
@@ -244,20 +174,30 @@ const settled = async ({ callers, model }: Stage, { caller, scope, log }: Seat):
   };
 };
 
-/** Page `n` of agent 1, which viewers 2 and 3 hold a link to that lets them write, and a model with nothing in it. */
+const logOf = (first: Commit): Log => {
+  const log = emptyLog();
+  record(log, first);
+  return log;
+};
+
+/**
+ * Page `n` of agent 1, which viewers 2 and 3 hold a link to that lets them write. Each viewer has made one commit in
+ * their own scope, which says who the Store takes them for, and the model starts from those two commits.
+ */
 const staged = async (driver: Driver, n: number): Promise<Stage> => {
   const alice = actingAs(driver, agent(1));
-  const published = await alice.ok(PUBLISH, page(n, 0));
+  await alice.ok(PUBLISH, page(n, 0));
   const { url } = await alice.ok(SET_ACCESS, sharing(n, LINK_WRITE));
   const [bob, carol] = [viewer(2, url), viewer(3, url)];
+  const [bobs, carols] = [await ownCommit(driver, bob), await ownCommit(driver, carol)];
   return {
     driver,
-    now: timeOf(published.updatedAt),
-    model: { logs: { page: emptyLog(), bob: emptyLog(), carol: emptyLog() }, remembered: new Map() },
+    now: timeOf(carols.at),
+    model: { logs: { page: emptyLog(), bob: logOf(bobs), carol: logOf(carols) }, remembered: new Map() },
     callers: {
       agent: { surface: toolsOf(driver, { by: 1, on: n }), by: AGENT },
-      bob: { surface: viewOf(driver, bob), by: await actorOf(driver, bob) },
-      carol: { surface: viewOf(driver, carol), by: await actorOf(driver, carol) },
+      bob: { surface: viewOf(driver, bob), by: bobs.by },
+      carol: { surface: viewOf(driver, carol), by: carols.by },
     },
   };
 };
@@ -277,7 +217,7 @@ const checksum = (text: string): number => new TextEncoder().encode(text).reduce
 export const MODEL_CASES: Cases = {
   "[STATE-10] random commits and reads in the page scope and the scopes of two viewers agree with a model of three logs": async (driver) => {
     const checks: Check[] = [];
-    const runs = fc.sample(steps, { seed: SEED, numRuns: RUNS }).map((sequence, index): [number, Step[]] => [index + 1, sequence]);
+    const runs = everyRun();
     await inTurn(runs, run(driver, checks));
     return {
       got: [checksum(JSON.stringify(runs)), checks.length, checks],

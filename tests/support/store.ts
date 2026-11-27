@@ -11,6 +11,7 @@ import {
   type Visitor,
 } from "@agentpages/server";
 import type { Reader, Storage, Tx } from "@agentpages/storage";
+import { createHmac } from "node:crypto";
 
 export const BASE_URL = "https://pages.test/p/";
 
@@ -30,6 +31,21 @@ export const ADVERTISED: Omit<Capability, "version"> = {
   files: { maxFileBytes: 1024 },
   render: { maxWidth: 1920, maxHeight: 1080, maxDocumentHeight: 8000, settleTimeoutMs: 1000 },
 };
+
+/** The key of every Store of a test that does not choose another. */
+export const ACTOR_KEY = "a key of exactly thirty-two bytes";
+
+export interface Seen {
+  subject: string;
+  /** The page the viewer is on. Nothing when their request names none. */
+  pageId?: string;
+  /** The key of the Store, when it is not `ACTOR_KEY`. */
+  key?: string;
+}
+
+/** The id a Store gives a viewer: what the HMAC-SHA-256 of node makes of the page and the subject, as base64url. */
+export const viewerId = ({ subject, pageId = "", key = ACTOR_KEY }: Seen): string =>
+  createHmac("sha256", key).update(`${pageId}/${subject}`).digest("base64url");
 
 export const START: number = Date.UTC(2026, 0, 1);
 
@@ -116,7 +132,7 @@ export const world = ({ ports = {}, config = {} }: WorldOptions = {}): World => 
   const kept = { storage: createMemoryStorage(), logs: [] };
   const state: State = { now: START, plan: calm };
   const all = { ...portsOf(state, kept), ...ports };
-  const start = (): Store => createStore(all, { capability: ADVERTISED, baseUrl: BASE_URL, ...config });
+  const start = (): Store => createStore(all, { capability: ADVERTISED, baseUrl: BASE_URL, actorKey: ACTOR_KEY, ...config });
   const running = { store: start() };
   return {
     ...kept,
@@ -247,6 +263,10 @@ export const TYPED_PAGE: [string, unknown][] = [
 /** Tool calls of alice, one after the other. */
 export const callEach = (target: World, requests: [string, unknown][]): Promise<unknown> =>
   requests.reduce<Promise<unknown>>((earlier, request) => earlier.then(() => call(target, request)), Promise.resolve());
+
+/** What `each` makes of every item, one after the other. */
+export const inTurn = <T, R>(items: T[], each: (item: T) => Promise<R>): Promise<R[]> =>
+  items.reduce<Promise<R[]>>(async (earlier, item) => [...(await earlier), await each(item)], Promise.resolve([]));
 
 /** A Store with `PAGE` published by alice and shared for writing, and the link of the page. */
 export const sharedPage = async (options: WorldOptions = {}): Promise<{ target: World; url: string }> => {

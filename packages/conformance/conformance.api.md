@@ -41,7 +41,7 @@ export type FaultPoint = "get" | "getMany" | "scan" | "commit" | "committed";
 export const faulty: (storage: Storage_2, plan: Plan) => Storage_2;
 
 // @public (undocumented)
-export type MakeDriver = () => Driver | Promise<Driver>;
+export type MakeDriver = () => Driver;
 
 // @public (undocumented)
 export type MakeStorage = () => Storage_2 | Promise<Storage_2>;

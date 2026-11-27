@@ -1,6 +1,6 @@
 import { type Answer, METHOD_NOT_FOUND, PROTOCOL_VERSION, TOOL_SCHEMAS } from "@agentpages/protocol";
 import { expect, test } from "vitest";
-import { ADVERTISED, ask, BASE_URL, call, declaring, errorOf, failureOf, HOST_REQUEST, HTML, op, open, PAGE, publishing, resultOf, saved, uuid, world, type World } from "./support/store.ts";
+import { ADVERTISED, ask, BASE_URL, call, committed, declaring, errorOf, failureOf, HOST_REQUEST, HTML, inTurn, op, open, PAGE, publishing, put, resultOf, saved, uuid, world, type World } from "./support/store.ts";
 
 const { limits } = ADVERTISED;
 
@@ -69,7 +69,7 @@ test("a Store is not created with a capability that is not one of section 3, or 
 
 const tools = (features: object): readonly string[] => world({ config: { capability: { limits, ...features } } }).tools;
 
-test("the Store lists a tool exactly when it advertises the features the tool requires", () => {
+test("[TOOLS-3] the Store lists a tool exactly when it advertises the features the tool requires", () => {
   const { state, files, render } = ADVERTISED;
   const always = [...PAGE_TOOLS, ...COMMENT_TOOLS, ...TYPE_TOOLS];
 
@@ -79,6 +79,20 @@ test("the Store lists a tool exactly when it advertises the features the tool re
   expect(new Set(tools({ files }))).toStrictEqual(new Set([...always, ...FILE_TOOLS]));
   expect(new Set(tools({ render }))).toStrictEqual(new Set([...always, "pages_render"]));
   expect(new Set(tools({ render, files }))).toStrictEqual(new Set([...always, ...FILE_TOOLS, "pages_render", "pages_export"]));
+});
+
+test("[REL-30] a repeat with the same params gets its first result before the limits, even ones the Store has lowered since", async () => {
+  const roomy = world();
+  const requests: [string, unknown][] = [published(0), committed(2, [put("a", { title: "Quarterly plan" })])];
+  const first = await inTurn(requests, (request) => call(roomy, request));
+  const capability = { limits: { ...limits, maxHtmlBytes: 5 }, state: { maxDocumentBytes: 5, maxOpsPerCommit: 10, liveChanges: true } };
+  const strict = world({ ports: { storage: roomy.storage }, config: { capability } });
+  const repeated = await inTurn(requests, (request) => call(strict, request));
+  const others = [await call(strict, published(1)), await call(strict, committed(3, [put("b", { title: "Quarterly plan" })]))];
+
+  expect(repeated).toStrictEqual(first);
+  expect(first.map((answer) => answer.kind)).toStrictEqual(requests.map(() => "result"));
+  expect(others.map((answer) => errorOf(answer))).toStrictEqual(["LimitExceeded", "LimitExceeded"]);
 });
 
 const FILE_METHODS = ["agentpages/files/put", "agentpages/files/get", "agentpages/files/list", "agentpages/files/delete"];

@@ -1,4 +1,3 @@
-import type { JsonObject, Schema } from "@agentpages/protocol";
 import type { Agent, Principal } from "../access/principal.js";
 import type { Key, Tx } from "@agentpages/storage";
 import { fingerprint } from "./digest.js";
@@ -14,19 +13,16 @@ export interface Change<P, T, R, Who extends Principal = Agent> extends Spec<P, 
   remembers: (params: P, target: T) => Key;
 }
 
-const recalled =
-  <R>(result: Schema<R>) =>
-  (remembered: JsonObject, paramsHash: string): Outcome<R> =>
-    remembered.paramsHash === paramsHash
-      ? ok(parsed(result, remembered.result))
-      : refuse({ error: "InvalidParams", message: "This opId was used before, for a request with other params." });
+const reused = (): Promise<Outcome<never>> =>
+  Promise.resolve(refuse({ error: "InvalidParams", message: "This opId was used before, for a request with other params." }));
 
 /** Whose requests a record of an `opId` belongs to. All anonymous viewers are one caller, named after their kind. */
 const callerOf = ({ kind, subject }: { kind: string; subject?: string }): string => `${kind}/${segment(subject ?? kind)}`;
 
 /**
- * A request and its `opId` are saved in one transaction. A repeat finds the record and gets the first result again.
- * The record is looked for only once the target exists and the caller has access, and only a success leaves one.
+ * A request and its `opId` are saved in one transaction, and only a success is saved. The record is looked for once
+ * the target exists and the caller has access. A repeat with the same params gets the first result again, before the
+ * limits. An `opId` that was used for other params is refused after them.
  */
 const once =
   <P extends { opId: string }, T, R, Who extends Principal>(schemas: Schemas<P, R>, change: Change<P, T, R, Who>) =>
@@ -37,9 +33,11 @@ const once =
     if (!found.ok) return found;
     const key = `${change.remembers(params, found.value)}${callerOf(principal)}/${params.opId}`;
     const paramsHash = await fingerprint([method, params]);
-    const remembered = await tx.get(key);
-    if (remembered !== undefined) return recalled(schemas.result)(recordOf(remembered), paramsHash);
-    const outcome = await settle(change)({ ...request, target: found.value }, tx);
+    const stored = await tx.get(key);
+    const first = stored && recordOf(stored);
+    if (first?.paramsHash === paramsHash) return ok(parsed(schemas.result, first.result));
+    const run = first === undefined ? change.run : reused;
+    const outcome = await settle({ ...change, run })({ ...request, target: found.value }, tx);
     if (outcome.ok) tx.put(key, { paramsHash, result: outcome.value, at });
     return outcome;
   };
