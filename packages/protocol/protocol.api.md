@@ -11,7 +11,7 @@ export const EXTENSION_ID = "io.github.agentpages/agentpages";
 export type Feature = (typeof FEATURES)[number];
 
 // @public (undocumented)
-export const FEATURES: readonly ["state", "identity", "files"];
+export const FEATURES: readonly ["state", "identity", "files", "render"];
 
 // @public (undocumented)
 export const isFeature: (value: string) => value is Feature;
