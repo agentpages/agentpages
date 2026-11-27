@@ -26,7 +26,7 @@ A Store depends on six interfaces, and on nothing else outside the protocol.
 | Port | What it gives the Store | Adapter here |
 |---|---|---|
 | `Storage` | An ordered key-value store with transactions that are serial per lock key. Its types are [@agentpages/storage](../storage/README.md) | `createMemoryStorage` |
-| `Clock` | The time | |
+| `Clock` | The time. Its type is in `@agentpages/storage` | |
 | `Ids` | Request ids, and the secret of a page's `url` | |
 | `Logger` | Where log records go | |
 | `RateLimiter` | Whether a request must wait | `unlimited` |
@@ -36,7 +36,7 @@ Who makes a request is not a port but a value the transport passes: a `Principal
 
 The `id` of a viewer is the HMAC-SHA-256 of the `pageId`, a slash and the subject under `actorKey`, as base64url. `identity/get`, commits and log records name a viewer by it. It is the same on one page, another on every other page, and another under another key, so keep the key secret and never change it. The log record of a request that names no page takes the `pageId` to be empty.
 
-A new database is a new `Storage`. Run `storageSuite` and `storeSuite` of [@agentpages/conformance](../conformance/README.md) against it.
+A new database is a new `Storage`, as [@agentpages/sqlite](../sqlite/README.md) is. Run `storageSuite` and `storeSuite` of [@agentpages/conformance](../conformance/README.md) against it.
 
 ## How a request is handled
 

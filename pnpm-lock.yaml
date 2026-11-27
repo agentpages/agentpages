@@ -17,6 +17,9 @@ importers:
       '@agentpages/server':
         specifier: workspace:*
         version: link:packages/server
+      '@agentpages/sqlite':
+        specifier: workspace:*
+        version: link:packages/sqlite
       '@agentpages/storage':
         specifier: workspace:*
         version: link:packages/storage
@@ -141,6 +144,16 @@ importers:
       ajv:
         specifier: ^8.20.0
         version: 8.20.0
+
+  packages/sqlite:
+    dependencies:
+      '@agentpages/storage':
+        specifier: workspace:^
+        version: link:../storage
+    devDependencies:
+      '@types/node':
+        specifier: ^22.20.7
+        version: 22.20.7
 
   packages/storage: {}
 
