@@ -3,6 +3,7 @@ import { isBase64 } from "./bytes.js";
 import { MAX_COUNT, MAX_LIMIT } from "./constants.js";
 import {
   BODY_PATTERN,
+  CURSOR_PATTERN,
   DESCRIPTION_PATTERN,
   ID_PATTERN,
   NAME_PATTERN,
@@ -111,7 +112,7 @@ export const EmptySchema: Raw<Empty> = v.pipe(JsonObjectSchema, v.object({}));
 
 export const PagingSchema: Raw<Paging> = v.pipe(
   JsonObjectSchema,
-  v.object({ cursor: v.exactOptional(v.string()), limit: v.exactOptional(LimitSchema) }),
+  v.object({ cursor: v.exactOptional(v.pipe(v.string(), v.regex(CURSOR_PATTERN))), limit: v.exactOptional(LimitSchema) }),
 );
 
 export const PageIdSchema: Raw<{ pageId: string }> = v.object({ pageId: UuidSchema });

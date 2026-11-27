@@ -10,7 +10,17 @@ import { storageSuite } from "@agentpages/conformance";
 storageSuite(() => createMyStorage());
 ```
 
-`storageSuite` registers Vitest tests for the storage contract: writes that are saved together or not at all, reads that see only committed rows, the order of a scan, bytes as large as a file, and runs that are serial per lock key. The function returns a new, empty storage each time.
+`storageSuite` registers Vitest tests for the storage contract: writes that are saved together or not at all, reads that see only committed rows, values that are copied when they are put and when they are read, the order of a scan, bytes as large as a file, and runs that are serial per lock key. The function returns a new, empty storage each time.
+
+```ts
+import { across, durableSuite, storageSuite } from "@agentpages/conformance";
+
+storageSuite(() => across([openMyStorage(file), openMyStorage(file)]));
+
+durableSuite(() => ({ open: () => openMyStorage(file), expire }));
+```
+
+`across` makes one storage of several and sends each call to the next of them in turn. Over two connections to one database, `storageSuite` then proves that runs are serial across connections. `durableSuite` is for a storage that outlives the process that opened it. Its function returns a new, empty storage each time: `open` opens it once more, and `expire` lets enough time pass that a run which started before may lose its locks. Its tests prove that a later opening reads what was saved, and that a run which lost its lock to another run rejects and saves nothing.
 
 ## Test a Store
 

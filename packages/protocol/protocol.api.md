@@ -164,6 +164,9 @@ export interface Committed {
     scope: Scope;
 }
 
+// @public
+export const CURSOR_PATTERN: RegExp;
+
 // @public (undocumented)
 export const DEFAULT_LIMIT = 100;
 

@@ -4,6 +4,11 @@
 
 ```ts
 
+// @public (undocumented)
+export interface Clock {
+    now(): number;
+}
+
 // @public
 export type Key = string;
 
@@ -41,7 +46,6 @@ export interface Tx extends Reader {
     delete(key: Key): void;
     // (undocumented)
     deleteRange(prefix: Key): void;
-    // (undocumented)
     put(key: Key, value: Value): void;
 }
 
