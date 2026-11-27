@@ -2,7 +2,8 @@ import type { Capability, FilesMethods, HostOperationName, HostOperations, Metho
 import type { Agent, Visitor } from "../access/principal.js";
 import { COMMENTS_HOST_OPERATIONS, COMMENTS_TOOLS } from "../comments/operations.js";
 import { identityGet } from "../identity/get.js";
-import { PAGES_HOST_OPERATIONS, PAGES_TOOLS } from "../pages/operations.js";
+import { PAGES_HOST_OPERATIONS } from "../pages/host.js";
+import { PAGES_TOOLS } from "../pages/operations.js";
 import type { Handler, Shown } from "../pipeline/index.js";
 import { type StateMethodHandlers, stateMethods, type StateToolHandlers, stateTools } from "../state/operations.js";
 import { TYPES_TOOLS } from "../types/operations.js";
@@ -16,9 +17,6 @@ type ToolNotYet =
   | "pages_render"
   | "pages_export";
 
-/** Host operations of later units, answered the same way. */
-type HostOperationNotYet = "pages_heads";
-
 /** Methods of later units, and the requests that go to a view and never to a Store. */
 type MethodNotYet = keyof FilesMethods | keyof ViewMethods;
 
@@ -29,7 +27,7 @@ type ToolHandlers = {
 } & Partial<StateToolHandlers>;
 
 type HostHandlers = {
-  readonly [O in Exclude<HostOperationName, HostOperationNotYet>]: Handler<HostOperations[O]["params"], HostOperations[O]["result"], Visitor>;
+  readonly [O in HostOperationName]: Handler<HostOperations[O]["params"], HostOperations[O]["result"], Visitor>;
 };
 
 type MethodHandlers = {

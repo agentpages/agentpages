@@ -64,7 +64,7 @@ The extension is `io.github.agentpages/agentpages`, following the MCP extension 
       "maxSchemaBytes": 65536,
       "opRetentionSeconds": 86400,
       "commitRetentionSeconds": 604800,
-      "maxThreadEntries": 1000
+      "maxThreadEntries": 100
     },
     "state": { "maxDocumentBytes": 262144, "maxOpsPerCommit": 100, "maxTreeDepth": 64, "liveChanges": true },
     "identity": {},

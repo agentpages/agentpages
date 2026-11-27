@@ -1,6 +1,6 @@
 import { type Answer, METHOD_NOT_FOUND, PROTOCOL_VERSION, TOOL_SCHEMAS } from "@agentpages/protocol";
 import { expect, test } from "vitest";
-import { savedRows } from "./support/results.ts";
+import { rowsOfDeleted, savedRows } from "./support/results.ts";
 import { ADVERTISED, ask, BASE_URL, call, committed, declaring, errorOf, failureOf, HOST_REQUEST, HTML, inTurn, op, open, PAGE, publishing, put, resultOf, saved, uuid, world, type World } from "./support/store.ts";
 
 const { limits } = ADVERTISED;
@@ -103,7 +103,7 @@ test("a tool, host operation or view method the Store does not have yet is the J
   const target = world();
   const later = [...FILE_TOOLS, "pages_render", "pages_export"];
   const notTools = [...later, "pages_open", "comments_start", "agentpages/state/get", "pages", "toString", "constructor", ""];
-  const operations = ["pages_heads", ...PAGE_TOOLS, ...TYPE_TOOLS, ...STATE_TOOLS, ...later, "toString", ""];
+  const operations = [...PAGE_TOOLS, ...TYPE_TOOLS, ...STATE_TOOLS, ...later, "toString", ""];
   const notMethods = [...FILE_METHODS, ...TO_THE_VIEW, ...STATE_TOOLS, "pages_get", "pages_open", "agentpages/state", "toString", "constructor", ""];
   const answers = [
     ...notTools.map((tool) => call(target, [tool, { pageId: PAGE }])),
@@ -246,8 +246,5 @@ test("[PAGES-6] pages_delete leaves nothing of the page but the record that it i
   await call(target, ["pages_set_access", { opId: op(7), pageId: PAGE, access: "link-write" }]);
   await call(target, ["pages_delete", { opId: op(8), pageId: PAGE }]);
 
-  expect(await savedRows(target.storage)).toStrictEqual([
-    [`gone/${PAGE}`, {}],
-    [expect.stringContaining(op(8)), expect.objectContaining({ result: {} })],
-  ]);
+  expect(await savedRows(target.storage)).toStrictEqual(rowsOfDeleted({ pageId: PAGE, opId: op(8) }));
 });

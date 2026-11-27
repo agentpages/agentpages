@@ -1,6 +1,6 @@
 export { keep, MS_PER_SECOND, sweep } from "./kept.js";
 export { counted, segment } from "./keys.js";
-export { mutation, type Remembered } from "./mutation.js";
+export { type Memory, mutation, type Remembered } from "./mutation.js";
 export { nothing } from "./nothing.js";
 export type { Context, Deps, Handler, Place, Schemas, Shown, Target } from "./operation.js";
 export { ok, type Outcome, type Refusal, refuse } from "./outcome.js";

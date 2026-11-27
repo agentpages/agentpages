@@ -1,6 +1,5 @@
-import { type Answer, HOST_OPERATION_SCHEMAS, type Thread, TOOL_SCHEMAS } from "@agentpages/protocol";
-import type { Storage } from "@agentpages/storage";
-import { call, HOST_REQUEST, op, PAGE, publishing, resultOf, saved, sharedPage, type World } from "./store.ts";
+import { type Answer, HOST_OPERATION_SCHEMAS, type Thread } from "@agentpages/protocol";
+import { HOST_REQUEST, op, PAGE, resultOf, sharedPage, type World } from "./store.ts";
 
 export interface Commenting {
   operation: string;
@@ -33,18 +32,6 @@ export const REPLY: [string, unknown] = ["comments_reply", { opId: op(4), pageId
 /** A `comments_resolve` of alice's of the thread of `withThread`. */
 export const resolved = (opNumber: number): [string, unknown] => ["comments_resolve", { opId: op(opNumber), pageId: PAGE, threadId: THREAD }];
 
-/** Every count the Store keeps of how often the threads of a page changed, in the order of the pages. */
-export const threadCounts = async (storage: Storage): Promise<unknown[]> => {
-  const rows = await storage.scan({ prefix: "", limit: Number.MAX_SAFE_INTEGER });
-  return rows.flatMap(([, value]) => ("count" in value ? [value.count] : []));
-};
-
-/** Everything the Store has saved, as one text. */
-export const savedText = async (storage: Storage): Promise<string> => JSON.stringify(await saved(storage));
-
-/** Publishes a second page of alice's, on which she starts a thread as a viewer. */
-export const startElsewhere = async (target: World): Promise<Answer> => {
-  const other = await call(target, ["pages_publish", publishing({ page: 2, baseVersion: 0, op: 9 })]);
-  const { url } = resultOf(TOOL_SCHEMAS.pages_publish.result, other);
-  return comment(target, { operation: "comments_start", subject: "alice", input: { opId: op(10), url, body: "Elsewhere" } });
-};
+/** A `pages_heads` of a host, for an anonymous viewer who presents `url`. */
+export const heads = (target: World, url: string): Promise<Answer> =>
+  target.host({ operation: "pages_heads", input: { url }, principal: { kind: "anonymous" }, requestId: HOST_REQUEST });

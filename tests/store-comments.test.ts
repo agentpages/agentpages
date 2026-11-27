@@ -1,6 +1,7 @@
 import type { Answer } from "@agentpages/protocol";
 import { expect, test } from "vitest";
-import { comment, REPLY, resolved, savedText, startElsewhere, THREAD, threadCounts, threadOf, withThread } from "./support/comments.ts";
+import { comment, heads, REPLY, resolved, THREAD, threadOf, withThread } from "./support/comments.ts";
+import { rowsOfDeleted, savedRows } from "./support/results.ts";
 import { call, errorOf, op, PAGE, saved, viewerId } from "./support/store.ts";
 
 interface Lost {
@@ -61,25 +62,32 @@ test("[HOST-6] the author of an entry is the viewer under the id they have on th
   ]);
 });
 
-test("the Store counts every start, reply and resolve of the threads of a page, and nothing else, for that page alone", async () => {
-  const { target } = await withThread();
-  const counted = [await call(target, REPLY), await call(target, resolved(5)), await call(target, resolved(6))];
-  const uncounted = [await call(target, REPLY), await call(target, ["comments_resolve", { opId: op(7), pageId: PAGE, threadId: op(8) }])];
-  const elsewhere = await startElsewhere(target);
+test("[HOST-7] pages_heads makes one read of four rows for a signed-in viewer and of three for an anonymous one, under no lock, and none for a url of another origin", async () => {
+  const { target, url } = await withThread();
+  const reached: unknown[] = [];
+  target.plan((point, { keys, locks }) => reached.push([point, keys.length, locks.length]));
+  const answers = [await comment(target, { operation: "pages_heads", subject: "bob", input: { url } }), await heads(target, url)];
+  const nowhere = await heads(target, "https://elsewhere.test/p/page");
 
-  expect([...counted, elsewhere].map((answer) => answer.kind)).toStrictEqual(["result", "result", "result", "result"]);
-  expect(uncounted.map((answer) => errorOf(answer))).toStrictEqual([undefined, "NotFound"]);
-  expect(await threadCounts(target.storage)).toStrictEqual([4, 1]);
+  expect([...answers.map((answer) => answer.kind), errorOf(nowhere)]).toStrictEqual(["result", "result", "NotFound"]);
+  expect(target.logs.slice(-3).map((record) => [record.method, record.pageId])).toStrictEqual([["pages_heads", PAGE], ["pages_heads", PAGE], ["pages_heads", undefined]]);
+  expect(reached).toStrictEqual([["getMany", 4, 0], ["commit", 0, 0], ["committed", 0, 0], ["getMany", 3, 0], ["commit", 0, 0], ["committed", 0, 0]]);
 });
 
-test("[PAGES-14] pages_delete leaves nothing of the threads of a page, and the threads of another page stay", async () => {
+test("[PAGES-14] pages_delete leaves nothing of the threads of a page but the record that the page is gone", async () => {
   const { target } = await withThread();
-  await call(target, REPLY);
-  await startElsewhere(target);
-  const before = await savedText(target.storage);
+  await call(target, REPLY).then(() => call(target, resolved(5)));
   await call(target, ["pages_delete", { opId: op(11), pageId: PAGE }]);
-  const after = await savedText(target.storage);
 
-  expect([before.includes("First"), before.includes("Second"), after.includes("First"), after.includes("Second")]).toStrictEqual([true, true, false, false]);
-  expect([after.includes("Elsewhere"), await threadCounts(target.storage)]).toStrictEqual([true, [1]]);
+  expect(await savedRows(target.storage)).toStrictEqual(rowsOfDeleted({ pageId: PAGE, opId: op(11) }));
+});
+
+test("[REL-2] what the Store remembers of a start, a reply and a resolve does not hold the entries: each body is saved once", async () => {
+  const { target } = await withThread();
+  await call(target, REPLY).then(() => call(target, resolved(5)));
+  const text = JSON.stringify(await saved(target.storage));
+  const repeated = threadOf(await call(target, REPLY));
+
+  expect([text.split("First").length, text.split("Second").length]).toStrictEqual([2, 2]);
+  expect([repeated.status, repeated.entries.map((entry) => entry.body)]).toStrictEqual(["open", ["First", "Second"]]);
 });

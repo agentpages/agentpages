@@ -1,7 +1,7 @@
 import { NEED, type Need, permits } from "../access/permits.js";
 import type { Principal } from "../access/principal.js";
 import { ok, type Outcome, type Place, refuse, type Target } from "../pipeline/index.js";
-import type { Key } from "@agentpages/storage";
+import type { Key, Value } from "@agentpages/storage";
 import { goneKey, metaKey } from "./keys.js";
 import { type Page, pageOf } from "./records.js";
 import { pageIdIn } from "./url.js";
@@ -22,18 +22,36 @@ const missing = (): Outcome<never> => refuse({ error: "NotFound", message: "The 
 
 const none = (): Outcome<null> => ok(null);
 
+interface Arriving<T> extends Entry<T> {
+  principal: Principal;
+}
+
+/** A page as it is stored, for a caller who has the access the operation needs. */
+const admitted = <T = never>(stored: Value | undefined, { absent, ...asked }: Arriving<T>): Outcome<Page | T> => {
+  if (stored === undefined) return absent();
+  const page = pageOf(stored);
+  return permits({ ...asked, page: { ...page.info, owner: page.owner } })
+    ? ok(page)
+    : refuse({ error: "Forbidden", message: `The caller has no ${asked.need} access to the page.` });
+};
+
+/** A page as it is stored, for a caller who presents `link` and may read the page. */
+export const readPage = (stored: Value | undefined, asked: { principal: Principal; link: string }): Outcome<Page> =>
+  admitted(stored, { ...asked, need: NEED.read, absent: missing });
+
+/** What a `url` of this Store names, as `at` finds it by its `pageId`. */
+export const linked =
+  <P extends { url: string }, T, Who extends Principal>(at: (pageId: string, url: string) => Place<P, T, Who>): Target<P, T, Who> =>
+  ({ url }, { baseUrl }) => {
+    const pageId = pageIdIn(url, baseUrl);
+    return pageId === undefined ? undefined : at(pageId, url);
+  };
+
 /** The page with this `pageId`, for a caller who has the access the operation needs. */
-const pageAt = <P, T = never>(pageId: string, { absent, ...asked }: Entry<T>): Place<P, Page | T, Principal> => ({
+const pageAt = <P, T = never>(pageId: string, entry: Entry<T>): Place<P, Page | T, Principal> => ({
   names: { pageId },
   locks: [metaKey(pageId)],
-  find: async ({ principal }, tx) => {
-    const stored = await tx.get(metaKey(pageId));
-    if (stored === undefined) return absent();
-    const page = pageOf(stored);
-    return permits({ ...asked, principal, page: { ...page.info, owner: page.owner } })
-      ? ok(page)
-      : refuse({ error: "Forbidden", message: `The caller has no ${asked.need} access to the page.` });
-  },
+  find: async ({ principal }, tx) => admitted(await tx.get(metaKey(pageId)), { ...entry, principal }),
 });
 
 /** A page that must exist. */

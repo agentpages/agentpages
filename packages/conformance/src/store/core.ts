@@ -1,6 +1,7 @@
 import { ACCESS_CASES, HOST_CASES } from "./access.js";
 import { COMMENTS_CASES } from "./comments.js";
 import { COMMON_CASES } from "./common.js";
+import { HEADS_CASES } from "./heads.js";
 import type { Cases } from "./kit.js";
 import { PAGES_CASES } from "./pages.js";
 import { RETRY_CASES } from "./retries.js";
@@ -15,4 +16,5 @@ export const CORE_CASES: Cases = {
   ...TYPES_CASES,
   ...RETRY_CASES,
   ...COMMENTS_CASES,
+  ...HEADS_CASES,
 };

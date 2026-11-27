@@ -16,12 +16,15 @@ type Change<P> = (context: Context<P, Page>, thread: Thread) => Promise<Outcome<
 
 /** An operation on a thread the page has. Section 5.4 of the spec: one it does not have is not found. */
 const changing = <P extends Naming>(arrival: Arrival<P, Thread>, change: Change<P>): Handler<P, Thread, Principal> =>
-  commenting(arrival, async (context, tx) => {
-    const found = await findThread(tx, { pageId: context.target.info.pageId, id: context.params.threadId });
-    if (found === undefined) return refuse({ error: "NotFound", message: "The page has no thread with this threadId." });
-    const changed = await change(context, found.thread);
-    if (changed.ok) saveThread(tx, { ...found, thread: changed.value });
-    return changed;
+  commenting(arrival, {
+    thread: ({ threadId }) => threadId,
+    run: async (context, tx) => {
+      const found = await findThread(tx, { pageId: context.target.info.pageId, id: context.params.threadId });
+      if (found === undefined) return refuse({ error: "NotFound", message: "The page has no thread with this threadId." });
+      const changed = await change(context, found.thread);
+      if (changed.ok) saveThread(tx, { ...found, thread: changed.value });
+      return changed;
+    },
   });
 
 /**

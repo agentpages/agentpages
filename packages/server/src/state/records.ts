@@ -3,8 +3,10 @@ import { countIn } from "../pipeline/index.js";
 import type { Key, Reader, Value } from "@agentpages/storage";
 import { documentKey, headKey, revisionKey } from "./keys.js";
 
-/** The `seq` of the last commit of a scope, which is 0 before its first. */
-export const seqOf = async (tx: Reader, scope: Key): Promise<number> => countIn(await tx.get(headKey(scope)), "seq");
+/** The `seq` of the last commit of a scope, as its head keeps it: 0 before its first. */
+export const seqIn = (head: Value | undefined): number => countIn(head, "seq");
+
+export const seqOf = async (tx: Reader, scope: Key): Promise<number> => seqIn(await tx.get(headKey(scope)));
 
 /** An op with what the Store holds of its document. */
 export interface Pending {
@@ -29,7 +31,7 @@ export const readBefore = async (tx: Reader, { scope, ops }: { scope: Key; ops: 
   const documents = ops.map((op) => documentKey(scope, op));
   const [head, ...rows] = await tx.getMany([headKey(scope), ...counters, ...documents]);
   return {
-    seq: countIn(head, "seq"),
+    seq: seqIn(head),
     pending: ops.map((op, index) => ({
       op,
       revision: countIn(rows[index], "revision"),

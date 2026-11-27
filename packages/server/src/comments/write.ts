@@ -1,11 +1,12 @@
-import type { Thread } from "@agentpages/protocol";
+import type { Schema, Thread } from "@agentpages/protocol";
 import type { Tx } from "@agentpages/storage";
 import { NEED } from "../access/permits.js";
 import type { Principal } from "../access/principal.js";
 import { rememberedBy } from "../pages/keys.js";
 import type { Page } from "../pages/records.js";
-import { type Context, type Handler, mutation, type Outcome, refuse, type Target } from "../pipeline/index.js";
+import { type Context, countIn, type Handler, type Memory, mutation, type Outcome, parsed, refuse, type Target } from "../pipeline/index.js";
 import type { Arrival } from "../state/scope.js";
+import { findThread } from "./records.js";
 
 type Entry = Thread["entries"][number];
 
@@ -35,12 +36,34 @@ const signedIn =
     );
   };
 
-type Run<P> = (context: Context<P, Page>, tx: Tx) => Promise<Outcome<Thread>>;
+export interface Comment<P> {
+  /** The id of the thread the request starts or changes. */
+  thread: (params: P) => string;
+  run: (context: Context<P, Page>, tx: Tx) => Promise<Outcome<Thread>>;
+}
+
+interface Recalling<P> {
+  result: Schema<Thread>;
+  thread: (params: P) => string;
+}
+
+/**
+ * A thread only gains entries, and all else of it but its status is as it was started. So the record of a request
+ * keeps how many entries its thread had and its status, and a repeat gets the thread as it was then.
+ */
+const asItWas = <P>({ result, thread }: Recalling<P>): Memory<P, Page, Thread, Principal> => ({
+  kept: ({ entries, status }) => ({ entries: entries.length, status }),
+  recalled: async (tx, { kept, context: { params, target } }) => {
+    const found = await findThread(tx, { pageId: target.info.pageId, id: thread(params) });
+    return parsed(result, found && { ...found.thread, status: kept.status, entries: found.thread.entries.slice(0, countIn(kept, "entries")) });
+  },
+});
 
 /** An operation that changes a thread of a page the caller may write to, and returns the thread. */
-export const commenting = <P extends { opId: string }>(arrival: Arrival<P, Thread>, run: Run<P>): Handler<P, Thread, Principal> =>
+export const commenting = <P extends { opId: string }>(arrival: Arrival<P, Thread>, { thread, run }: Comment<P>): Handler<P, Thread, Principal> =>
   mutation<P, Page, Thread, Principal>(arrival.schemas, {
     target: signedIn(arrival.page(NEED.write)),
     remembers: (_, page) => rememberedBy(page.info.pageId),
+    memory: asItWas({ result: arrival.schemas.result, thread }),
     run,
   });

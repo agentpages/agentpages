@@ -1,5 +1,5 @@
 import type { Driver } from "../contract.js";
-import { actingAs, agent, anonymous, type Cases, DELETE, deleting, GET, having, inPagesOfTwo, inTurn, LINK_READ, LINK_WRITE, LIST, page, pageId, PRIVATE, PUBLISH, reading, SET_ACCESS, sharing, text, tick, timeOf, times, viewer } from "./kit.js";
+import { actingAs, agent, anonymous, type Cases, GET, having, inPagesOfTwo, inTurn, LINK_READ, LINK_WRITE, LIST, page, pageId, PRIVATE, PUBLISH, reading, SET_ACCESS, sharing, text, tick, timeOf, times, viewer } from "./kit.js";
 import { authorsOf, byAgent, collected, commentsOf, hostOf, idsOf, REPLY, replying, RESOLVE, resolving, saying, scene, START, THREADS } from "./threads.js";
 
 /** `count` requests that succeeded, as `outcome` reports them. */
@@ -243,13 +243,31 @@ export const COMMENTS_CASES: Cases = {
     return { got: [refused, await owner.ok(THREADS, {})], want: [times(3, "Forbidden"), { threads: [started] }] };
   },
 
-  "[PAGES-14] the threads of a deleted page are gone": async (driver) => {
-    const { alice, owner, bob } = await scene(driver);
-    const { id } = await bob.ok(START, saying(1));
-    await alice.ok(DELETE, deleting(1));
+  "[REL-2] a repeated reply or resolve returns its first result, after later replies and a resolve": async (driver) => {
+    const { owner, bob } = await scene(driver);
+    const started = await bob.ok(START, saying(1));
+    const [reply, resolve] = [replying(started.id, 2), resolving(started.id)];
+    const first = [await owner.ok(REPLY, reply), await bob.ok(RESOLVE, resolve)];
+    const last = await bob.ok(REPLY, replying(started.id, 3));
     return {
-      got: [await owner.fails(THREADS, {}), await bob.fails(THREADS, {}), await owner.fails(REPLY, replying(id, 2)), await bob.fails(RESOLVE, resolving(id)), await bob.fails(START, saying(3))],
-      want: times(5, "NotFound"),
+      got: [await owner.ok(REPLY, reply), await bob.ok(RESOLVE, resolve), first.map((thread) => [thread.status, thread.entries.length]), await owner.ok(THREADS, {})],
+      want: [...first, [["open", 2], ["resolved", 2]], { threads: [last] }],
+    };
+  },
+
+  "[COMMON-5] an anonymous viewer who may not write is forbidden, and is asked to sign in only where they may": async (driver) => {
+    const { alice, url, bob } = await scene(driver);
+    const { id } = await bob.ok(START, saying(1));
+    const changes = (link: string): Promise<string[]> =>
+      collected([[START, saying(2)] as const, [REPLY, replying(id, 3)] as const, [RESOLVE, resolving(id)] as const], ([op, params]) => hostOf(driver, anonymous(link)).fails(op, params));
+    await alice.ok(SET_ACCESS, sharing(1, PRIVATE));
+    const whilePrivate = await changes(url);
+    const read = await alice.ok(SET_ACCESS, sharing(1, LINK_READ));
+    const readOnly = [await changes(read.url), await changes(url)];
+    await alice.ok(SET_ACCESS, sharing(1, LINK_WRITE));
+    return {
+      got: [whilePrivate, readOnly, await changes(read.url), await changes(url)],
+      want: [times(3, "Forbidden"), [times(3, "Forbidden"), times(3, "Forbidden")], times(3, "Unauthenticated"), times(3, "Forbidden")],
     };
   },
 

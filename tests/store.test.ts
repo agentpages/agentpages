@@ -80,8 +80,11 @@ const CORE = [
   "[REL-29] two viewers start a thread with one opId: the second start is malformed, and a repeat of the first gets its thread",
   "[ACCESS-4] a link holder lists threads when the link lets them read, and starts, answers and resolves them when it lets them write",
   "[ACCESS-2] another agent may not list, answer or resolve the threads of a page",
-  "[PAGES-14] the threads of a deleted page are gone",
+  "[REL-2] a repeated reply or resolve returns its first result, after later replies and a resolve",
+  "[COMMON-5] an anonymous viewer who may not write is forbidden, and is asked to sign in only where they may",
   "[PAGES-20] a comment leaves the updatedAt of its page",
+  "[HOST-7] the version moves with a publish, comments by 1 with every start, reply and resolve, also of a resolved thread, and neither with anything else",
+  "[HOST-7] pages_heads of a link that ended is forbidden, and of a page that was deleted or never was, not found",
 ];
 
 /** What it proves of a Store that advertises `state`. */
@@ -144,6 +147,7 @@ const STATE = [
   "[ACCESS-6] a signed-in viewer with read access reads and writes their own viewer scope",
   "[REL-29] the opId of a commit belongs to its viewer and its page, and all anonymous viewers of a page are one caller",
   "[REL-30] a repeated commit is recognised only while its page exists and its caller has access",
+  "[HOST-7] seq moves with a commit to the page scope, and viewerSeq with a commit to the viewer's own scope, and with no other",
 ];
 
 /** What it proves of a Store that advertises `identity`. */

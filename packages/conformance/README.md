@@ -22,7 +22,7 @@ storeSuite(() => ({ capability, call, host, view, advance }));
 
 `storeSuite` registers the tests of a Store behind a `Driver`. It reads the `capability` of the first driver when the tests are registered, so the function that makes a driver is not async. Every Store gets the core cases. For `state` and for `identity` it gets the cases of the feature, or the cases that say the feature is not there. `call` is a tool call of the agent with a given subject. `host` is an operation for a viewer, who is a subject when signed in, under the `requestId` the suite chose as their host. The link a viewer presents is in the input. `view` is a method a view calls: its `url` is the link the host holds for the view, beside the params. `advance` moves the Store's clock. Every title starts with the tag of the requirement it proves.
 
-The core cases of comments start threads through `host`, as a host does for a viewer, and fill a thread up to `maxThreadEntries`. They need a `maxThreadEntries` of at least 3.
+The core cases of comments start threads through `host`, as a host does for a viewer, and fill a thread up to `maxThreadEntries`. They need a `maxThreadEntries` of at least 3. The cases of `pages_heads` are core cases too, and a Store with `state` gets one more for `seq` and `viewerSeq`.
 
 The cases of `state` read `maxOpsPerCommit` and `maxTreeDepth` from the capability and reach both exactly. They need a `maxOpsPerCommit` of at least 5 and a `maxTreeDepth` of at least 4, and commit more documents the larger the two are.
 
