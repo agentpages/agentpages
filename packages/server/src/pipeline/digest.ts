@@ -1,13 +1,21 @@
 import type { JsonObject } from "@agentpages/protocol";
 
-export const bytesOf = (text: string): number[] => [...new TextEncoder().encode(text)];
+export type Bytes = Uint8Array<ArrayBuffer>;
 
-export const sha256 = async (bytes: number[]): Promise<number[]> => [
-  ...new Uint8Array(await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes))),
-];
+export const bytesOf = (text: string): Bytes => new TextEncoder().encode(text);
+
+/** `head` and then `tail`, as one run of bytes. */
+export const joined = (head: Bytes, tail: Bytes): Bytes => {
+  const all = new Uint8Array(head.length + tail.length);
+  all.set(head);
+  all.set(tail, head.length);
+  return all;
+};
+
+export const sha256 = async (bytes: Bytes): Promise<Bytes> => new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
 
 /** `bytes` in base64 with the alphabet that is safe in a URL, without padding: an id of section 2.1 of the spec. */
-export const base64url = (bytes: number[]): string =>
+export const base64url = (bytes: Bytes): string =>
   btoa(String.fromCodePoint(...bytes))
     .replaceAll("+", "-")
     .replaceAll("/", "_")
