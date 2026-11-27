@@ -28,7 +28,7 @@ A fact is written once, next to what it describes. Link to it; do not restate it
 
 ## Tests
 
-A test states a requirement from the spec and checks it through a package's public API. It must fail when the behavior breaks and survive a rewrite of the internals. No tests of private functions, no mocks of our own packages, no assertions that restate the implementation.
+A test states a requirement from the spec, names its tag (`STATE-3`) in the title, and checks it through a package's public API. [spec/untested.txt](spec/untested.txt) lists the requirements no test covers yet. It must fail when the behavior breaks and survive a rewrite of the internals. No tests of private functions, no mocks of our own packages, no assertions that restate the implementation.
 
 - **Conformance tests** check one implementation against the spec. They are written once and run against every adapter.
 - **End-to-end tests** live in `tests/` and run the whole system in one process with in-memory adapters: an agent publishes over MCP, a page loads in a host, viewers write, the agent reads it back. No network, no external services.
@@ -49,13 +49,17 @@ A test states a requirement from the spec and checks it through a package's publ
 | Behavior | `pnpm test` |
 | Tests detect every code change | `pnpm test:mutation` |
 | Spec and code agree on version and features | `pnpm test` |
+| Every spec requirement has a test or is listed as untested | `pnpm lint:spec` |
+| Public API changes show up in the diff | `pnpm lint:api`, updated with `pnpm api:update` |
+| The MCP Apps text the spec builds on is unchanged | weekly CI, `pnpm check:upstream` |
+| Changes reach `main` only by pull request with CI passing | branch rules |
 | Markdown lives in an allowed place, links resolve | `pnpm lint:docs` |
 | Packages resolve for every consumer | `pnpm lint:packages` |
 | Bundle budgets | `pnpm size` |
 | Pull request description within 250 words | CI |
 | Design rules 1 to 7 | review |
 
-`pnpm check` runs all of them, locally and in CI.
+`pnpm check` runs every command above except `check:upstream`, locally and in CI.
 
 ## Roles
 

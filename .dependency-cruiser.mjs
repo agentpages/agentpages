@@ -1,5 +1,7 @@
+/** @param {string} name */
 const pkg = (name) => `^packages/${name}/`;
 
+/** @param {...string} names */
 const anyPackageExceptBySpecifierOrPath = (...names) => [
   `(^|/)@agentpages/(?!(${names.join("|")})(/|$))`,
   `^packages/(?!(${names.join("|")})/)`,
@@ -8,7 +10,7 @@ const anyPackageExceptBySpecifierOrPath = (...names) => [
 const uiFrameworks = "(^|node_modules/)(react|react-dom|vue|svelte)(/|$)";
 
 /** @type {import('dependency-cruiser').IConfiguration} */
-module.exports = {
+export default {
   forbidden: [
     { name: "no-circular", severity: "error", from: {}, to: { circular: true } },
     {
