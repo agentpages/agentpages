@@ -27,7 +27,7 @@ const CORE = [
   "[PAGES-11] pages_get without a version returns the current one",
   "[PAGES-12] pages_list returns only the caller's pages, most recently updated first",
   "[PAGES-13] pages_versions orders by version, ascending",
-  "[PAGES-6] pages_delete removes the page with its versions",
+  "[PAGES-6] [PAGES-14] pages_delete removes the page with its versions",
   "[PAGES-15] pages_delete of a page that does not exist succeeds",
   "[PAGES-17] html larger than maxHtmlBytes, in UTF-8 bytes, is beyond the limit",
   "[PAGES-18] a deleted pageId is never used again",
@@ -119,8 +119,8 @@ const STATE = [
   "[TREE-9] other documents are not checked: the descendants of a moved document can be deeper, and so can a put that keeps its parent",
   "[TREE-9] a document placed as its own ancestor with more than maxTreeDepth documents between is beyond the limit, and with fewer a conflict",
   "[TYPES-12] a type version that leaves a tree out does not change it: its documents stay a tree",
-  "[STATE-1] reading the page scope needs read access: the owner as a viewer has it, and a link holder with either link setting",
-  "[STATE-3] a commit to the page scope needs write access: the owner as a viewer has it, and a link holder with link-write",
+  "[STATE-1] [ACCESS-4] reading the page scope needs read access: the owner as a viewer has it, and a link holder with either link setting",
+  "[STATE-3] [ACCESS-4] a commit to the page scope needs write access: the owner as a viewer has it, and a link holder with link-write",
   "[ACCESS-6] a signed-in viewer with read access reads and writes their own viewer scope",
   "[REL-29] the opId of a commit belongs to its viewer and its page, and all anonymous viewers of a page are one caller",
   "[REL-30] a repeated commit is recognised only while its page exists and its caller has access",
@@ -152,8 +152,8 @@ const WITHOUT_IDENTITY = [
 
 /** What it proves of a Store that advertises `files`. */
 const FILES = [
-  "[FILES-1] put returns the file with its decoded size, who put it and when",
-  "[FILES-2] get returns the blob that was put",
+  "[FILES-1] [FILES-5] put returns the file with its decoded size, who put it and when",
+  "[FILES-2] [FILES-5] get returns the blob that was put",
   "[FILES-3] list pages through files two at a time",
   "[FILES-10] list orders by id",
   "[FILES-6] put replaces name, type and bytes",

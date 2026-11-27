@@ -21,9 +21,6 @@ export type Answer = Settled | {
 };
 
 // @public
-export const BASE64_PATTERN: RegExp;
-
-// @public
 export const base64Size: (blob: string) => number;
 
 // @public
@@ -535,6 +532,9 @@ export const invalidParams: (input: {
     requestId: string;
     issues: Issues;
 }) => Failure;
+
+// @public
+export const isBase64: (text: string) => boolean;
 
 // @public (undocumented)
 export const isFeature: (value: string) => value is Feature;

@@ -1,10 +1,11 @@
 import {
-  BASE64_PATTERN,
   BODY_PATTERN,
   CapabilitySchema,
   DESCRIPTION_PATTERN,
   fromBase64,
   ID_PATTERN,
+  isBase64,
+  METHOD_SCHEMAS,
   NAME_PATTERN,
   PDF_FORMAT,
   type Schema,
@@ -12,6 +13,7 @@ import {
   toBase64,
   TREE_INDEX_PATTERN,
   UUID_PATTERN,
+  validate,
   VERSION_PATTERN,
 } from "@agentpages/protocol";
 import * as fc from "fast-check";
@@ -61,12 +63,15 @@ const fieldBreaking = (rule: Rule): unknown =>
     fc.property(placed(rule), rule.near, (place, value) => verdict(place[0].schema, placedIn(place, value)) === rule.accepts(value)),
   ).counterexample;
 
-/** A value on which the exported pattern and an independent reading of the rule disagree. */
-const patternBreaking = (pattern: RegExp, rule: Rule): unknown =>
+/** A value on which an exported reading of a rule and an independent one disagree. */
+const readingBreaking = (reads: (text: string) => boolean, rule: Rule): unknown =>
   fc.check(
-    fc.property(rule.near, (value) => (typeof value === "string" && pattern.test(value)) === rule.accepts(value)),
+    fc.property(rule.near, (value) => (typeof value === "string" && reads(value)) === rule.accepts(value)),
     { numRuns: 1000 },
   ).counterexample;
+
+/** A value on which the exported pattern and an independent reading of the rule disagree. */
+const patternBreaking = (pattern: RegExp, rule: Rule): unknown => readingBreaking((text) => pattern.test(text), rule);
 
 test("[COMMON-1] ids match ^[A-Za-z0-9_-]{1,128}$", () => {
   expect(patternBreaking(ID_PATTERN, RULES.id)).toBeNull();
@@ -103,8 +108,18 @@ test("[COMMON-7] body and instructions are at most 65536 characters", () => {
 });
 
 test("[COMMON-8] base64 uses the standard alphabet with padding, in canonical form", () => {
-  expect(patternBreaking(BASE64_PATTERN, RULES.base64)).toBeNull();
+  expect(readingBreaking(isBase64, RULES.base64)).toBeNull();
   expect(fieldBreaking(RULES.base64)).toBeNull();
+  expect(["AAAAAAAA", "AAAAA", "AA==AAAA", "AAAA*AAAAAAA", "*AAAAAAA"].map(isBase64)).toStrictEqual([true, false, false, false, false]);
+});
+
+test("[COMMON-8] a blob that is not canonical base64 is one issue, which says what was expected", () => {
+  const put = { opId: "00000000-0000-4000-8000-000000000001", id: "a", name: "a", mimeType: "a" };
+  const issuesOf = (blob: unknown): unknown => validate(METHOD_SCHEMAS["agentpages/files/put"].params, { ...put, blob });
+
+  expect(issuesOf("AB==")).toStrictEqual({ ok: false, issues: [{ message: "Expected canonical base64", path: ["blob"] }] });
+  expect(issuesOf(7)).toStrictEqual({ ok: false, issues: [{ message: "Expected string", path: ["blob"] }] });
+  expect(isBase64("A".repeat(40_000_000))).toBe(true);
 });
 
 test("[COMMON-8] bytes are written as canonical base64, whatever their number", () => {

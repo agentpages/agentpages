@@ -63,7 +63,7 @@ const sides = async (driver: Driver): Promise<[Filing, Filing]> => {
 };
 
 const ON_BOTH: FilingCases = {
-  "[FILES-1] put returns the file with its decoded size, who put it and when": async (filing, driver) => {
+  "[FILES-1] [FILES-5] put returns the file with its decoded size, who put it and when": async (filing, driver) => {
     const first = await filing.ok(PUT, putting("a", "abc"));
     tick(driver);
     const later = await filing.ok(PUT, putting("b"));
@@ -79,7 +79,7 @@ const ON_BOTH: FilingCases = {
     };
   },
 
-  "[FILES-2] get returns the blob that was put": async (filing) => {
+  "[FILES-2] [FILES-5] get returns the blob that was put": async (filing) => {
     const put = await filing.ok(PUT, { ...putting("a"), blob: "AP8HgA==" });
     const other = await filing.ok(PUT, putting("b"));
     return {

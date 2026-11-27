@@ -1,7 +1,7 @@
 import * as v from "valibot";
+import { isBase64 } from "./bytes.js";
 import { MAX_COUNT, MAX_LIMIT } from "./constants.js";
 import {
-  BASE64_PATTERN,
   BODY_PATTERN,
   DESCRIPTION_PATTERN,
   ID_PATTERN,
@@ -90,7 +90,12 @@ export const TimestampSchema: Raw<string> = v.pipe(
   }),
 );
 
-export const Base64Schema: Raw<string> = v.pipe(v.string(), v.regex(BASE64_PATTERN));
+export const Base64Schema: Raw<string> = v.pipe(
+  v.string(),
+  v.rawCheck(({ dataset, addIssue }) => {
+    if (dataset.typed && !isBase64(dataset.value)) addIssue({ expected: "canonical base64" });
+  }),
+);
 
 export const NameSchema: Raw<string> = v.pipe(v.string(), v.regex(NAME_PATTERN));
 
