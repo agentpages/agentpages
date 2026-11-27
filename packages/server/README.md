@@ -17,7 +17,7 @@ const answer = await store.call({ tool: "pages_publish", input, principal: { kin
 
 `call` answers a tool call of an agent. `host` answers an operation a host runs for a viewer, and `view` a method a view calls on its host, both under the `requestId` the host chose. An `Answer` is a result, a failure of the spec, or `unknown-method` for what the Store does not have. `createStore` throws when its capability is not one of section 3 of the spec, its `baseUrl` is not a URL, or its `actorKey` is shorter than 32 bytes. `capability` is what the Store advertises, and `tools` the tools it lists. All the Store knows is in the storage. In memory it keeps only the 1024 compiled schemas it used last.
 
-This package has the pages tools, the types tools, `pages_open`, the state tools and methods with their trees, and `identity/get`. The tools and methods of a feature exist exactly when the capability has the feature. Files, comments and rendering are not built yet: their tools are listed and answer `unknown-method`.
+This package has the pages tools, the types tools, `pages_open`, the state tools and methods with their trees, `identity/get`, and the files tools and methods. The tools and methods of a feature exist exactly when the capability has the feature. Comments and rendering are not built yet: their tools are listed and answer `unknown-method`.
 
 ## Ports
 
@@ -53,6 +53,8 @@ A storage that fails, or a rate limiter whose promise rejects, makes the answer 
 
 ## Sweep
 
+A files operation is declared once, as a state operation is. A file is two rows under its page: its `FileInfo`, and its bytes as the storage takes them, so a list reads no bytes and deleting the page deletes its files with it. `maxFileBytes` is the largest value the storage must take. A put decodes the `blob` once, and what the Store remembers of it is the `FileInfo` alone. The Store keeps `name` and `mimeType` as they came and serves no file by URL.
+
 `sweep(limit)` deletes what is past its retention: the requests the Store remembers, `requestTimeoutMs` after `opRetentionSeconds`, and the commits of its logs, `requestTimeoutMs` after `commitRetentionSeconds`. Nothing else expires. No request triggers it and it is not a tool: the deployment calls it on a timer. It clears at most `limit` of each of the two kinds, the oldest first, and resolves with how many it cleared: 0 means nothing is past retention now. A `limit` that is not a positive safe integer throws a `RangeError`. Any number of processes may call it at any time. When it rejects, the storage failed: call it again.
 
 With every remembered request and every commit, the Store writes a note of when, in the same transaction, under a key that sorts by time. A sweep scans the oldest notes without a lock. Then, for each page or type, in one transaction under its lock, it reads the notes again with their rows, and deletes each note that is still there, with its row when the row was written when the note says. A request that was remembered again under the same `opId` was written at another time, and stays. The notes of a deleted page stay until a sweep deletes them. `state/commits` answers `ResyncRequired` when a commit is missing among those it would return.
@@ -64,7 +66,7 @@ With every remembered request and every commit, the Store writes a note of when,
 | `ports` | The interfaces above |
 | `access` | `Principal`, the access table, and who a log record names |
 | `pipeline` | The steps of a request, shared by every operation, and the sweep |
-| `pages`, `types`, `state`, `identity` | The operations, and the keys and records of what they store |
+| `pages`, `types`, `state`, `identity`, `files` | The operations, and the keys and records of what they store |
 | `trees` | What a commit does to the trees of its scope: the cascade of a delete within its limit, the climb from every document a put places, and the rows of the children |
 | `ops` | The table of operations, and `createStore` |
 | `memory`, `schema` | The two adapters |

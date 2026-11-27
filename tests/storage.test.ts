@@ -7,6 +7,7 @@ import { titlesBeside } from "./support/store.ts";
 /** What the suite proves of a storage, by the requirement of the spec each test serves. */
 const TITLES = [
   "[REL-6] what a transaction put is read back once it resolves",
+  "[FILES-5] bytes of 4 MiB with every byte value are read back as they were put",
   "[REL-7] the writes of a transaction are saved together, and none shows before",
   "[REL-7] a run reads only committed rows, never its own writes, which are saved in the order it made them",
   "[REL-8] a transaction rejects with what its run threw, and the next run on its lock goes on",

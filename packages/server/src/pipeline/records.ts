@@ -16,6 +16,9 @@ export const corrupt = (): never => {
   throw new CorruptRecord();
 };
 
+/** The bytes that were stored. Anything else is corrupt. */
+export const bytesOf = (value: Value | undefined): Uint8Array => (value instanceof Uint8Array ? value : corrupt());
+
 /** The count a record keeps under `field`. A record that was never saved counts 0. */
 export const countIn = (value: Value | undefined, field: string): number => {
   if (value === undefined) return 0;

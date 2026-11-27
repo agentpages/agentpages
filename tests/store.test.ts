@@ -150,7 +150,28 @@ const WITHOUT_IDENTITY = [
   "[EXT-3] a Store without identity answers every identity method of a view as a method it does not know",
 ];
 
-const { limits, state, identity } = ADVERTISED;
+/** What it proves of a Store that advertises `files`. */
+const FILES = [
+  "[FILES-1] put returns the file with its decoded size, who put it and when",
+  "[FILES-2] get returns the blob that was put",
+  "[FILES-3] list pages through files two at a time",
+  "[FILES-10] list orders by id",
+  "[FILES-6] put replaces name, type and bytes",
+  "[FILES-7] a file of maxFileBytes is stored, one byte more is LimitExceeded",
+  "[FILES-8] get of a missing file is NotFound",
+  "[FILES-4] [FILES-9] delete removes the file, and succeeds on a missing one",
+  "[FILES-11] an empty file is stored",
+  "[COMMON-8] a blob that is not canonical base64 is InvalidParams",
+  "[REL-2] a repeated put returns the first file after another put replaced it",
+  "[REL-30] a repeated oversized put with a new opId is LimitExceeded, and with a used opId and other params InvalidParams",
+  "[ACCESS-4] a link-read holder reads files and may not put",
+  "[PAGES-14] a deleted page's files are gone",
+];
+
+/** What it proves of a Store that does not advertise `files`. */
+const WITHOUT_FILES = ["[EXT-3] [TOOLS-3] files tools and methods are unknown"];
+
+const { limits, state, identity, files } = ADVERTISED;
 
 interface Kind {
   /** What the Store advertises beside its limits. */
@@ -159,10 +180,12 @@ interface Kind {
 }
 
 const KINDS: Record<string, Kind> = {
-  "state and identity": { features: { state, identity }, titles: [...CORE, ...STATE, ...IDENTITY, ...IDENTITY_IN_STATE] },
-  "neither state nor identity": { features: {}, titles: [...CORE, ...WITHOUT_STATE, ...WITHOUT_IDENTITY] },
-  "state and no identity": { features: { state }, titles: [...CORE, ...STATE, ...WITHOUT_IDENTITY] },
-  "identity and no state": { features: { identity }, titles: [...CORE, ...WITHOUT_STATE, ...IDENTITY] },
+  "state and identity": { features: { state, identity }, titles: [...CORE, ...STATE, ...IDENTITY, ...IDENTITY_IN_STATE, ...WITHOUT_FILES] },
+  "neither state nor identity": { features: {}, titles: [...CORE, ...WITHOUT_STATE, ...WITHOUT_IDENTITY, ...WITHOUT_FILES] },
+  "state and no identity": { features: { state }, titles: [...CORE, ...STATE, ...WITHOUT_IDENTITY, ...WITHOUT_FILES] },
+  "identity and no state": { features: { identity }, titles: [...CORE, ...WITHOUT_STATE, ...IDENTITY, ...WITHOUT_FILES] },
+  "files alone": { features: { files }, titles: [...CORE, ...WITHOUT_STATE, ...WITHOUT_IDENTITY, ...FILES] },
+  "state, identity and files": { features: { state, identity, files }, titles: [...CORE, ...STATE, ...IDENTITY, ...IDENTITY_IN_STATE, ...FILES] },
 };
 
 describe.each(Object.entries(KINDS))("a Store over the memory storage, with %s", (_, { features, titles }) => {
