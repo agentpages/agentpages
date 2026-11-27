@@ -3,10 +3,12 @@ import {
   type Capability,
   CapabilitySchema,
   hasFeature,
+  type HostRequest,
   METHOD_NOT_FOUND,
   PROTOCOL_VERSION,
   TOOLS,
   validate,
+  type ViewRequest,
 } from "@agentpages/protocol";
 import { actorsUnder } from "../access/actor.js";
 import type { Agent, Visitor } from "../access/principal.js";
@@ -33,22 +35,12 @@ export interface ToolCall {
   principal: Agent;
 }
 
-export interface HostCall {
-  operation: string;
-  input: unknown;
+export interface HostCall extends HostRequest {
   principal: Visitor;
-  /** The id the host chose for the request, as section 2.1 of the spec defines one. */
-  requestId: string;
 }
 
-export interface ViewCall {
-  method: string;
-  params: unknown;
-  /** The page link the host holds for the view. It names the page and is the link the viewer presents. */
-  url: string;
+export interface ViewCall extends ViewRequest {
   principal: Visitor;
-  /** The id the host chose for the request. */
-  requestId: string;
 }
 
 export interface Store {

@@ -16,11 +16,13 @@ A page is an MCP Apps View. Everything MCP Apps already defines is used unchange
 
 | Need | MCP Apps mechanism |
 |---|---|
-| Lifecycle, sandbox, CSP, permissions | `ui/initialize`, `_meta.ui.csp`, `_meta.ui.permissions` |
+| Lifecycle, sandbox, CSP, permissions | `ui/initialize`, `ui/notifications/initialized`, `ui/resource-teardown`, `_meta.ui.csp`, `_meta.ui.permissions` |
 | Model calls from the page | `sampling/createMessage` |
 | Saving a file to the viewer's device | `ui/download-file` |
 | Sending an action to the chat | `ui/message`, `ui/update-model-context` |
 | Checking that a view is alive | `ping` |
+
+A view opened from a page `url` was started by no tool call. Its host sends no `ui/notifications/tool-*`, and `hostContext` has no `toolInfo`. `[EXT-6]`
 
 ## 2. Model
 
@@ -79,10 +81,17 @@ The extension is `io.github.agentpages/agentpages`, following the MCP extension 
 - A host advertises the same object, without `render`, in the `ui/initialize` result under `hostCapabilities.experimental`. `[EXT-2]`
 - `state`, `identity`, `files` and `render` are features. A feature is available exactly when its key is present. `[EXT-3]`
 - A host MUST answer a method of an absent feature with JSON-RPC error `-32601`. `[EXT-4]`
+- A view and a host send `protocolVersion` `2026-01-26`. `[EXT-7]`
+- A host sends `ui/resource-teardown` with params `{ reason: string }`. A view ignores `reason`. `[EXT-8]`
 
 ## 4. View extension
 
 All messages are JSON-RPC 2.0 over the MCP Apps `postMessage` transport.
+
+- The sender of a request chooses its `id`, and each direction has its own ids. An answer carries the `id` of its request. `[RPC-1]`
+- A message that is not a JSON-RPC 2.0 request, notification or answer is dropped. `[RPC-2]`
+- An answer to a request that is no longer pending is ignored. `[RPC-3]`
+- A closed side sends nothing more. `[RPC-4]`
 
 ### 4.1 State
 
@@ -259,6 +268,8 @@ These go from the host to the view. A page that shows documents one at a time, s
 - `blob` is base64, as for files. A view that cannot produce `format` answers `NotFound`. `[VIEW-5]`
 - A host offers each format in the type's `exports` by its `title`, sends `export` to the view, and saves the answer as the page's `title` plus the format's `extension`. `[VIEW-6]`
 - A host that gets no answer within `exportTimeoutMs` reports the export as failed. `[VIEW-7]`
+- A host's request to a view has a JSON-RPC `id` that is an id of section 2.1. A view's error carries it as `requestId`. `[VIEW-8]`
+- A host that gets no answer to `reveal` within `requestTimeoutMs` treats it as failed. `[VIEW-9]`
 
 ### 4.6 Errors
 
@@ -508,7 +519,7 @@ type Diagnostic =
 
 ### 5.6 Host operations
 
-A host acts for a viewer through these Store operations. They are not MCP tools, and their wire form is not part of 0.1 (section 10).
+A host acts for a viewer through these Store operations. They are not MCP tools, and their wire form is not part of 0.1 (section 10). None of them returns the Store's capability: the deployment gives it to the host.
 
 ```ts
 interface Opened {
@@ -537,7 +548,7 @@ interface Heads {
 - `pages_open` with a `url` that names no page returns `NotFound`. A `url` that is not current, presented by anyone but the owner, returns `Forbidden`. `[HOST-4]`
 - `comments_start` records the page's current version. The `id` of the thread and of its first entry is the `opId`. `[HOST-5]`
 - A host also uses `comments_list`, `comments_reply` and `comments_resolve` for a viewer, with `url` in place of `pageId`, under the access rules of section 5.1, with the viewer as `author`. `[HOST-6]`
-- A host learns of every change to a page it shows by calling `pages_heads`. On a new `version` it reloads the view. On `NotFound` or `Forbidden` it closes it. On a new `seq` or `viewerSeq` it fetches `commits` from the last `seq` it sent the view. On a new `comments` it lists the threads again. `[HOST-8]`
+- A host learns of every change to a page it shows by calling `pages_heads`. On a new `version` it reloads the view. On `NotFound` or `Forbidden` it closes it. On a new `seq` or `viewerSeq` it fetches `commits` from the last `seq` it sent the view. Before it has sent any, that is the `seq` of its first `pages_heads`. On a new `comments` it lists the threads again. `[HOST-8]`
 - A Store answers `pages_heads` without waiting for a change to the page that is in progress. `[HOST-9]`
 
 ## 6. Types
@@ -628,11 +639,13 @@ These rules bind a view. An agent's tool descriptions tell it to repeat a failed
 - A commit that exhausts its attempts stays first in line. The view tries it again at the next `syncIntervalMs`. `[REL-19]`
 - When a commit returns an error that is not retryable, the view reports that commit and every commit behind it to the page as failed, and removes them. None is dropped silently and none is sent. `[REL-20]`
 - A view tells the page whether it has unsent commits. They do not survive a reload. `[REL-21]`
+- A commit the view may no longer send (section 7.1) is reported as one whose error is not retryable is: as failed, with every commit behind it. `[REL-34]`
 
 ### 7.6 Overload and liveness
 
 - A Store that limits request rates MUST answer with `RateLimited` and a `retryAfterMs`. `[REL-22]`
 - A host that gets no answer to an MCP Apps `ping` within `requestTimeoutMs` MUST tell the viewer the page stopped responding and offer to reload it. The rest of the host keeps working. `[REL-23]`
+- A host pings an initialized view at least once every `2 × requestTimeoutMs`. `[REL-33]`
 
 ### 7.7 Logging
 
