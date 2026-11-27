@@ -65,6 +65,29 @@ const CORE = [
   "[REL-30] a repeated opId is recognised only once its page is found",
   "[REL-30] a repeat with the same params gets its first result, and an opId used again with other params is decided after the limits",
   "[REL-31] a request that failed is not remembered",
+  "[HOST-2] [HOST-5] comments_start returns a thread on the current version of the page, whose id and first entry's id are the opId",
+  "[HOST-6] a host lists, answers and resolves threads for a viewer by the url they present, with the viewer as author",
+  "[COMMENTS-1] comments_list returns the threads of the page, in pages of its limit",
+  "[COMMENTS-2] comments_reply returns the thread with the entry it added",
+  "[COMMENTS-3] comments_resolve returns the thread, resolved",
+  "[COMMENTS-4] a thread has at least one entry, and its entries are ordered oldest first",
+  "[COMMENTS-5] comments_list orders threads by the createdAt of their first entry, oldest first",
+  "[COMMENTS-6] comments_resolve on a resolved thread succeeds",
+  "[COMMENTS-7] the id of an entry added by comments_reply is its opId",
+  "[COMMENTS-8] comments_reply adds one entry, and opens a resolved thread again",
+  "[COMMENTS-9] a threadId the page does not have is not found, once the caller may change a thread",
+  "[COMMENTS-10] a thread holds maxThreadEntries entries, and a reply beyond them is beyond the limit",
+  "[COMMENTS-11] an anonymous viewer who starts, answers or resolves a thread is unauthenticated, and one who lists is not",
+  "[COMMENTS-12] threads started at the same time are ordered by id, and a status lists only the threads of that status",
+  "[COMMENTS-13] an opId that is already a thread of the page, or an entry of the thread, is malformed, before the limit of entries",
+  "[REL-29] two viewers start a thread with one opId: the second start is malformed, and a repeat of the first gets its thread",
+  "[ACCESS-4] a link holder lists threads when the link lets them read, and starts, answers and resolves them when it lets them write",
+  "[ACCESS-2] another agent may not list, answer or resolve the threads of a page",
+  "[REL-2] a repeated reply or resolve returns its first result, after later replies and a resolve",
+  "[COMMON-5] an anonymous viewer who may not write is forbidden, and is asked to sign in only where they may",
+  "[PAGES-20] a comment leaves the updatedAt of its page",
+  "[HOST-7] the version moves with a publish, comments by 1 with every start, reply and resolve, also of a resolved thread, and neither with anything else",
+  "[HOST-7] pages_heads of a link that ended is forbidden, and of a page that was deleted or never was, not found",
 ];
 
 /** What it proves of a Store that advertises `state`. */
@@ -127,6 +150,7 @@ const STATE = [
   "[ACCESS-6] a signed-in viewer with read access reads and writes their own viewer scope",
   "[REL-29] the opId of a commit belongs to its viewer and its page, and all anonymous viewers of a page are one caller",
   "[REL-30] a repeated commit is recognised only while its page exists and its caller has access",
+  "[HOST-7] seq moves with a commit to the page scope, and viewerSeq with a commit to the viewer's own scope, and with no other",
 ];
 
 /** What it proves of a Store that advertises `identity`. */

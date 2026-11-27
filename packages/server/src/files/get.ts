@@ -1,6 +1,6 @@
 import { type FilesGetParams, type FilesGetResult, toBase64 } from "@agentpages/protocol";
 import { bytesOf, ok, parsed, query, refuse } from "../pipeline/index.js";
-import { type Filed, toRead } from "./arrival.js";
+import { type Filed, toRead } from "../pages/arrival.js";
 import { fileKeys } from "./keys.js";
 
 export const filesGet: Filed<FilesGetParams, FilesGetResult> = (arrival) =>

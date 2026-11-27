@@ -1,22 +1,18 @@
 import type { Capability, HostOperationName, HostOperations, MethodName, Methods, ToolName, Tools, ViewMethods } from "@agentpages/protocol";
 import type { Agent, Visitor } from "../access/principal.js";
+import { COMMENTS_HOST_OPERATIONS, COMMENTS_TOOLS } from "../comments/operations.js";
 import { type FilesMethodHandlers, filesMethods, type FilesToolHandlers, filesTools } from "../files/operations.js";
 import { identityGet } from "../identity/get.js";
-import { PAGES_HOST_OPERATIONS, PAGES_TOOLS } from "../pages/operations.js";
+import { PAGES_HOST_OPERATIONS } from "../pages/host.js";
+import { PAGES_TOOLS } from "../pages/operations.js";
 import type { Handler, Shown } from "../pipeline/index.js";
 import { type StateMethodHandlers, stateMethods, type StateToolHandlers, stateTools } from "../state/operations.js";
 import { TYPES_TOOLS } from "../types/operations.js";
 
 /** Tools of later units. `call` answers them with "method not found" until their unit takes them off this list. */
 type ToolNotYet =
-  | "comments_list"
-  | "comments_reply"
-  | "comments_resolve"
   | "pages_render"
   | "pages_export";
-
-/** Host operations of later units, answered the same way. */
-type HostOperationNotYet = "comments_start" | "pages_heads" | "comments_list" | "comments_reply" | "comments_resolve";
 
 /** Methods of later units, and the requests that go to a view and never to a Store. */
 type MethodNotYet = keyof ViewMethods;
@@ -32,7 +28,7 @@ type ToolHandlers = {
   Partial<FilesToolHandlers>;
 
 type HostHandlers = {
-  readonly [O in Exclude<HostOperationName, HostOperationNotYet>]: Handler<HostOperations[O]["params"], HostOperations[O]["result"], Visitor>;
+  readonly [O in HostOperationName]: Handler<HostOperations[O]["params"], HostOperations[O]["result"], Visitor>;
 };
 
 type MethodHandlers = {
@@ -47,11 +43,12 @@ type MethodHandlers = {
 export const toolsOf = ({ state, files }: Capability): ToolHandlers => ({
   ...PAGES_TOOLS,
   ...TYPES_TOOLS,
+  ...COMMENTS_TOOLS,
   ...(state && stateTools(state)),
   ...(files && filesTools(files)),
 });
 
-export const HOST_HANDLERS: HostHandlers = PAGES_HOST_OPERATIONS;
+export const HOST_HANDLERS: HostHandlers = { ...PAGES_HOST_OPERATIONS, ...COMMENTS_HOST_OPERATIONS };
 
 /** The view methods of a Store that advertises `capability`, by the same rules as its tools. */
 export const methodsOf = ({ state, identity, files }: Capability): MethodHandlers => ({

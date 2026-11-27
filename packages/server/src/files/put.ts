@@ -1,6 +1,6 @@
 import { fileProblem, type FilesLimits, type FilesPutParams, type FilesPutResult, fromBase64 } from "@agentpages/protocol";
 import { mutation, ok } from "../pipeline/index.js";
-import { type Filed, toChange } from "./arrival.js";
+import { type Filed, toChange } from "../pages/arrival.js";
 import { saveFile } from "./save.js";
 
 /** `files/put` of a Store with these limits. The limit is on the decoded size, and is decided before a reused `opId`. */
