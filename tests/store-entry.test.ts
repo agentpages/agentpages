@@ -101,9 +101,9 @@ const TO_THE_VIEW = ["agentpages/view/reveal", "agentpages/view/export", "agentp
 
 test("a tool, host operation or view method the Store does not have yet is the JSON-RPC method not found", async () => {
   const target = world();
-  const later = [...FILE_TOOLS, ...COMMENT_TOOLS, "pages_render", "pages_export"];
+  const later = [...FILE_TOOLS, "pages_render", "pages_export"];
   const notTools = [...later, "pages_open", "comments_start", "agentpages/state/get", "pages", "toString", "constructor", ""];
-  const operations = ["comments_start", "pages_heads", ...PAGE_TOOLS, ...TYPE_TOOLS, ...STATE_TOOLS, ...later, "toString", ""];
+  const operations = ["pages_heads", ...PAGE_TOOLS, ...TYPE_TOOLS, ...STATE_TOOLS, ...later, "toString", ""];
   const notMethods = [...FILE_METHODS, ...TO_THE_VIEW, ...STATE_TOOLS, "pages_get", "pages_open", "agentpages/state", "toString", "constructor", ""];
   const answers = [
     ...notTools.map((tool) => call(target, [tool, { pageId: PAGE }])),

@@ -82,7 +82,8 @@ const outcomeIn = (answer: Answer): string => {
 
 type Ask = (op: StateOp<unknown>, params: unknown) => Promise<Answer>;
 
-const surfaceOf = (ask: Ask): Surface => ({
+/** A surface that sends each request as `ask` does. */
+export const surfaceOf = (ask: Ask): Surface => ({
   ok: async (op, params) => resultIn(op.result, await ask(op, params)),
   fails: async (op, params) => errorIn(await ask(op, params)),
   answers: async (op, params) => answeredIn(await ask(op, params)),
