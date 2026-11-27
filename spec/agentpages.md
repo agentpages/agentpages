@@ -42,11 +42,11 @@ Because the Store is the single owner of data, a write through a view is visible
 
 ## 3. Extension identifier
 
-The extension is `io.github.kuki1029/agentpages`, following the MCP extension naming rule (SEP-2133). Its view methods use the prefix `agentpages/`.
+The extension is `io.github.agentpages/agentpages`, following the MCP extension naming rule (SEP-2133). Its view methods use the prefix `agentpages/`.
 
 ```json
 {
-  "io.github.kuki1029/agentpages": {
+  "io.github.agentpages/agentpages": {
     "version": "0.1",
     "state": { "maxDocumentBytes": 262144, "liveChanges": true },
     "identity": {},
@@ -291,7 +291,7 @@ A receiver MUST ignore fields it does not know. `[VER-1]`
 
 ## 8. Open questions
 
-1. **Vendor prefix.** SEP-2133 asks for a reversed domain the project controls. `io.github.kuki1029` satisfies that today; a project domain would replace it before 1.0.
+1. **Vendor prefix.** SEP-2133 asks for a reversed domain the project controls. `io.github.agentpages` satisfies that through the project's GitHub organization. A project domain could replace it before 1.0.
 2. **Host to Store interface.** In 0.1 a host and its Store are one deployment. A wire interface that lets a host from one vendor use a Store from another is not specified.
 3. **Inline rendering in third-party hosts.** MCP Apps has no mechanism for a tool result to select a per-page `ui://` resource.
 4. **Comment delivery.** Agents poll `comments_list`. Push delivery depends on the harness and is not specified.

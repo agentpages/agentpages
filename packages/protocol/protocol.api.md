@@ -5,7 +5,7 @@
 ```ts
 
 // @public (undocumented)
-export const EXTENSION_ID = "io.github.kuki1029/agentpages";
+export const EXTENSION_ID = "io.github.agentpages/agentpages";
 
 // @public (undocumented)
 export type Feature = (typeof FEATURES)[number];

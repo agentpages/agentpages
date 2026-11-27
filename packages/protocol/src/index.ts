@@ -1,6 +1,6 @@
 export const PROTOCOL_VERSION = "0.1";
 
-export const EXTENSION_ID = "io.github.kuki1029/agentpages";
+export const EXTENSION_ID = "io.github.agentpages/agentpages";
 
 export const FEATURES = ["state", "identity", "files"] as const;
 

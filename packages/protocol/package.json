@@ -5,7 +5,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kuki1029/agentpages.git",
+    "url": "git+https://github.com/agentpages/agentpages.git",
     "directory": "packages/protocol"
   },
   "type": "module",
