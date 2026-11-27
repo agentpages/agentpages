@@ -4,17 +4,12 @@
     "types": ["node"],
     "allowImportingTsExtensions": true,
     "isolatedDeclarations": false,
-    "declaration": false,
-    "allowJs": true,
-    "checkJs": true
+    "declaration": false
   },
   "include": [
     "scripts",
-    "lint",
     "tests",
     "*.config.ts",
-    "*.config.js",
-    ".dependency-cruiser.mjs",
     "packages/*/tsdown.config.ts"
   ]
 }

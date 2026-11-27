@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
-const tag = /\[([A-Z]+-\d+)\]/g;
+const tag = /\[([A-Z]+-\d+)\]/gu;
 
 const tagsIn = (text: string): string[] => [...text.matchAll(tag)].map((match) => match[1] ?? "");
 
