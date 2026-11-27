@@ -8,7 +8,7 @@ The standard for every change, whether a person or an agent writes it. Principle
 |---|---|
 | Wire protocol and behavior | [spec/agentpages.md](spec/agentpages.md) |
 | What the project is, package map | [README.md](README.md) |
-| How to use one package | that package's `README.md` |
+| How one package or folder works | a `README.md` in that folder |
 | How we work | this file |
 | Why a change was made | the pull request description |
 

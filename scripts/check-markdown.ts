@@ -5,16 +5,20 @@ import { dirname, resolve } from "node:path";
 const allowedPlaces = [
   /^[A-Z]+\.md$/,
   /^spec\/[a-z-]+\.md$/,
-  /^packages\/[a-z-]+\/(README|CHANGELOG)\.md$/,
+  /^(.+\/)?README\.md$/,
+  /^packages\/[a-z-]+\/CHANGELOG\.md$/,
   /^\.changeset\/[^/]+\.md$/,
 ];
+
+const isInDocsFolder = (file: string): boolean => file.split("/").includes("docs");
 
 const listMarkdownFiles = (): string[] =>
   execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "*.md"], { encoding: "utf8" })
     .split("\n")
     .filter((file) => file !== "" && existsSync(file));
 
-const isMisplaced = (file: string): boolean => !allowedPlaces.some((place) => place.test(file));
+const isMisplaced = (file: string): boolean =>
+  isInDocsFolder(file) || !allowedPlaces.some((place) => place.test(file));
 
 const relativeLinks = (file: string): string[] =>
   [...readFileSync(file, "utf8").matchAll(/\]\(([^)#\s]+)(?:#[^)]*)?\)/g)]
@@ -28,7 +32,7 @@ const brokenLinks = (file: string): string[] =>
 
 const files = listMarkdownFiles();
 const problems = [
-  ...files.filter(isMisplaced).map((file) => `${file}: markdown is not allowed here; put it next to what it describes`),
+  ...files.filter(isMisplaced).map((file) => `${file}: markdown is not allowed here; use a README.md in the folder it describes`),
   ...files.flatMap(brokenLinks),
 ];
 
