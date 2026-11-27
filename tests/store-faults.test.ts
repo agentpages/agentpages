@@ -23,6 +23,9 @@ const GROWN: Request[] = [...TREE_PAGE, committed(3, [node("a", null), node("b",
 /** A commit that deletes one tree with its descendants and puts a task into the other. */
 const TREE_COMMIT: Scenario = { tool: "state_commit", before: GROWN, input: committed(2, [remove("a"), node("f", "e")])[1] };
 
+/** A put of the file `a`, of three bytes. */
+const FILE = { opId: op(2), id: "a", name: "a.bin", mimeType: "application/octet-stream", blob: "AP8H" };
+
 /** Every tool of this unit that changes anything, with a request that has an effect. */
 const SCENARIOS: Scenario[] = [
   { tool: "pages_publish", before: [], input: publishing({ page: 1, baseVersion: 0, op: 2 }) },
@@ -37,6 +40,9 @@ const SCENARIOS: Scenario[] = [
   TREE_COMMIT,
   { tool: COMMIT, viewer: "bob", before: SHARED, input: committing(2, [put("a")]) },
   { tool: COMMIT, viewer: "bob", before: SHARED, input: { ...committing(2, [put("a")]), scope: "viewer" } },
+  { tool: "files_put", before: [PUBLISHED], input: { pageId: PAGE, ...FILE } },
+  { tool: "files_delete", before: [PUBLISHED, ["files_put", { pageId: PAGE, ...FILE, opId: op(3) }]], input: { opId: op(2), pageId: PAGE, id: "a" } },
+  { tool: "agentpages/files/put", viewer: "bob", before: SHARED, input: FILE },
 ];
 
 /** The link of `PAGE` in a Store whose every secret is the same. */

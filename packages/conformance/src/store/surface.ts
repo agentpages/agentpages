@@ -43,20 +43,21 @@ import {
   type Visit,
 } from "./kit.js";
 
-/** A state operation: what its tool and its view method are named after, and the schema of its result. */
+/** An operation of a feature: the name of its view method after `agentpages/`, and the schema of its result. */
 export interface StateOp<R> {
   name: string;
   result: Schema<R>;
 }
 
-const stateOp = <R>(name: string, { result }: { result: Schema<R> }): StateOp<R> => ({ name, result });
+/** The operation behind a view method, such as `state/get`. */
+export const opOf = <R>(name: string, { result }: { result: Schema<R> }): StateOp<R> => ({ name, result });
 
-export const STATE_GET: StateOp<StateGetResult> = stateOp("get", METHOD_SCHEMAS["agentpages/state/get"]);
-export const STATE_LIST: StateOp<StateListResult> = stateOp("list", METHOD_SCHEMAS["agentpages/state/list"]);
-export const COMMIT: StateOp<StateCommitResult> = stateOp("commit", METHOD_SCHEMAS["agentpages/state/commit"]);
-export const COMMITS: StateOp<StateCommitsResult> = stateOp("commits", METHOD_SCHEMAS["agentpages/state/commits"]);
+export const STATE_GET: StateOp<StateGetResult> = opOf("state/get", METHOD_SCHEMAS["agentpages/state/get"]);
+export const STATE_LIST: StateOp<StateListResult> = opOf("state/list", METHOD_SCHEMAS["agentpages/state/list"]);
+export const COMMIT: StateOp<StateCommitResult> = opOf("state/commit", METHOD_SCHEMAS["agentpages/state/commit"]);
+export const COMMITS: StateOp<StateCommitsResult> = opOf("state/commits", METHOD_SCHEMAS["agentpages/state/commits"]);
 
-/** One way to the state of a page: the tools of an agent, or the methods of a view. */
+/** One way to the state and the files of a page: the tools of an agent, or the methods of a view. */
 export interface Surface {
   /** The result of a state request. */
   ok: <R>(op: StateOp<R>, params: unknown) => Promise<R>;
@@ -89,17 +90,17 @@ const surfaceOf = (ask: Ask): Surface => ({
   outcome: async (op, params) => outcomeIn(await ask(op, params)),
 });
 
-/** The state tools of agent `by`, on page `on`. */
+/** The tools of agent `by`, on page `on`. Section 5.3 of the spec names a tool after its method. */
 export const toolsOf = (driver: Driver, { by, on }: { by: number; on: number }): Surface =>
-  surfaceOf(({ name }, params) => driver.call({ tool: `state_${name}`, input: Object.assign({}, params, { pageId: pageId(on) }), subject: agent(by) }));
+  surfaceOf(({ name }, params) => driver.call({ tool: name.replace("/", "_"), input: Object.assign({}, params, { pageId: pageId(on) }), subject: agent(by) }));
 
 /** A method of the view that shows the page behind the link of `visit`. The link is no part of the params. */
 export const asking = (driver: Driver, { url, ...shown }: Visit) => (method: string, params: unknown): Promise<Answer> =>
   driver.view({ method, params, viewer: shown, url, requestId: HOST_REQUEST });
 
-/** The state methods of the view a viewer has open. */
+/** The methods of the view a viewer has open. */
 export const viewOf = (driver: Driver, visit: Visit): Surface =>
-  surfaceOf(({ name }, params) => asking(driver, visit)(`agentpages/state/${name}`, params));
+  surfaceOf(({ name }, params) => asking(driver, visit)(`agentpages/${name}`, params));
 
 const IDENTITY_GET = "agentpages/identity/get";
 
@@ -200,28 +201,36 @@ export type Prepare = (alice: Session, n: number) => Promise<PageContent>;
 
 const plain: Prepare = (_, n) => Promise.resolve(html(n));
 
-/** Page 1 through the tools of its owner, and page 2 through the view of a link holder who may write. */
-const both = async (driver: Driver, prepare: Prepare): Promise<[Acting, Acting]> => {
+/** Page 1 through the tools of its owner, and page 2 through the view of a link holder who may write, with that holder. */
+export const twoSides = async (driver: Driver, prepare: Prepare = plain): Promise<[Surface, Surface, Visit]> => {
   const alice = actingAs(driver, agent(1));
   await alice.ok(PUBLISH, having(page(1, 0), ["content", await prepare(alice, 1)]));
   await alice.ok(PUBLISH, having(page(2, 0), ["content", await prepare(alice, 2)]));
   const holder = viewer(2, (await alice.ok(SET_ACCESS, sharing(2, LINK_WRITE))).url);
+  return [toolsOf(driver, { by: 1, on: 1 }), viewOf(driver, holder), holder];
+};
+
+const both = async (driver: Driver, prepare: Prepare): Promise<[Acting, Acting]> => {
+  const [tools, view, holder] = await twoSides(driver, prepare);
   return [
-    { ...toolsOf(driver, { by: 1, on: 1 }), by: AGENT, page: 1 },
-    { ...viewOf(driver, holder), by: await actorOf(driver, holder), page: 2 },
+    { ...tools, by: AGENT, page: 1 },
+    { ...view, by: await actorOf(driver, holder), page: 2 },
   ];
 };
 
-/** Each case as one that runs twice in one Store: through the tools, then through a view. */
-export const onBoth = (cases: ActingCases, prepare: Prepare = plain): Cases =>
+/** Each case as one that runs twice in one Store: on the first of what `stage` sets up, then on the second. */
+export const onEach = <A>(cases: Record<string, (acting: A, driver: Driver) => Promise<Check>>, stage: (driver: Driver) => Promise<[A, A]>): Cases =>
   Object.fromEntries(
     Object.entries(cases).map(([title, run]) => [
       title,
       async (driver: Driver): Promise<Check> => {
-        const [tools, view] = await both(driver, prepare);
+        const [tools, view] = await stage(driver);
         const first = await run(tools, driver);
         const second = await run(view, driver);
         return { got: [first, second], want: [met(first), met(second)] };
       },
     ]),
   );
+
+/** Each case as one that runs twice in one Store: through the tools, then through a view. */
+export const onBoth = (cases: ActingCases, prepare: Prepare = plain): Cases => onEach(cases, (driver) => both(driver, prepare));

@@ -1,7 +1,7 @@
 /** Printable ASCII, U+0020 to U+007E, ordered by code point. The Store encodes its tuples into keys. */
 export type Key = string;
 
-/** A JSON object, holding only JSON values, or bytes. */
+/** A JSON object, holding only JSON values, or bytes. Bytes may be as large as the largest file the Store accepts. */
 export type Value = Record<string, unknown> | Uint8Array;
 
 export interface Range {

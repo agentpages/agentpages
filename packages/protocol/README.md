@@ -22,7 +22,7 @@ Rules that depend on a Store's limits are separate checks that take those limits
 
 ## Schemas
 
-A `Schema<T>` is a [Standard Schema](https://standardschema.dev), so it works wherever one is accepted. `toolInputSchema(tool)` is the JSON Schema a Store advertises as a tool's `inputSchema`. In it, JSON objects the protocol does not interpret and maps keyed by id are plain objects.
+A `Schema<T>` is a [Standard Schema](https://standardschema.dev), so it works wherever one is accepted. `toolInputSchema(tool)` is the JSON Schema a Store advertises as a tool's `inputSchema`. In it, JSON objects the protocol does not interpret and maps keyed by id are plain objects, and a `blob` is a string with `contentEncoding: "base64"`: a pattern for canonical base64 would not be safe on a large file. `isBase64` is the check, in linear time.
 
 ## Look up a method or a tool
 

@@ -1,6 +1,6 @@
 export type * from "./comments/tools.js";
 export type * from "./comments/types.js";
-export { fromBase64, toBase64 } from "./common/bytes.js";
+export { fromBase64, isBase64, toBase64 } from "./common/bytes.js";
 export * from "./common/constants.js";
 export * from "./common/patterns.js";
 export * from "./common/retries.js";

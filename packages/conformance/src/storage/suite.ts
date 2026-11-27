@@ -17,6 +17,8 @@ const holding = (storage: Storage): Held => {
   return { first, arrived, held: storage.transact(locks(1), arriving({ arrived, name: key(1), until: first.opened })) };
 };
 
+const MIB = 1_048_576;
+
 const CASES: Cases<MakeStorage> = {
   "[REL-6] what a transaction put is read back once it resolves": async (make) => {
     const storage = await make();
@@ -37,6 +39,18 @@ const CASES: Cases<MakeStorage> = {
         [new Uint8Array([0, 255, 7]), undefined, value(1)],
         [["key/2", new Uint8Array([0, 255, 7])]],
       ],
+    };
+  },
+
+  "[FILES-5] bytes of 4 MiB with every byte value are read back as they were put": async (make) => {
+    const storage = await make();
+    const bytes = Uint8Array.from({ length: 4 * MIB }, (_, at) => at);
+    await write(storage, (tx) => {
+      tx.put(key(1), bytes);
+    });
+    return {
+      got: [bytes.length, new Set(bytes).size, await storage.get(key(1))],
+      want: [4_194_304, 256, bytes],
     };
   },
 

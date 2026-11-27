@@ -70,7 +70,7 @@ const ownScope = (surface: Surface): Promise<string[]> =>
   ]);
 
 export const STATE_ACCESS_CASES: Cases = {
-  "[STATE-1] reading the page scope needs read access: the owner as a viewer has it, and a link holder with either link setting": async (driver) => ({
+  "[STATE-1] [ACCESS-4] reading the page scope needs read access: the owner as a viewer has it, and a link holder with either link setting": async (driver) => ({
     got: await acrossAccesses(driver, reads),
     want: [
       [times(3, "Forbidden"), times(3, "Forbidden"), ["done", "done", "done"]],
@@ -79,7 +79,7 @@ export const STATE_ACCESS_CASES: Cases = {
     ],
   }),
 
-  "[STATE-3] a commit to the page scope needs write access: the owner as a viewer has it, and a link holder with link-write": async (driver) => ({
+  "[STATE-3] [ACCESS-4] a commit to the page scope needs write access: the owner as a viewer has it, and a link holder with link-write": async (driver) => ({
     got: await acrossAccesses(driver, (surface) => surface.outcome(COMMIT, committing([]))),
     want: [
       ["Forbidden", "Forbidden", "done"],

@@ -8,10 +8,6 @@ export const TIMESTAMP_PATTERN: RegExp =
 
 export const TREE_INDEX_PATTERN: RegExp = /^[0-9A-Za-z]*[1-9A-Za-z]$/u;
 
-/** Canonical base64: the bits a padded group does not use are zero. */
-export const BASE64_PATTERN: RegExp =
-  /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/][AQgw]==|[A-Za-z0-9+/]{2}[AEIMQUYcgkosw048]=)?$/u;
-
 /** `title`, `name` and `mimeType`: 1 to 255 characters, counted as Unicode code points. */
 export const NAME_PATTERN: RegExp = /^[\s\S]{1,255}$/u;
 

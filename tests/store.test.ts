@@ -30,7 +30,7 @@ const CORE = [
   "[PAGES-11] pages_get without a version returns the current one",
   "[PAGES-12] pages_list returns only the caller's pages, most recently updated first",
   "[PAGES-13] pages_versions orders by version, ascending",
-  "[PAGES-6] pages_delete removes the page with its versions",
+  "[PAGES-6] [PAGES-14] pages_delete removes the page with its versions",
   "[PAGES-15] pages_delete of a page that does not exist succeeds",
   "[PAGES-17] html larger than maxHtmlBytes, in UTF-8 bytes, is beyond the limit",
   "[PAGES-18] a deleted pageId is never used again",
@@ -122,8 +122,8 @@ const STATE = [
   "[TREE-9] other documents are not checked: the descendants of a moved document can be deeper, and so can a put that keeps its parent",
   "[TREE-9] a document placed as its own ancestor with more than maxTreeDepth documents between is beyond the limit, and with fewer a conflict",
   "[TYPES-12] a type version that leaves a tree out does not change it: its documents stay a tree",
-  "[STATE-1] reading the page scope needs read access: the owner as a viewer has it, and a link holder with either link setting",
-  "[STATE-3] a commit to the page scope needs write access: the owner as a viewer has it, and a link holder with link-write",
+  "[STATE-1] [ACCESS-4] reading the page scope needs read access: the owner as a viewer has it, and a link holder with either link setting",
+  "[STATE-3] [ACCESS-4] a commit to the page scope needs write access: the owner as a viewer has it, and a link holder with link-write",
   "[ACCESS-6] a signed-in viewer with read access reads and writes their own viewer scope",
   "[REL-29] the opId of a commit belongs to its viewer and its page, and all anonymous viewers of a page are one caller",
   "[REL-30] a repeated commit is recognised only while its page exists and its caller has access",
@@ -153,7 +153,28 @@ const WITHOUT_IDENTITY = [
   "[EXT-3] a Store without identity answers every identity method of a view as a method it does not know",
 ];
 
-const { limits, state, identity } = ADVERTISED;
+/** What it proves of a Store that advertises `files`. */
+const FILES = [
+  "[FILES-1] [FILES-5] put returns the file with its decoded size, who put it and when",
+  "[FILES-2] [FILES-5] get returns the blob that was put",
+  "[FILES-3] list pages through files two at a time",
+  "[FILES-10] list orders by id",
+  "[FILES-6] put replaces name, type and bytes",
+  "[FILES-7] a file of maxFileBytes is stored, one byte more is LimitExceeded",
+  "[FILES-8] get of a missing file is NotFound",
+  "[FILES-4] [FILES-9] delete removes the file, and succeeds on a missing one",
+  "[FILES-11] an empty file is stored",
+  "[COMMON-8] a blob that is not canonical base64 is InvalidParams",
+  "[REL-2] a repeated put returns the first file after another put replaced it",
+  "[REL-30] a repeated oversized put with a new opId is LimitExceeded, and with a used opId and other params InvalidParams",
+  "[ACCESS-4] a link-read holder reads files and may not put",
+  "[PAGES-14] a deleted page's files are gone",
+];
+
+/** What it proves of a Store that does not advertise `files`. */
+const WITHOUT_FILES = ["[EXT-3] [TOOLS-3] files tools and methods are unknown"];
+
+const { limits, state, identity, files } = ADVERTISED;
 
 interface Kind {
   /** What the Store advertises beside its limits. */
@@ -162,10 +183,12 @@ interface Kind {
 }
 
 const KINDS: Record<string, Kind> = {
-  "state and identity": { features: { state, identity }, titles: [...CORE, ...STATE, ...IDENTITY, ...IDENTITY_IN_STATE] },
-  "neither state nor identity": { features: {}, titles: [...CORE, ...WITHOUT_STATE, ...WITHOUT_IDENTITY] },
-  "state and no identity": { features: { state }, titles: [...CORE, ...STATE, ...WITHOUT_IDENTITY] },
-  "identity and no state": { features: { identity }, titles: [...CORE, ...WITHOUT_STATE, ...IDENTITY] },
+  "state and identity": { features: { state, identity }, titles: [...CORE, ...STATE, ...IDENTITY, ...IDENTITY_IN_STATE, ...WITHOUT_FILES] },
+  "neither state nor identity": { features: {}, titles: [...CORE, ...WITHOUT_STATE, ...WITHOUT_IDENTITY, ...WITHOUT_FILES] },
+  "state and no identity": { features: { state }, titles: [...CORE, ...STATE, ...WITHOUT_IDENTITY, ...WITHOUT_FILES] },
+  "identity and no state": { features: { identity }, titles: [...CORE, ...WITHOUT_STATE, ...IDENTITY, ...WITHOUT_FILES] },
+  "files alone": { features: { files }, titles: [...CORE, ...WITHOUT_STATE, ...WITHOUT_IDENTITY, ...FILES] },
+  "state, identity and files": { features: { state, identity, files }, titles: [...CORE, ...STATE, ...IDENTITY, ...IDENTITY_IN_STATE, ...FILES] },
 };
 
 describe.each(Object.entries(KINDS))("a Store over the memory storage, with %s", (_, { features, titles }) => {
@@ -176,14 +199,14 @@ describe.each(Object.entries(KINDS))("a Store over the memory storage, with %s",
   });
 });
 
-const files = sqliteFiles();
+const databases = sqliteFiles();
 
-afterAll(files.remove);
+afterAll(databases.remove);
 
-describe("a Store over the SQLite storage, with state and identity", () => {
-  storeSuite(() => world({ ports: { storage: files.open({ path: files.path() }) } }).driver);
+describe("a Store over the SQLite storage, with state, identity and files", () => {
+  storeSuite(() => world({ ports: { storage: databases.open({ path: databases.path() }) } }).driver);
 
   test("the suite registered every test of such a Store", ({ task }) => {
-    expect(titlesBeside(task)).toStrictEqual([...CORE, ...STATE, ...IDENTITY, ...IDENTITY_IN_STATE]);
+    expect(titlesBeside(task)).toStrictEqual([...CORE, ...STATE, ...IDENTITY, ...IDENTITY_IN_STATE, ...FILES]);
   });
 });
