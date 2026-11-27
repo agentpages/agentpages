@@ -204,7 +204,7 @@ test("a database of another program is not opened, and stays as it is", () => {
 
 test("a new file is put in WAL mode, which every later connection to it keeps", () => {
   const path = files.path();
-  files.open({ path }).close();
+  files.open({ path });
 
   expect(holdingOf(path).at(-1)).toBe("wal");
 });
