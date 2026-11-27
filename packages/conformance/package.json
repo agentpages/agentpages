@@ -1,0 +1,38 @@
+{
+  "name": "@agentpages/conformance",
+  "version": "0.0.0",
+  "description": "Conformance tests for Stores and storage adapters",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agentpages/agentpages.git",
+    "directory": "packages/conformance"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@agentpages/protocol": "workspace:^"
+  },
+  "peerDependencies": {
+    "fast-check": "^4.11.0",
+    "vitest": "^5.1.2"
+  },
+  "devDependencies": {
+    "fast-check": "^4.11.0",
+    "vitest": "^5.1.2"
+  }
+}

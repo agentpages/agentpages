@@ -97,6 +97,18 @@ export interface CommentsResolveParams {
 }
 
 // @public (undocumented)
+export interface CommentsStartParams {
+    // (undocumented)
+    body: string;
+    // (undocumented)
+    opId: string;
+    // (undocumented)
+    pageId: string;
+    // (undocumented)
+    quote?: string;
+}
+
+// @public (undocumented)
 export interface CommentsTools {
     // (undocumented)
     comments_list: {
@@ -427,6 +439,35 @@ export const fromJsonRpcError: (input: unknown) => Failure | undefined;
 // @public
 export const hasFeature: (capability: Capability, feature: Feature) => boolean;
 
+// @public (undocumented)
+export const HOST_OPERATION_SCHEMAS: ExchangeSchemas<HostOperations>;
+
+// @public
+export const HOST_OPERATIONS: { readonly [O in HostOperationName]: HostOperationInfo<O>; };
+
+// @public (undocumented)
+export interface HostOperationInfo<O extends HostOperationName> {
+    // (undocumented)
+    readonly mutates: Mutates<HostOperations[O]["params"]>;
+}
+
+// @public (undocumented)
+export type HostOperationName = keyof HostOperations;
+
+// @public
+export interface HostOperations {
+    // (undocumented)
+    comments_start: {
+        params: CommentsStartParams;
+        result: Thread;
+    };
+    // (undocumented)
+    pages_open: {
+        params: PagesOpenParams;
+        result: Opened;
+    };
+}
+
 // @public
 export const htmlProblem: (input: {
     html: string;
@@ -495,6 +536,8 @@ export interface Limits {
     exportTimeoutMs: number;
     // (undocumented)
     maxHtmlBytes: number;
+    // (undocumented)
+    maxSchemaBytes: number;
     // (undocumented)
     opRetentionSeconds: number;
     // (undocumented)
@@ -625,6 +668,16 @@ export type Op = {
     ifRevision?: number;
 };
 
+// @public
+export interface Opened {
+    // (undocumented)
+    page: PageInfo;
+    // (undocumented)
+    type?: TypeInfo;
+    // (undocumented)
+    view: TypeContent;
+}
+
 // @public (undocumented)
 export const PAGE_RESOURCE_MIME_TYPE = "text/html;profile=mcp-app";
 
@@ -712,6 +765,12 @@ export interface PagesListResult {
     nextCursor?: string;
     // (undocumented)
     pages: PageInfo[];
+}
+
+// @public (undocumented)
+export interface PagesOpenParams {
+    // (undocumented)
+    url: string;
 }
 
 // @public (undocumented)
@@ -923,6 +982,12 @@ export interface Schema<T> {
         };
     };
 }
+
+// @public
+export const schemaProblem: (input: {
+    schema: JsonSchema;
+    limits: Limits;
+}) => Problem | undefined;
 
 // @public (undocumented)
 export type Scope = "page" | "viewer";

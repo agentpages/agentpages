@@ -1,7 +1,7 @@
 {
   "name": "@agentpages/server",
   "version": "0.0.0",
-  "description": "Web-standard request handler and adapter ports",
+  "description": "The Store: its behavior, its ports and two adapters",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -25,6 +25,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@agentpages/protocol": "workspace:^"
+    "@agentpages/protocol": "workspace:^",
+    "ajv": "^8.20.0"
   }
 }

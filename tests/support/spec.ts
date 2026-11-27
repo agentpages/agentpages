@@ -58,7 +58,14 @@ const exchanges: Exchange[] = rows.filter(isTagged).map(exchangeOf);
 
 export const methodRows: Exchange[] = exchanges.filter((row) => row.name.startsWith("agentpages/"));
 
-export const toolRows: Exchange[] = exchanges.filter((row) => /^[a-z]+(?:_[a-z]+)+$/u.test(row.name));
+const isOperation = (row: Exchange): boolean => /^[a-z]+(?:_[a-z]+)+$/u.test(row.name);
+
+const isForHost = (row: Exchange): boolean => row.section.includes("Host operations");
+
+export const toolRows: Exchange[] = exchanges.filter((row) => isOperation(row) && !isForHost(row));
+
+/** Section 5.6: what a host asks of its Store. These are not tools. */
+export const hostRows: Exchange[] = exchanges.filter((row) => isOperation(row) && isForHost(row));
 
 const errorOf = ({ cells }: Row): ErrorRow => {
   const [name = "", code = "", retryable = "", meaning = ""] = cells;

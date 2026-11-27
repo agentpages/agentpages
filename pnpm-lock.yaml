@@ -8,9 +8,15 @@ importers:
 
   .:
     devDependencies:
+      '@agentpages/conformance':
+        specifier: workspace:*
+        version: link:packages/conformance
       '@agentpages/protocol':
         specifier: workspace:*
         version: link:packages/protocol
+      '@agentpages/server':
+        specifier: workspace:*
+        version: link:packages/server
       '@arethetypeswrong/cli':
         specifier: ^0.18.5
         version: 0.18.5
@@ -78,6 +84,19 @@ importers:
         specifier: workspace:^
         version: link:../protocol
 
+  packages/conformance:
+    dependencies:
+      '@agentpages/protocol':
+        specifier: workspace:^
+        version: link:../protocol
+    devDependencies:
+      fast-check:
+        specifier: ^4.11.0
+        version: 4.11.0
+      vitest:
+        specifier: ^5.1.2
+        version: 5.1.2(@types/node@22.20.7)(vite@8.4.0(@types/node@22.20.7)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+
   packages/host:
     dependencies:
       '@agentpages/protocol':
@@ -110,6 +129,9 @@ importers:
       '@agentpages/protocol':
         specifier: workspace:^
         version: link:../protocol
+      ajv:
+        specifier: ^8.20.0
+        version: 8.20.0
 
 packages:
 

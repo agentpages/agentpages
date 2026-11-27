@@ -1,5 +1,6 @@
 import {
   CapabilitySchema,
+  HOST_OPERATION_SCHEMAS,
   LogRecordSchema,
   METHOD_SCHEMAS,
   NOTIFICATION_SCHEMAS,
@@ -15,7 +16,7 @@ import {
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { isObject } from "./json.ts";
 import { shapeOfType, typeOfCell } from "./shapes.ts";
-import { capabilityExample, type Exchange, jsonExamples, methodRows, toolRows, typeOfExample } from "./spec.ts";
+import { capabilityExample, type Exchange, hostRows, jsonExamples, methodRows, toolRows, typeOfExample } from "./spec.ts";
 import type { Shape } from "./values.ts";
 
 /** One place where the spec declares a shape and the package exports its schema. */
@@ -95,6 +96,7 @@ export const SUBJECTS: Subject[] = [
   ...subjectsOf(methodRows, METHOD_SCHEMAS),
   ...notificationSubjects,
   ...subjectsOf([...toolRows, ...methodToolRows], TOOL_SCHEMAS),
+  ...subjectsOf(hostRows, HOST_OPERATION_SCHEMAS),
 ];
 
 export const subject = (name: string): Subject => {

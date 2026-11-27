@@ -21,7 +21,7 @@ import type { PageContent, PageInfo } from "./types.js";
 
 const AccessSchema: Raw<PageInfo["access"]> = v.picklist(["private", "link-read", "link-write"]);
 
-const PageInfoSchema: Raw<PageInfo> = v.object({
+export const PageInfoSchema: Raw<PageInfo> = v.object({
   pageId: UuidSchema,
   title: NameSchema,
   description: v.exactOptional(DescriptionSchema),

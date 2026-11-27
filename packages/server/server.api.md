@@ -4,9 +4,228 @@
 
 ```ts
 
-import { PROTOCOL_VERSION } from '@agentpages/protocol';
+import { Capability } from '@agentpages/protocol';
+import { Failure } from '@agentpages/protocol';
+import { Issue } from '@agentpages/protocol';
+import { JsonObject } from '@agentpages/protocol';
+import { JsonSchema } from '@agentpages/protocol';
+import { LogRecord } from '@agentpages/protocol';
+import { METHOD_NOT_FOUND } from '@agentpages/protocol';
+import { PageInfo } from '@agentpages/protocol';
+import { Problem } from '@agentpages/protocol';
 
-export { PROTOCOL_VERSION }
+// @public
+export type Agent = Extract<Principal, {
+    kind: "agent";
+}>;
+
+// @public
+export const ajvSchemaCompiler: SchemaCompiler;
+
+// @public
+export type Answer = Settled | {
+    kind: "unknown-method";
+    code: typeof METHOD_NOT_FOUND;
+};
+
+// @public (undocumented)
+export interface Clock {
+    now(): number;
+}
+
+// @public (undocumented)
+export interface CompiledSchema {
+    check(data: unknown): Issue[];
+}
+
+// @public
+export const createMemoryStorage: () => Storage_2;
+
+// @public
+export const createStore: (ports: Ports, config: StoreConfig) => Store;
+
+// @public (undocumented)
+export interface HostCall {
+    // (undocumented)
+    input: unknown;
+    // (undocumented)
+    operation: string;
+    // (undocumented)
+    principal: Visitor;
+}
+
+// @public (undocumented)
+export interface Ids {
+    id(): string;
+    secret(): string;
+}
+
+// @public
+export type Key = string;
+
+// @public (undocumented)
+export interface Logger {
+    // (undocumented)
+    log(record: LogRecord): void;
+}
+
+// @public
+export const NEED: {
+    readonly read: "read";
+    readonly write: "write";
+    readonly owner: "owner";
+};
+
+// @public (undocumented)
+export type Need = keyof typeof NEED;
+
+// @public (undocumented)
+export interface Permit {
+    // (undocumented)
+    need: Need;
+    // (undocumented)
+    page: {
+        owner: unknown;
+        access: PageInfo["access"];
+        url: string;
+    };
+    // (undocumented)
+    principal: Principal;
+}
+
+// @public
+export const permits: (permit: Permit) => boolean;
+
+// @public
+export interface Ports {
+    // (undocumented)
+    clock: Clock;
+    // (undocumented)
+    compiler: SchemaCompiler;
+    // (undocumented)
+    ids: Ids;
+    // (undocumented)
+    limiter: RateLimiter;
+    // (undocumented)
+    logger: Logger;
+    // (undocumented)
+    storage: Storage_2;
+}
+
+// @public
+export type Principal = {
+    kind: "agent";
+    subject: string;
+} | {
+    kind: "viewer";
+    subject: string;
+    name?: string;
+    url?: string;
+} | {
+    kind: "anonymous";
+    url?: string;
+};
+
+// @public (undocumented)
+interface Range_2 {
+    after?: Key;
+    // (undocumented)
+    limit: number;
+    // (undocumented)
+    prefix: Key;
+    // (undocumented)
+    reverse?: true;
+}
+export { Range_2 as Range }
+
+// @public (undocumented)
+export interface RateLimiter {
+    check(request: RateRequest): {
+        retryAfterMs: number;
+    } | undefined;
+}
+
+// @public (undocumented)
+export interface RateRequest {
+    // (undocumented)
+    method: string;
+    pageId: string | undefined;
+    // (undocumented)
+    principal: Principal;
+}
+
+// @public (undocumented)
+export interface Reader {
+    // (undocumented)
+    get(key: Key): Promise<Value | undefined>;
+    // (undocumented)
+    getMany(keys: readonly Key[]): Promise<(Value | undefined)[]>;
+    // (undocumented)
+    scan(range: Range_2): Promise<[Key, Value][]>;
+}
+
+// @public (undocumented)
+export interface SchemaCompiler {
+    compile(schema: JsonSchema): CompiledSchema | Problem;
+}
+
+// @public
+export type Settled = {
+    kind: "result";
+    result: unknown;
+} | {
+    kind: "failure";
+    failure: Failure;
+};
+
+// @public (undocumented)
+interface Storage_2 extends Reader {
+    transact<T>(locks: readonly Key[], run: (tx: Tx) => Promise<T>): Promise<T>;
+}
+export { Storage_2 as Storage }
+
+// @public (undocumented)
+export interface Store {
+    call(request: ToolCall): Promise<Answer>;
+    readonly capability: Capability;
+    host(request: HostCall): Promise<Answer>;
+    readonly tools: readonly string[];
+}
+
+// @public (undocumented)
+export interface StoreConfig {
+    baseUrl: string;
+    capability: Omit<Capability, "version">;
+}
+
+// @public (undocumented)
+export interface ToolCall {
+    // (undocumented)
+    input: unknown;
+    // (undocumented)
+    principal: Agent;
+    // (undocumented)
+    tool: string;
+}
+
+// @public
+export interface Tx extends Reader {
+    // (undocumented)
+    delete(key: Key): void;
+    // (undocumented)
+    deleteRange(prefix: Key): void;
+    // (undocumented)
+    put(key: Key, value: Value): void;
+}
+
+// @public
+export const unlimited: RateLimiter;
+
+// @public (undocumented)
+export type Value = JsonObject | Uint8Array;
+
+// @public
+export type Visitor = Exclude<Principal, Agent>;
 
 // (No @packageDocumentation comment for this package)
 

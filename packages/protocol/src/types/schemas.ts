@@ -35,11 +35,11 @@ const describedEntries = {
   }),
 };
 
-const TypeInfoRaw: Raw<TypeInfo> = v.object({ ...describedEntries, version: CountSchema, updatedAt: TimestampSchema });
+export const TypeInfoRaw: Raw<TypeInfo> = v.object({ ...describedEntries, version: CountSchema, updatedAt: TimestampSchema });
 
 export const TypeInfoSchema: Schema<TypeInfo> = sealed(TypeInfoRaw);
 
-const TypeContentSchema: Raw<TypeContent> = v.object(htmlEntries);
+export const TypeContentSchema: Raw<TypeContent> = v.object(htmlEntries);
 
 export const TYPES_TOOL_PARAMS: { readonly [T in keyof TypesTools]: Raw<TypesTools[T]["params"]> } = {
   types_publish: v.object({

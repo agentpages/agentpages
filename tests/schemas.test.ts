@@ -3,7 +3,7 @@ import * as fc from "fast-check";
 import { expect, test } from "vitest";
 import { isObject } from "./support/json.ts";
 import { shapeOfType } from "./support/shapes.ts";
-import { methodRows, numberIn, toolRows } from "./support/spec.ts";
+import { hostRows, methodRows, numberIn, toolRows } from "./support/spec.ts";
 import {
   inputSchemaVerdict,
   methodToolRows,
@@ -22,8 +22,8 @@ const exact = TOOL_NAMES.filter((tool) => !HAS_ID_KEYED_MAPS.has(tool));
 
 const standalone = ["TreeNode", "TypeInfo", "LogRecord", "Capability", "agentpages/state/committed params"];
 
-test("every method, notification and tool of the spec has a schema", () => {
-  const exchanges = [...methodRows, ...toolRows, ...methodToolRows].flatMap((row) => [
+test("every method, notification, tool and host operation of the spec has a schema", () => {
+  const exchanges = [...methodRows, ...toolRows, ...methodToolRows, ...hostRows].flatMap((row) => [
     `${row.name} params`,
     `${row.name} result`,
   ]);

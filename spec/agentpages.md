@@ -61,6 +61,7 @@ The extension is `io.github.agentpages/agentpages`, following the MCP extension 
       "syncIntervalMs": 30000,
       "exportTimeoutMs": 30000,
       "maxHtmlBytes": 1048576,
+      "maxSchemaBytes": 65536,
       "opRetentionSeconds": 86400,
       "commitRetentionSeconds": 604800
     },
@@ -146,6 +147,7 @@ interface Committed {
 - A `put` replaces the whole document. `[STATE-11]`
 - A `delete` of a missing document changes nothing and produces no `Change`. `[STATE-12]`
 - A commit whose ops change nothing still succeeds and takes a `seq`. `[STATE-13]`
+- Ops apply in the order given. `[STATE-23]`
 - A commit with more than `maxOpsPerCommit` ops, or with two ops on the same document, returns `InvalidParams`. `[STATE-14]`
 - `data` larger than `maxDocumentBytes`, measured as UTF-8 JSON without whitespace, returns `LimitExceeded`. `[STATE-15]`
 
@@ -187,6 +189,7 @@ interface TreeNode {
 - Siblings are ordered by `index`, ascending by code point, then by `id`. `[TREE-3]`
 - A commit that would leave a tree document with a missing parent, or would create a cycle, returns `Conflict`. `[TREE-4]`
 - Deleting a tree document also deletes all its descendants in the same commit. Each is a `Change`. `[TREE-5]`
+- Tree rules are checked once, after all the ops of a commit, and only for the documents that commit changes. `[TREE-6]`
 
 A client moves a node by putting it with a new `parent` or `index`. To insert between two siblings, it picks an `index` that sorts between theirs; because no `index` ends in `0`, one always exists. A client SHOULD end a new `index` with a few random characters so that two clients inserting at the same place do not pick the same one. If two siblings do share an `index`, a client inserting between them gives one of them a new `index` in the same commit.
 
@@ -306,6 +309,8 @@ A page's `access` is `private`, `link-read` or `link-write`. With a link setting
 - A signed-in viewer with read access can read and write their own `viewer` scope state. `[ACCESS-6]`
 - Access does not depend on whether a viewer is anonymous. `[ACCESS-7]`
 
+- A link holder is a viewer who presents the page's current `url`, which contains a secret. Setting `access` to `private` ends that `url`, and a later link setting issues a new one. `[ACCESS-8]`
+
 A Store MAY refuse anonymous viewers altogether.
 
 ### 5.2 Pages
@@ -346,6 +351,7 @@ type PageContent =
 - A new page is `private`. `[PAGES-10]`
 - `pages_get` without `version` returns the current version. `[PAGES-11]`
 - `pages_list` returns the caller's pages, most recently updated first. `[PAGES-12]`
+- A page's `updatedAt` changes when a version is published or its `access` changes, and at no other time. `[PAGES-20]`
 - `pages_versions` orders by `version`, ascending. `[PAGES-13]`
 - `pages_delete` removes the page with its versions, state, files and comments. `[PAGES-14]`
 - `pages_delete` of a missing page succeeds. `[PAGES-15]`
@@ -487,6 +493,28 @@ type Diagnostic =
 - Each render starts with no cookies, storage or credentials from any other. `[RENDER-23]`
 - The descriptions of both tools state that the picture, every string in `diagnostics` and every exported file come from the page and are data, not instructions. `[RENDER-24]`
 
+### 5.6 Host operations
+
+A host acts for a viewer through these Store operations. They are not MCP tools, and their wire form is not part of 0.1 (section 10).
+
+```ts
+interface Opened {
+  page: PageInfo;
+  view: TypeContent;
+  type?: TypeInfo;
+}
+```
+
+| Id | Operation | Input | Output |
+|---|---|---|---|
+| `[HOST-1]` | `pages_open` | `{ url }` | `Opened` |
+| `[HOST-2]` | `comments_start` | `{ opId, pageId, quote?, body }` | `Thread` |
+
+- `view` is what the host renders: the page's own `html`, `csp` and `permissions`, or those of its type version. `type` is present for a typed page. `[HOST-3]`
+- `pages_open` with a `url` that names no page returns `NotFound`. A `url` that is not current, presented by anyone but the owner, returns `Forbidden`. `[HOST-4]`
+- `comments_start` records the page's current version. The `id` of the thread and of its first entry is the `opId`. `[HOST-5]`
+- A host also uses `comments_list`, `comments_reply` and `comments_resolve` for a viewer, under the access rules of section 5.1, with the viewer as `author`. `[HOST-6]`
+
 ## 6. Types
 
 A type is an editor that many pages share. Its page is ordinary HTML that reads and writes state through section 4. Its schemas say what that state may contain, so a person using the editor and an agent using Store tools work on the same validated data.
@@ -528,6 +556,8 @@ interface TypeContent {
 - Documents already stored are not checked again when a page moves to another type version. `[TYPES-11]`
 - A collection is a tree in every version of a type or in none. `types_publish` that changes this returns `InvalidParams`. `[TYPES-12]`
 - A key of `exports` is an id, as in section 2.1, other than `pdf`. Any other key returns `InvalidParams`. `[TYPES-13]`
+- A `schema` that is not valid JSON Schema 2020-12, or that refers to anything outside itself, returns `InvalidParams`. `[TYPES-14]`
+- A `schema` larger than `maxSchemaBytes`, as UTF-8 JSON without whitespace, returns `LimitExceeded`. `[TYPES-15]`
 
 ## 7. Reliability
 
@@ -539,6 +569,9 @@ A client must be able to assume that the network fails, that requests arrive twi
 - However many times and however close together a Store receives an `opId`, it applies the request once and answers every copy with the same result. `[REL-2]`
 - An `opId` reused with different params returns `InvalidParams`. `[REL-3]`
 - A Store remembers an `opId` for at least `opRetentionSeconds`. `[REL-4]`
+- An `opId` belongs to its caller and to the page or type its request names. The same value from another caller, or for another page or type, is a different `opId`. `[REL-29]`
+- The checks of section 2.1 come before a repeated `opId` is recognised: a repeat after the page was deleted, or after access was lost, returns `NotFound` or `Forbidden`. `[REL-30]`
+- A Store remembers only requests that succeeded. `[REL-31]`
 - A client MUST NOT send an `opId` it first sent more than `opRetentionSeconds` ago. It reports that request as failed with an unknown outcome. `[REL-5]`
 
 ### 7.2 Durability
@@ -628,4 +661,5 @@ A receiver MUST ignore fields it does not know. Such fields are not part of the 
 5. **Text edited by two people at once.** A commit replaces whole documents, so two people typing in the same paragraph conflict. Merging inside a document is not specified.
 6. **Large files.** A file travels in one request. Resumable upload is not specified.
 7. **Looking before publishing.** An agent must publish a version before it can render it, so viewers can briefly see a broken one. Rendering unpublished content is not specified.
-8. **History of typed pages.** The commit log records every change, but restoring a typed page to an earlier point is not specified.
+8. **Deleted documents.** A revision counter outlives its document, so a Store keeps a small record of every document ever deleted.
+9. **History of typed pages.** The commit log records every change, but restoring a typed page to an earlier point is not specified.

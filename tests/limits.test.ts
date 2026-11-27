@@ -6,6 +6,7 @@ import {
   htmlProblem,
   type Limits,
   type Op,
+  schemaProblem,
   viewportProblem,
 } from "@agentpages/protocol";
 import * as fc from "fast-check";
@@ -16,6 +17,7 @@ const LIMITS: Limits = {
   syncIntervalMs: 1,
   exportTimeoutMs: 1,
   maxHtmlBytes: 1,
+  maxSchemaBytes: 1,
   opRetentionSeconds: 1,
   commitRetentionSeconds: 1,
 };
@@ -128,6 +130,23 @@ test("html larger than the Store's limit, in UTF-8 bytes, exceeds it", () => {
 
   expect(problem).toStrictEqual({ error: "LimitExceeded", message: about("4 bytes") });
   expect(problem?.message).toContain("maxHtmlBytes 3");
+});
+
+test("a schema larger than the Store's limit, as UTF-8 JSON without whitespace, exceeds it", () => {
+  fc.assert(
+    fc.property(texts, fc.nat(40), (title, maxSchemaBytes) => {
+      const schema = { title, type: "object" };
+      const problem = schemaProblem({ schema, limits: { ...LIMITS, maxSchemaBytes } });
+
+      expect(problem === undefined).toBe(Buffer.byteLength(JSON.stringify(schema)) <= maxSchemaBytes);
+    }),
+  );
+
+  const problem = schemaProblem({ schema: { title: "é" }, limits: { ...LIMITS, maxSchemaBytes: 13 } });
+
+  expect(problem).toStrictEqual({ error: "LimitExceeded", message: about("14 bytes") });
+  expect(problem?.message).toContain("maxSchemaBytes 13");
+  expect(schemaProblem({ schema: { title: "é" }, limits: { ...LIMITS, maxSchemaBytes: 14 } })).toBeUndefined();
 });
 
 test("a viewport wider or taller than the Store's limit exceeds it", () => {

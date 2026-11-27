@@ -13,6 +13,7 @@ export const CapabilitySchema: Schema<Capability> = sealed(
       syncIntervalMs: CountSchema,
       exportTimeoutMs: CountSchema,
       maxHtmlBytes: CountSchema,
+      maxSchemaBytes: CountSchema,
       opRetentionSeconds: CountSchema,
       commitRetentionSeconds: CountSchema,
     }),

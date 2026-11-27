@@ -1,6 +1,6 @@
 import { defineConfig, type OxlintOverride } from "oxlint";
 
-const packages = ["protocol", "client", "host", "react", "server", "mcp"];
+const packages = ["protocol", "client", "host", "react", "server", "mcp", "conformance"];
 const uiFrameworks = ["react", "react-dom", "vue", "svelte"];
 
 const relativeIntoAnotherPackage = {
@@ -59,6 +59,7 @@ export default defineConfig({
     boundary("server", [onlyThesePackages(["protocol"]), noUiFramework]),
     boundary("react", [onlyThesePackages(["protocol", "host"])]),
     boundary("mcp", [onlyThesePackages(["protocol", "server"])]),
+    boundary("conformance", [onlyThesePackages(["protocol"]), noUiFramework]),
     testsUsePublicApi,
   ],
 });

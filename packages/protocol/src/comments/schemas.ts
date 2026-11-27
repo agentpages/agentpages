@@ -17,7 +17,7 @@ import type { Thread } from "./types.js";
 
 const StatusSchema: Raw<Thread["status"]> = v.picklist(["open", "resolved"]);
 
-const ThreadSchema: Raw<Thread> = v.object({
+export const ThreadSchema: Raw<Thread> = v.object({
   id: IdSchema,
   pageId: UuidSchema,
   version: CountSchema,
