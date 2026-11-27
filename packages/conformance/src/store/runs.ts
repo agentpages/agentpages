@@ -1,4 +1,4 @@
-import type { Op, Scope } from "@agentpages/protocol";
+import type { JsonObject, Op, Scope } from "@agentpages/protocol";
 import { pick, rng } from "./kit.js";
 
 /** Pinned, so that the runs are the same every time. */
@@ -7,7 +7,9 @@ export const RUNS = 20;
 export const STEPS = 40;
 const POOL = 20;
 
-export const COLLECTIONS: string[] = ["tasks", "notes"];
+/** The collection that is a tree in the page scope. */
+export const TREE = "tasks";
+export const COLLECTIONS: string[] = [TREE, "notes"];
 export const IDS: string[] = ["a", "b", "c", "d"];
 
 export type Caller = "agent" | "bob" | "carol";
@@ -49,31 +51,57 @@ const LIMITS = [1, 2, 2, 100];
 const SINCES = [0, 1, 2, 3, 5, 99];
 const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 const OP_IDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-const OP_COUNTS = [1, 2];
+const OP_COUNTS = [1, 2, 2, 3];
 
 /** No condition, that the document does not exist, or a revision that is sometimes its counter and sometimes not. */
 const CONDITIONS: { ifRevision?: number }[] = [{}, {}, {}, {}, {}, { ifRevision: 0 }, { ifRevision: 0 }, { ifRevision: 1 }, { ifRevision: 2 }];
+
+
+/** The last index is none. */
+const INDEXES = ["1", "1", "1", "a", "a", "a", "b5", "0"];
 
 const OP_KINDS: Op["op"][] = ["put", "put", "put", "delete"];
 const STEP_KINDS: Step["kind"][] = ["commit", "commit", "commit", "commit", "commit", "get", "list", "list", "commits"];
 
 export const keyOf = ({ collection, id }: { collection: string; id: string }): string => `${collection}/${id}`;
 
+/** A root, or under another document, which is sometimes there and sometimes not. */
+const parentBy = (next: Next, id: string): string | null => pick(next, [null, null, ...IDS.filter((other) => other !== id)]);
+
+/** The data of a document: its place in the tree, or a number. */
+const dataBy = (next: Next, { collection, id }: { collection: string; id: string }): JsonObject =>
+  collection === TREE ? { parent: parentBy(next, id), index: pick(next, INDEXES) } : { n: pick(next, DIGITS) };
+
 const opBy = (next: Next): Op => {
-  const named = { collection: pick(next, COLLECTIONS), id: pick(next, IDS) };
-  const [data, op] = [{ n: pick(next, DIGITS) }, pick(next, OP_KINDS)];
+  const named = { collection: pick(next, [TREE, ...COLLECTIONS]), id: pick(next, IDS) };
+  const [data, op] = [dataBy(next, named), pick(next, OP_KINDS)];
   const change: Op = op === "put" ? { op, ...named, data } : { op, ...named };
   return { ...change, ...pick(next, CONDITIONS) };
 };
 
-/** One op or two, on different documents. */
+/** Up to three ops, on different documents. */
 const opsBy = (next: Next): Op[] => {
-  const [first, second] = [opBy(next), opBy(next)];
-  const different = keyOf(first) === keyOf(second) ? [first] : [first, second];
+  const drawn = [opBy(next), opBy(next), opBy(next)];
+  const different = drawn.filter((op, index) => drawn.findIndex((first) => keyOf(first) === keyOf(op)) === index);
   return different.slice(0, pick(next, OP_COUNTS));
 };
 
-const requestBy = (next: Next): Request => ({ seat: pick(next, SEATS), opId: pick(next, OP_IDS), ops: opsBy(next) });
+/**
+ * A delete of a document of the tree, alone or with a put of another, which is sometimes under what the delete takes
+ * along, and a put of a note, which sometimes has the id of a document the delete takes along.
+ */
+const fellingBy = (next: Next): Op[] => {
+  const felled = pick(next, IDS);
+  const id = pick(next, IDS.filter((other) => other !== felled));
+  const fell: Op = { op: "delete", collection: TREE, id: felled };
+  const graft: Op = { op: "put", collection: TREE, id, data: { parent: parentBy(next, id), index: "1" } };
+  const note: Op = { op: "put", collection: "notes", id: pick(next, IDS), data: {} };
+  return pick(next, [[fell], [fell, graft, note], [note, graft, fell]]);
+};
+
+const OPS = [opsBy, opsBy, opsBy, fellingBy];
+
+const requestBy = (next: Next): Request => ({ seat: pick(next, SEATS), opId: pick(next, OP_IDS), ops: pick(next, OPS)(next) });
 
 const stepBy = (next: Next, requests: Request[]): Step => {
   const kind = pick(next, STEP_KINDS);
@@ -84,11 +112,23 @@ const stepBy = (next: Next, requests: Request[]): Step => {
   return { kind, seat, since: pick(next, SINCES), limit: pick(next, LIMITS) };
 };
 
-/** The steps of run `n`: commits out of a pool of a few requests, so that some are sent twice, and reads between them. */
+/** An `opId` no request of the pool has. */
+const PLANTING = 12;
+
+/** A commit of the owner that puts every document of the tree: each a root, or under one that an earlier op put. */
+const planted = (next: Next): Step => {
+  const ops = IDS.map((id, index): Op => ({ op: "put", collection: TREE, id, data: { parent: pick(next, [null, ...IDS.slice(0, index)]), index: pick(next, INDEXES.slice(0, -1)) } }));
+  return { kind: "commit", request: { seat: OWNER, opId: PLANTING, ops } };
+};
+
+/**
+ * The steps of run `n`: first a tree, then commits out of a pool of a few requests, so that some are sent twice, and
+ * reads between them.
+ */
 const stepsOf = (n: number): Step[] => {
   const next = rng(SEED + n);
   const requests = Array.from({ length: POOL }, () => requestBy(next));
-  return Array.from({ length: STEPS }, () => stepBy(next, requests));
+  return [planted(next), ...Array.from({ length: STEPS - 1 }, () => stepBy(next, requests))];
 };
 
 /** Every run with the number of its page: the same runs every time. */

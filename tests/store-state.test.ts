@@ -2,7 +2,7 @@ import { type Answer, LogRecordSchema, type StateListResult, TOOL_SCHEMAS, valid
 import { ajvSchemaCompiler, type Ports } from "@agentpages/server";
 import type { Storage } from "@agentpages/storage";
 import { expect, test } from "vitest";
-import { ask, BASE_URL, call, callEach, COMMIT, committed, committing, declaring, errorOf, failureOf, op, PAGE, publishing, put, readingAs, resultOf, saved, sharedPage, uuid, viewerId, world, type World } from "./support/store.ts";
+import { ask, BASE_URL, call, callEach, COMMIT, committed, committing, declaring, errorOf, failureOf, op, PAGE, publishing, put, transactingAs, resultOf, saved, sharedPage, uuid, viewerId, world, type World } from "./support/store.ts";
 
 const IDENTITY = "agentpages/identity/get";
 
@@ -110,7 +110,7 @@ test("[PAGES-6] pages_delete removes the state of the page: every scope, every l
 
 /** `storage`, whose transactions find another result in what it remembers of the request with this `opId`. */
 const spoiling = (storage: Storage, opId: string): Storage =>
-  readingAs(storage, (tx) => ({
+  transactingAs(storage, (tx) => ({
     get: async (key) => (key.includes(opId) ? Object.assign({}, await tx.get(key), { result: { commit: "lost" } }) : tx.get(key)),
   }));
 

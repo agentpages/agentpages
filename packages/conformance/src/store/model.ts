@@ -1,16 +1,17 @@
 import type { Actor, Change, Commit, Document, Op } from "@agentpages/protocol";
 import type { Driver } from "../contract.js";
-import { actingAs, agent, type Cases, type Check, inTurn, LINK_WRITE, met, page, pageId, PUBLISH, SET_ACCESS, sharing, tick, timeOf, viewer } from "./kit.js";
-import { BOBS_OWN, type Caller, CAROLS_OWN, COLLECTIONS, everyRun, IDS, keyOf, type LogName, OWNER, type Request, RUNS, type Seat, type Step, STEPS } from "./runs.js";
+import { brokenAt, descendants, malformedAt, type Parents, parentsOf, type Ruled, sweptBy } from "./grove.js";
+import { actingAs, agent, type Cases, type Check, having, inTurn, LINK_WRITE, met, page, pageId, PUBLISH, SET_ACCESS, sharing, tick, timeOf, type, TYPE_PUBLISH, typed, viewer } from "./kit.js";
+import { BOBS_OWN, type Caller, CAROLS_OWN, COLLECTIONS, everyRun, IDS, keyOf, type LogName, OWNER, type Request, RUNS, type Seat, type Step, STEPS, TREE } from "./runs.js";
 import { AGENT, COMMIT, COMMITS, ownCommit, STATE_GET, STATE_LIST, type Surface, toolsOf, viewOf } from "./surface.js";
 
 /**
  * The checksum of the runs the generator makes: a change of the generator makes other runs, which need a look at what
  * they still reach.
  */
-const GENERATED = 877_561_241;
+const GENERATED = 482_745_456;
 const MODULUS = 1_000_000_007;
-const FINAL_CHECKS = 3;
+const FINAL_CHECKS = 4;
 const MS_PER_STEP = 1000;
 
 /** One scope as the model keeps it: what `list` returns, every counter, and the log. */
@@ -28,7 +29,7 @@ interface Model {
   remembered: Map<string, { sent: string; answer: unknown }>;
 }
 
-const revisionOf = (log: Log, asked: Op): number => log.revisions.get(keyOf(asked)) ?? 0;
+const revisionOf = (log: Log, asked: { collection: string; id: string }): number => log.revisions.get(keyOf(asked)) ?? 0;
 
 const isStale =
   (log: Log) =>
@@ -65,12 +66,50 @@ interface Sent extends Stamp {
   opId: string;
 }
 
-/** A new commit of the model: a conflict where a condition does not hold, or else the next commit of its log. */
-const decided = (model: Model, { sent, opId, ...stamp }: Sent): unknown => {
-  const log = model.logs[sent.seat.log];
-  const opIndex = sent.ops.findIndex(isStale(log));
-  if (opIndex !== -1) return ["Conflict", opIndex];
-  const made = { seq: log.commits.length + 1, opId, ...stamp, changes: sent.ops.flatMap(changeOf(log, stamp)) };
+/** The error of an op and its position, when it has one. */
+const blamed = (error: string, opIndex: number): unknown[] => (opIndex === -1 ? [] : [[error, opIndex]]);
+
+/** The tree of a log: the parent of each of its documents. */
+const treeOf = (log: Log): Parents => parentsOf(documentsIn(log, TREE));
+
+/** The tree rules hold of the documents of the tree in the page scope, and of nothing in a viewer's own. */
+const ruledIn =
+  ({ seat }: Request): Ruled =>
+  (asked) =>
+    seat.log === "page" && asked.collection === TREE;
+
+/** Why a commit is refused: a put of what is no tree node, then a condition that does not hold, then a broken tree. */
+const refusalOf = (log: Log, sent: Request): unknown => {
+  const asked = { ops: sent.ops, ruled: ruledIn(sent) };
+  const [refusal] = [
+    ...blamed("InvalidParams", malformedAt(sent.ops, asked.ruled)),
+    ...blamed("Conflict", sent.ops.findIndex(isStale(log))),
+    ...blamed("Conflict", brokenAt(treeOf(log), asked)),
+  ];
+  return refusal;
+};
+
+/** The change that deletes a document of the tree. */
+const deleted =
+  (log: Log) =>
+  (id: string): Change => {
+    const named = { collection: TREE, id };
+    return { ...named, revision: revisionOf(log, named) + 1, document: null };
+  };
+
+/** The changes of a commit: those of each op in turn, each delete followed by the descendants it deletes. */
+const changesOf = (log: Log, { sent, ...stamp }: Omit<Sent, "opId">): Change[] => {
+  const swept = sweptBy(treeOf(log), { ops: sent.ops, ruled: ruledIn(sent) });
+  const own = changeOf(log, stamp);
+  return sent.ops.flatMap((asked, index) => own(asked).concat(swept.slice(index, index + 1).flat().map(deleted(log))));
+};
+
+/** A new commit of the model: its refusal, or else the next commit of its log. */
+const decided = (model: Model, { opId, ...asked }: Sent): unknown => {
+  const log = model.logs[asked.sent.seat.log];
+  const refusal = refusalOf(log, asked.sent);
+  if (refusal !== undefined) return refusal;
+  const made = { seq: log.commits.length + 1, opId, at: asked.at, by: asked.by, changes: changesOf(log, asked) };
   record(log, made);
   return { commit: made };
 };
@@ -174,6 +213,26 @@ const settled = async ({ callers, model }: Stage, { caller, scope, log }: Seat):
   };
 };
 
+/** An `opId` no run uses. */
+const CLEARING = 99;
+
+/**
+ * What deleting every root of the tree changes: every document of the tree, each root followed by its descendants.
+ * So every parent is there, no document is its own ancestor, and the Store knows the children of each.
+ */
+const cleared = async ({ callers }: Stage): Promise<Check> => {
+  const { surface } = callers.agent;
+  const { documents } = await surface.ok(STATE_LIST, { scope: "page", collection: TREE });
+  const parents = parentsOf(documents);
+  const roots = documents.map((document) => document.id).filter((id) => parents.get(id) === null);
+  const ops = roots.map((id) => ({ op: "delete", collection: TREE, id }));
+  const made = await surface.ok(COMMIT, { scope: "page", opId: pageId(CLEARING), ops });
+  return {
+    got: [made.commit.changes.map((change) => change.id), await surface.ok(STATE_LIST, { scope: "page", collection: TREE })],
+    want: [roots.flatMap((id) => [id].concat(descendants(parents, { id, touched: new Set() }))), { documents: [], seq: made.commit.seq }],
+  };
+};
+
 const logOf = (first: Commit): Log => {
   const log = emptyLog();
   record(log, first);
@@ -181,12 +240,14 @@ const logOf = (first: Commit): Log => {
 };
 
 /**
- * Page `n` of agent 1, which viewers 2 and 3 hold a link to that lets them write. Each viewer has made one commit in
- * their own scope, which says who the Store takes them for, and the model starts from those two commits.
+ * Page `n` of agent 1, of a type whose tasks are a tree, which viewers 2 and 3 hold a link to that lets them write.
+ * Each viewer has made one commit in their own scope, which says who the Store takes them for, and the model starts
+ * from those two commits.
  */
 const staged = async (driver: Driver, n: number): Promise<Stage> => {
   const alice = actingAs(driver, agent(1));
-  await alice.ok(PUBLISH, page(n, 0));
+  await alice.ok(TYPE_PUBLISH, having(type(n, 0), ["collections", { [TREE]: { schema: {}, tree: true }, notes: { schema: {} } }]));
+  await alice.ok(PUBLISH, having(page(n, 0), ["content", typed(n, 1)]));
   const { url } = await alice.ok(SET_ACCESS, sharing(n, LINK_WRITE));
   const [bob, carol] = [viewer(2, url), viewer(3, url)];
   const [bobs, carols] = [await ownCommit(driver, bob), await ownCommit(driver, carol)];
@@ -202,20 +263,21 @@ const staged = async (driver: Driver, n: number): Promise<Stage> => {
   };
 };
 
-/** One run on a page of its own: its steps in turn, then what each of the three logs came to. */
+/** One run on a page of its own: its steps in turn, then what each of the three logs came to, and the tree. */
 const run =
   (driver: Driver, checks: Check[]) =>
   async ([n, sequence]: [number, Step[]]): Promise<void> => {
     const stage = await staged(driver, n);
     await inTurn(sequence, async (step) => checks.push(await played(stage, step)));
     await inTurn([OWNER, BOBS_OWN, CAROLS_OWN], async (reached) => checks.push(await settled(stage, reached)));
+    checks.push(await cleared(stage));
   };
 
 /** A number that changes with any change of the text. */
 const checksum = (text: string): number => new TextEncoder().encode(text).reduce((sum, byte) => (sum * 31 + byte) % MODULUS, 7);
 
 export const MODEL_CASES: Cases = {
-  "[STATE-10] random commits and reads in the page scope and the scopes of two viewers agree with a model of three logs": async (driver) => {
+  "[STATE-10] random commits and reads in the page scope, which has a tree, and the scopes of two viewers agree with a model of three logs": async (driver) => {
     const checks: Check[] = [];
     const runs = everyRun();
     await inTurn(runs, run(driver, checks));

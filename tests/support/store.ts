@@ -10,7 +10,7 @@ import {
   unlimited,
   type Visitor,
 } from "@agentpages/server";
-import type { Reader, Storage, Tx } from "@agentpages/storage";
+import type { Storage, Tx } from "@agentpages/storage";
 import { createHmac } from "node:crypto";
 
 export const BASE_URL = "https://pages.test/p/";
@@ -210,10 +210,10 @@ export const resultOf = <T>(schema: Schema<T>, answer: Answer): T => {
 /** Every key and value the Store has saved. */
 export const saved = (storage: Storage): Promise<unknown> => storage.scan({ prefix: "", limit: Number.MAX_SAFE_INTEGER });
 
-/** `storage`, whose transactions read as `reads` says. */
-export const readingAs = (storage: Storage, reads: (tx: Tx) => Partial<Reader>): Storage => ({
+/** `storage`, whose transactions read and write as `changed` says. */
+export const transactingAs = (storage: Storage, changed: (tx: Tx) => Partial<Tx>): Storage => ({
   ...storage,
-  transact: (locks, run) => storage.transact(locks, (tx) => run({ ...tx, ...reads(tx) })),
+  transact: (locks, run) => storage.transact(locks, (tx) => run({ ...tx, ...changed(tx) })),
 });
 
 /** The request that publishes the first version of `PAGE`. */
@@ -254,11 +254,23 @@ export const committed = (opNumber: number, ops: unknown[]): [string, unknown] =
 
 export const COMMIT = "agentpages/state/commit";
 
-/** The requests that make `PAGE` a page of the type `deck`, whose first version declares tasks of any shape. */
-export const TYPED_PAGE: [string, unknown][] = [
-  ["types_publish", { ...declaring("deck", 8), collections: { tasks: { schema: {} } } }],
+/** The requests that make `PAGE` a page of the type `deck`, whose first version declares these collections. */
+const pageOfType = (collections: object): [string, unknown][] => [
+  ["types_publish", { ...declaring("deck", 8), collections }],
   ["pages_publish", { ...publishing({ page: 1, baseVersion: 0, op: 1 }), content: { kind: "type", typeId: "deck", typeVersion: 1 } }],
 ];
+
+/** `PAGE` as a page of a type that declares tasks of any shape. */
+export const TYPED_PAGE: [string, unknown][] = pageOfType({ tasks: { schema: {} } });
+
+/** `PAGE` as a page of a type whose tasks are a tree and whose labels are not. */
+export const TREE_PAGE: [string, unknown][] = pageOfType({ tasks: { schema: {}, tree: true }, labels: { schema: {} } });
+
+/** A put of a task under a parent, or as a root. */
+export const node = (id: string, parent: string | null): Record<string, unknown> => put(id, { parent, index: "a" });
+
+/** A delete of a task. */
+export const remove = (id: string): Record<string, unknown> => ({ op: "delete", collection: "tasks", id });
 
 /** Tool calls of alice, one after the other. */
 export const callEach = (target: World, requests: [string, unknown][]): Promise<unknown> =>

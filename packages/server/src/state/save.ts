@@ -1,5 +1,7 @@
 import type { Change, Commit } from "@agentpages/protocol";
 import type { Key, Tx } from "@agentpages/storage";
+import type { Planned } from "../trees/check.js";
+import { saveRows } from "../trees/rows.js";
 import { documentKey, headKey, logKey, revisionKey } from "./keys.js";
 
 const saveChange =
@@ -10,9 +12,11 @@ const saveChange =
     else tx.put(documentKey(scope, change), { ...change.document });
   };
 
-/** Writes a commit: every counter and document it changes, its place in the log, and the new head. */
-export const saveCommit = (tx: Tx, { scope, commit }: { scope: Key; commit: Commit }): void => {
+/** Writes a commit: every counter and document it changes, where its tree documents are, its place in the log, and the new head. */
+export const saveCommit = (tx: Tx, { whole, commit }: { whole: Planned; commit: Commit }): void => {
+  const { scope } = whole.grove;
   commit.changes.forEach(saveChange(tx, scope));
+  saveRows(tx, whole);
   tx.put(logKey(scope, commit.seq), { ...commit });
   tx.put(headKey(scope), { seq: commit.seq });
 };

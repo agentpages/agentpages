@@ -30,7 +30,7 @@ The suites are mutation tested like any other code, so nothing in them is there 
 - Requests come from the builders in `kit.ts`, and a request that must fail is a valid one with a single field changed.
 - A state case is written once against a `Surface`, and runs through the tools of an agent and through the methods of a view. No state case needs `identity`: who a viewer is comes from a commit in their own scope.
 - A core case uses no feature, so it runs against every Store.
-- One case plays random commits and reads against a model of three logs. Its runs come from `rng`, a small seeded generator in `kit.ts`, so they are the same every time. A checksum of them is pinned: a change of the generator fails the case until someone has looked at what the new runs reach.
+- One case plays random commits and reads against a model of three logs, whose page scope has a tree. Each run starts with a tree, then moves and deletes its documents, puts some under what a delete takes along, and tries cycles. At the end it deletes every root, which must change exactly the documents the Store lists. Its runs come from `rng`, a small seeded generator in `kit.ts`, so they are the same every time. A checksum of them is pinned: a change of the generator fails the case until someone has looked at what the new runs reach.
 - A case holds no step that only a broken Store would notice. Such probes, and everything that needs more than a `Driver` (restarts, faults, logs, rate limits), are tests of the implementation and live with it.
 
 ## Make a storage fail

@@ -1,6 +1,6 @@
 import type { Answer } from "@agentpages/protocol";
 import { expect, test } from "vitest";
-import { ask, BASE_URL, call, callEach, COMMIT, committed, committing, declaring, errorOf, op, PAGE, PUBLISHED, publishing, put, saved, TYPED_PAGE, uuid, world, type World } from "./support/store.ts";
+import { ask, BASE_URL, call, callEach, COMMIT, committed, committing, declaring, errorOf, node, op, PAGE, PUBLISHED, publishing, put, remove, saved, TREE_PAGE, TYPED_PAGE, uuid, world, type World } from "./support/store.ts";
 
 interface Scenario {
   tool: string;
@@ -17,6 +17,12 @@ const SHARED: Request[] = [PUBLISHED, ["pages_set_access", { opId: op(9), pageId
 
 const TYPED_COMMIT: Scenario = { tool: "state_commit", before: TYPED_PAGE, input: committed(2, [put("a")])[1] };
 
+/** Two trees: a chain of three tasks, and a task under another. */
+const GROWN: Request[] = [...TREE_PAGE, committed(3, [node("a", null), node("b", "a"), node("c", "b"), node("d", null), node("e", "d")])];
+
+/** A commit that deletes one tree with its descendants and puts a task into the other. */
+const TREE_COMMIT: Scenario = { tool: "state_commit", before: GROWN, input: committed(2, [remove("a"), node("f", "e")])[1] };
+
 /** Every tool of this unit that changes anything, with a request that has an effect. */
 const SCENARIOS: Scenario[] = [
   { tool: "pages_publish", before: [], input: publishing({ page: 1, baseVersion: 0, op: 2 }) },
@@ -28,6 +34,7 @@ const SCENARIOS: Scenario[] = [
   { tool: "state_commit", before: [PUBLISHED], input: committed(2, [put("a")])[1] },
   { tool: "state_commit", before: [PUBLISHED, committed(3, [put("a"), put("b")])], input: committed(2, [{ op: "delete", collection: "tasks", id: "a" }, put("b", { n: 2 })])[1] },
   TYPED_COMMIT,
+  TREE_COMMIT,
   { tool: COMMIT, viewer: "bob", before: SHARED, input: committing(2, [put("a")]) },
   { tool: COMMIT, viewer: "bob", before: SHARED, input: { ...committing(2, [put("a")]), scope: "viewer" } },
 ];
@@ -123,13 +130,18 @@ const losingRead = async (scenario: Scenario, n: number): Promise<Lost> => {
   return { reached: lost, held: [unchanged, repeated, JSON.stringify(await saved(target.storage)) === JSON.stringify(expected.effect)] };
 };
 
-test("[REL-8] a commit that loses any one of its reads is unavailable and changes nothing, and its repeat is applied once", async () => {
-  const attempts = await Promise.all([1, 2, 3, 4, 5, 6, 7, 8].map((n) => losingRead(TYPED_COMMIT, n)));
+const READ_NUMBERS = Array.from({ length: 16 }, (_, n) => n + 1);
+
+test.each([
+  { scenario: TYPED_COMMIT, reads: 5 },
+  { scenario: TREE_COMMIT, reads: 11 },
+])("[REL-8] a commit that loses any one of its $reads reads is unavailable and changes nothing, and its repeat is applied once", async ({ scenario, reads }) => {
+  const attempts = await Promise.all(READ_NUMBERS.map((n) => losingRead(scenario, n)));
   const lost = attempts.filter((attempt) => attempt.reached);
 
-  expect(lost.length).toBeGreaterThan(2);
+  expect(lost).toHaveLength(reads);
   expect(lost.map((attempt) => attempt.held)).toStrictEqual(lost.map(() => [true, true, true]));
-  expect(attempts.slice(lost.length).map((attempt) => attempt.reached)).toStrictEqual(attempts.slice(lost.length).map(() => false));
+  expect(attempts.slice(reads).map((attempt) => attempt.reached)).toStrictEqual(attempts.slice(reads).map(() => false));
 });
 
 /** Runs `record` every time the storage reaches `point`. */

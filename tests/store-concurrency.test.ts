@@ -2,7 +2,7 @@ import { type Answer, TOOL_SCHEMAS } from "@agentpages/protocol";
 import type { Storage } from "@agentpages/storage";
 import * as fc from "fast-check";
 import { expect, test } from "vitest";
-import { BOB, call, callEach, committed, declaring, errorOf, op, PAGE, PUBLISHED, publishing, put, readingAs, resultOf, saved, TYPED_PAGE, world, type World } from "./support/store.ts";
+import { BOB, call, callEach, committed, declaring, errorOf, node, op, PAGE, PUBLISHED, publishing, put, transactingAs, resultOf, saved, TREE_PAGE, TYPED_PAGE, world, type World } from "./support/store.ts";
 
 type Request = [string, unknown];
 
@@ -14,26 +14,29 @@ const tally = (answers: Answer[]): Record<string, number> => {
   return Object.fromEntries(outcomes.map((outcome) => [outcome, outcomes.filter((other) => other === outcome).length]));
 };
 
+interface Racing {
+  /** What is sent first, one request after the other. */
+  before: Request[];
+  /** What is then sent together. */
+  together: Request[];
+}
+
 /**
- * Sends `requests` together to a new Store, in every order a scheduler finds for the steps of its storage, and
- * checks what they answered and what they left.
+ * Sends requests together to a new Store, in every order a scheduler finds for the steps of its storage, and checks
+ * what they answered and what they left.
  */
-const interleaving = (requests: Request[], check: (answers: Answer[], target: World) => Promise<void>): Promise<void> =>
+const interleaving = ({ before, together }: Racing, check: (answers: Answer[], target: World) => Promise<void>): Promise<void> =>
   fc.assert(
     fc.asyncProperty(fc.scheduler(), async (scheduler) => {
       const target = world();
-      const sent = requests.filter((request) => request !== PUBLISHED_FIRST);
-      await Promise.all(requests.filter((request) => request === PUBLISHED_FIRST).map((request) => call(target, request)));
+      await callEach(target, before);
       target.plan((point) => scheduler.schedule(Promise.resolve(point)));
-      const answers = await scheduler.waitFor(Promise.all(sent.map((request) => call(target, request))));
+      const answers = await scheduler.waitFor(Promise.all(together.map((request) => call(target, request))));
       target.plan(() => "go on");
       await check(answers, target);
     }),
     { numRuns: 40, seed: 2026 },
   );
-
-/** In the requests of `interleaving`: `PAGE` is published before the others are sent together. */
-const PUBLISHED_FIRST: Request = [...PUBLISHED];
 
 const versionsOf = async (target: World): Promise<number[]> =>
   resultOf(TOOL_SCHEMAS.pages_versions.result, await call(target, ["pages_versions", { pageId: PAGE }])).versions.map(
@@ -43,7 +46,7 @@ const versionsOf = async (target: World): Promise<number[]> =>
 const publishingFromNothing = [1, 2, 3].map((opNumber): Request => ["pages_publish", publishing({ page: 1, baseVersion: 0, op: opNumber })]);
 
 test("[REL-2] copies of one request are applied once and get one answer, however they interleave", async () => {
-  await interleaving([PUBLISHED, PUBLISHED, PUBLISHED], async (answers, target) => {
+  await interleaving({ before: [], together: [PUBLISHED, PUBLISHED, PUBLISHED] }, async (answers, target) => {
     expect(new Set(answers.map((answer) => JSON.stringify(answer))).size).toBe(1);
     expect(tally(answers)).toStrictEqual({ result: 3 });
     expect(await versionsOf(target)).toStrictEqual([1]);
@@ -51,7 +54,7 @@ test("[REL-2] copies of one request are applied once and get one answer, however
 });
 
 test("[PAGES-7] of the requests that publish from one version exactly one succeeds, however they interleave", async () => {
-  await interleaving(publishingFromNothing, async (answers, target) => {
+  await interleaving({ before: [], together: publishingFromNothing }, async (answers, target) => {
     expect(tally(answers)).toStrictEqual({ result: 1, Conflict: 2 });
     expect(await versionsOf(target)).toStrictEqual([1]);
   });
@@ -60,7 +63,7 @@ test("[PAGES-7] of the requests that publish from one version exactly one succee
 test("[TYPES-4] of the requests that publish a type from one version exactly one succeeds, however they interleave", async () => {
   const racing = [1, 2, 3].map((opNumber): Request => ["types_publish", declaring("deck", opNumber)]);
 
-  await interleaving(racing, async (answers, target) => {
+  await interleaving({ before: [], together: racing }, async (answers, target) => {
     const deck = await call(target, ["types_get", { typeId: "deck" }]);
 
     expect(tally(answers)).toStrictEqual({ result: 1, Conflict: 2 });
@@ -71,7 +74,7 @@ test("[TYPES-4] of the requests that publish a type from one version exactly one
 const expectingNone = [3, 4, 5].map((opNumber): Request => committed(opNumber, [{ ...put("a"), ifRevision: 0 }]));
 
 test("[STATE-17] of the commits that expect one revision of a document exactly one succeeds, however they interleave", async () => {
-  await interleaving([PUBLISHED_FIRST, ...expectingNone], async (answers, target) => {
+  await interleaving({ before: [PUBLISHED], together: expectingNone }, async (answers, target) => {
     const listed = resultOf(TOOL_SCHEMAS.state_list.result, await call(target, LIST));
 
     expect(tally(answers)).toStrictEqual({ result: 1, Conflict: 2 });
@@ -80,6 +83,28 @@ test("[STATE-17] of the commits that expect one revision of a document exactly o
 });
 
 const LIST: Request = ["state_list", { pageId: PAGE, scope: "page", collection: "tasks" }];
+
+const GROWN: Request[] = [...TREE_PAGE, committed(3, [node("parent", null)])];
+
+const felling: Request = committed(4, [{ op: "delete", collection: "tasks", id: "parent" }]);
+
+const grafting: Request = committed(5, [node("child", "parent")]);
+
+/** The error of a commit, or the ids of the documents it changed. */
+const changedOrError = (answer: Answer): unknown =>
+  errorOf(answer) ?? resultOf(TOOL_SCHEMAS.state_commit.result, answer).commit.changes.map((change) => change.id);
+
+test.each([
+  { together: [felling, grafting], answered: [["parent"], "Conflict"], seq: 2 },
+  { together: [grafting, felling], answered: [["child"], ["parent", "child"]], seq: 3 },
+])("[TREE-4] a delete of a parent and a put of a child under it, each valid alone, end as one after the other does: $together.0.1.opId first", async ({ together, answered, seq }) => {
+  await interleaving({ before: GROWN, together }, async (answers, target) => {
+    const listed = resultOf(TOOL_SCHEMAS.state_list.result, await call(target, LIST));
+    const rows = await target.storage.scan({ prefix: `page/${PAGE}/s/p/t/`, limit: 9 });
+
+    expect([answers.map(changedOrError), listed.seq, listed.documents, rows]).toStrictEqual([answered, seq, [], []]);
+  });
+});
 
 interface Pair {
   held: Request;
@@ -191,7 +216,7 @@ test("[STATE-18] a list waits for the commit before it on its page, and answers 
 
 /** `storage`, where `meanwhile` happens after every scan of a transaction, before the scan is answered. */
 const afterEachScan = (storage: Storage, meanwhile: () => Promise<unknown>): Storage =>
-  readingAs(storage, (tx) => ({
+  transactingAs(storage, (tx) => ({
     scan: async (range) => {
       const rows = await tx.scan(range);
       await meanwhile();
