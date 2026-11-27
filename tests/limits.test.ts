@@ -1,5 +1,6 @@
 import {
   base64Size,
+  commitLimitProblem,
   commitProblem,
   fileProblem,
   htmlProblem,
@@ -50,15 +51,17 @@ interface StateLimits {
   maxDocumentBytes: number;
 }
 
-/** What section 4.1 says of a commit, read independently of the package. */
+/** What section 4.1 says makes a commit malformed, read independently of the package. */
 const expectedProblem = (commit: Op[], limits: StateLimits): unknown => {
-  const oversizedAt = commit.findIndex((op) => bytesOf(op) > limits.maxDocumentBytes);
   if (commit.length > limits.maxOpsPerCommit) return { error: "InvalidParams", message: about(`${commit.length} ops`) };
-  if (repeatAt(commit) !== -1) {
-    return { error: "InvalidParams", message: about(`op ${repeatAt(commit)} `), opIndex: repeatAt(commit) };
-  }
-  if (oversizedAt !== -1) return { error: "LimitExceeded", message: about(`op ${oversizedAt} `), opIndex: oversizedAt };
-  return undefined;
+  if (repeatAt(commit) === -1) return undefined;
+  return { error: "InvalidParams", message: about(`op ${repeatAt(commit)} `), opIndex: repeatAt(commit) };
+};
+
+/** What section 4.1 says of a commit whose data is too large. */
+const expectedLimitProblem = (commit: Op[], limits: StateLimits): unknown => {
+  const opIndex = commit.findIndex((op) => bytesOf(op) > limits.maxDocumentBytes);
+  return opIndex === -1 ? undefined : { error: "LimitExceeded", message: about(`op ${opIndex} `), opIndex };
 };
 
 interface Sizes {
@@ -70,14 +73,15 @@ interface Sizes {
 
 const fits = ({ width, height, maxWidth, maxHeight }: Sizes): boolean => width <= maxWidth && height <= maxHeight;
 
-test("a commit breaks the Store's op limit, then repeats a document, then exceeds its document size", () => {
+test("a commit is malformed when it has too many ops or two on one document, and too large apart from that", () => {
   const limits = fc.record({ maxOpsPerCommit: fc.nat(6), maxDocumentBytes: fc.integer({ min: 9, max: 30 }) });
 
   fc.assert(
     fc.property(ops, limits, (commit, chosen) => {
-      const problem = commitProblem({ ops: commit, limits: { ...chosen, liveChanges: true } });
+      const check = { ops: commit, limits: { ...chosen, liveChanges: true } };
 
-      expect(problem).toStrictEqual(expectedProblem(commit, chosen));
+      expect(commitProblem(check)).toStrictEqual(expectedProblem(commit, chosen));
+      expect(commitLimitProblem(check)).toStrictEqual(expectedLimitProblem(commit, chosen));
     }),
     { numRuns: 500 },
   );
@@ -88,8 +92,8 @@ test("a commit's problem names the limit it broke", () => {
   const limits = { maxOpsPerCommit: 1, maxDocumentBytes: 14, liveChanges: false };
 
   expect(commitProblem({ ops: [big, big], limits })?.message).toContain("maxOpsPerCommit 1");
-  expect(commitProblem({ ops: [big], limits })?.message).toContain("maxDocumentBytes 14");
-  expect(commitProblem({ ops: [big], limits: { ...limits, maxDocumentBytes: 15 } })).toBeUndefined();
+  expect(commitLimitProblem({ ops: [big], limits })?.message).toContain("maxDocumentBytes 14");
+  expect(commitLimitProblem({ ops: [big], limits: { ...limits, maxDocumentBytes: 15 } })).toBeUndefined();
 });
 
 test("the size of a file is the decoded length of its blob", () => {

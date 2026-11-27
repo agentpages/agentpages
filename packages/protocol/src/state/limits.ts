@@ -23,10 +23,15 @@ const repeatedDocument = (ops: Op[]): Problem | undefined => {
     : { error: "InvalidParams", message: `op ${opIndex} is the second op on its document`, opIndex };
 };
 
+/** Why a commit of well-formed ops is still malformed: too many ops, or two on one document. */
+export const commitProblem = (check: CommitCheck): Problem | undefined =>
+  tooManyOps(check) ?? repeatedDocument(check.ops);
+
 /** A delete carries no data, which measures as zero bytes. */
 const dataBytes = ({ data }: Pick<Op, "op"> & { data?: JsonObject }): number => utf8Length(JSON.stringify(data));
 
-const oversizedData = ({ ops, limits }: CommitCheck): Problem | undefined => {
+/** The op whose data is beyond the Store's limit, if any. It is the last thing checked of a request. */
+export const commitLimitProblem = ({ ops, limits }: CommitCheck): Problem | undefined => {
   const opIndex = ops.findIndex((op) => dataBytes(op) > limits.maxDocumentBytes);
   return opIndex === -1
     ? undefined
@@ -36,7 +41,3 @@ const oversizedData = ({ ops, limits }: CommitCheck): Problem | undefined => {
         opIndex,
       };
 };
-
-/** The first rule of a Store's state limits that a well-formed commit breaks. */
-export const commitProblem = (check: CommitCheck): Problem | undefined =>
-  tooManyOps(check) ?? repeatedDocument(check.ops) ?? oversizedData(check);

@@ -35,6 +35,18 @@
     {
       "path": "packages/host/dist/index.js",
       "limit": "10 kB"
+    },
+    {
+      "name": "protocol: METHODS and TOOLS only",
+      "path": "packages/protocol/dist/index.js",
+      "import": "{ METHODS, TOOLS }",
+      "limit": "500 B"
+    },
+    {
+      "name": "protocol: error helpers of a client",
+      "path": "packages/protocol/dist/index.js",
+      "import": "{ fromJsonRpcError, failure, toJsonRpcError }",
+      "limit": "3.5 kB"
     }
   ],
   "devDependencies": {
@@ -47,7 +59,6 @@
     "@stryker-mutator/core": "^10.1.1",
     "@stryker-mutator/vitest-runner": "^10.1.1",
     "@types/node": "^22.20.7",
-    "@valibot/to-json-schema": "^1.8.0",
     "ajv": "^8.20.0",
     "fast-check": "^4.11.0",
     "jscpd": "^5.4.3",

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { isObject } from "./values.ts";
+import { isObject } from "./json.ts";
 
 export interface Exchange {
   tag: string;
@@ -13,6 +13,7 @@ export interface ErrorRow {
   name: string;
   code: number;
   retryable: boolean;
+  meaning: string;
 }
 
 interface Row {
@@ -60,17 +61,38 @@ export const methodRows: Exchange[] = exchanges.filter((row) => row.name.startsW
 export const toolRows: Exchange[] = exchanges.filter((row) => /^[a-z]+(?:_[a-z]+)+$/u.test(row.name));
 
 const errorOf = ({ cells }: Row): ErrorRow => {
-  const [name = "", code = "", retryable = ""] = cells;
-  return { name, code: Number(code), retryable: retryable === "yes" };
+  const [name = "", code = "", retryable = "", meaning = ""] = cells;
+  return { name, code: Number(code), retryable: retryable === "yes", meaning };
 };
 
 export const errorRows: ErrorRow[] = rows.filter((row) => /^-\d+$/u.test(row.cells[1] ?? "")).map(errorOf);
 
+/** The words a sentence of the spec states, such as the `pdf` of "other than `pdf`". */
+export const textIn = (sentence: RegExp): string => {
+  const text = sentence.exec(spec)?.[1];
+  if (text === undefined) throw new Error(`The spec no longer says ${sentence.source}`);
+  return text;
+};
+
 /** The number a sentence of the spec states, such as the 50 of "At most 50 diagnostics". */
-export const numberIn = (sentence: RegExp): number => Number(sentence.exec(spec)?.[1]);
+export const numberIn = (sentence: RegExp): number => Number(textIn(sentence));
 
 /** The spec's example of what a Store advertises, keyed by extension identifier. */
 export const advertised: Record<string, unknown> = jsonExamples.filter(isObject).find((example) => !("method" in example)) ?? {};
 
 /** The capability object of that example. */
 export const capabilityExample: unknown = Object.values(advertised)[0];
+
+const TYPES: Record<string, string> = { string: "string", number: "number", boolean: "boolean" };
+
+const typeOfField = ([key, value]: [string, unknown], optional: RegExp): string =>
+  `${key}${optional.test(key) ? "?" : ""}: ${typeOfExample(value, /^$/u)}`;
+
+/** The type of a JSON example. Section 3: every feature of a capability may be absent. */
+export function typeOfExample(value: unknown, optional = /^(?:state|identity|files|render)$/u): string {
+  return isObject(value)
+    ? `{ ${Object.entries(value)
+        .map((field) => typeOfField(field, optional))
+        .join("; ")} }`
+    : (TYPES[typeof value] ?? "never");
+}

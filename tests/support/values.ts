@@ -1,7 +1,6 @@
 import * as fc from "fast-check";
+import { isObject, type JsonObject } from "./json.ts";
 import { RULES, type RuleName } from "./rules.ts";
-
-export type JsonObject = Record<string, unknown>;
 
 /** What the spec allows in one place, written without the package under test. */
 export interface Shape {
@@ -11,6 +10,8 @@ export interface Shape {
   fields: Field[];
   item?: Shape;
   options?: Shape[];
+  /** Whether the object also carries fields the spec does not name, as a tree node does. */
+  open?: boolean;
 }
 
 export interface Field {
@@ -23,9 +24,6 @@ interface Simple {
   accepts: (value: unknown) => boolean;
   valid: fc.Arbitrary<unknown>;
 }
-
-export const isObject = (value: unknown): value is JsonObject =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 export const ANYTHING: Shape = { kind: "unknown", fields: [], accepts: () => true, valid: fc.jsonValue() };
 
@@ -52,12 +50,20 @@ export const literal = (value: unknown): Shape => ({
   fields: [],
 });
 
-export const format = (rule: RuleName): Shape => ({ kind: "format", fields: [], ...RULES[rule] });
+export const format = (rule: RuleName): Shape => ({ kind: RULES[rule].base, fields: [], ...RULES[rule] });
 
-export const array = (item: Shape): Shape => ({
+export interface Bounds {
+  min: number;
+  max: number;
+}
+
+const ANY_LENGTH: Bounds = { min: 0, max: Infinity };
+
+export const array = (item: Shape, { min, max }: Bounds = ANY_LENGTH): Shape => ({
   kind: "array",
-  accepts: (value) => Array.isArray(value) && value.every(item.accepts),
-  valid: fc.array(item.valid, { maxLength: 3 }),
+  accepts: (value) =>
+    Array.isArray(value) && value.length >= min && value.length <= max && value.every(item.accepts),
+  valid: fc.array(item.valid, { minLength: min, maxLength: Math.max(min, 3) }),
   fields: [],
   item,
 });
@@ -82,14 +88,27 @@ export const record = (item: Shape, key: Simple = anyKey): Shape => ({
 const hasField = (value: JsonObject, { name, optional, shape }: Field): boolean =>
   Object.hasOwn(value, name) ? shape.accepts(value[name]) : optional;
 
-export const object = (fields: Field[]): Shape => ({
-  kind: "object",
-  accepts: (value) => isObject(value) && fields.every((field) => hasField(value, field)),
-  valid: fc.record(Object.fromEntries(fields.map((field) => [field.name, field.shape.valid])), {
+const known = (fields: Field[]): fc.Arbitrary<JsonObject> =>
+  fc.record(Object.fromEntries(fields.map((field) => [field.name, field.shape.valid])), {
     requiredKeys: fields.filter((field) => !field.optional).map((field) => field.name),
     noNullPrototype: true,
-  }),
+  });
+
+const extras: fc.Arbitrary<JsonObject> = fc.dictionary(validKey(anyKey), fc.jsonValue(), {
+  maxKeys: 2,
+  noNullPrototype: true,
+});
+
+const merged = ([extra, named]: [JsonObject, JsonObject]): JsonObject => ({ ...extra, ...named });
+
+const withExtras = (fields: Field[]): fc.Arbitrary<JsonObject> => fc.tuple(extras, known(fields)).map(merged);
+
+export const object = (fields: Field[], open = false): Shape => ({
+  kind: "object",
+  accepts: (value) => isObject(value) && fields.every((field) => hasField(value, field)),
+  valid: open ? withExtras(fields) : known(fields),
   fields,
+  open,
 });
 
 export const union = (options: Shape[]): Shape => ({
@@ -161,4 +180,10 @@ export const near = (shape: Shape): fc.Arbitrary<unknown> =>
   fc.oneof(
     { weight: 1, arbitrary: shape.valid },
     { weight: 3, arbitrary: shape.valid.chain((value) => changes(value).map((change) => withChange(value, change))) },
+  );
+
+/** A valid value of `shape` with `replacement` put somewhere inside it. */
+export const withReplacement = (shape: Shape, replacement: unknown): fc.Arbitrary<unknown> =>
+  shape.valid.chain((value) =>
+    fc.constantFrom(...pathsIn(value)).map((path) => withChange(value, { path, replacement, remove: false })),
   );

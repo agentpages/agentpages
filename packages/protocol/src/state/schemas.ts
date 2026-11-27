@@ -1,27 +1,32 @@
 import * as v from "valibot";
+import { exchange, sealed } from "../common/seal.js";
+import type { ExchangeSchemas, Schema } from "../common/validate.js";
 import {
   CountSchema,
-  type ExchangeSchemas,
   IdSchema,
   JsonObjectSchema,
   LimitSchema,
+  ofPage,
   PagingSchema,
-  type Schema,
+  type Raw,
   TimestampSchema,
   UuidSchema,
 } from "../common/schemas.js";
-import type { StateCommittedParams, StateMethods } from "./methods.js";
-import type { Actor, Change, Commit, Document, Op, Scope } from "./types.js";
+import type { ToolsOf } from "../extension/names.js";
+import type { StateMethods } from "./methods.js";
+import type { Actor, Commit, Committed, Document, Op, Scope } from "./types.js";
 
-export const ScopeSchema: Schema<Scope> = v.picklist(["page", "viewer"]);
+type StateTools = ToolsOf<StateMethods>;
 
-export const ActorSchema: Schema<Actor> = v.variant("kind", [
+export const ScopeSchema: Raw<Scope> = v.picklist(["page", "viewer"]);
+
+export const ActorSchema: Raw<Actor> = v.variant("kind", [
   v.object({ kind: v.literal("viewer"), id: IdSchema }),
   v.object({ kind: v.literal("anonymous") }),
   v.object({ kind: v.literal("agent") }),
 ]);
 
-export const DocumentSchema: Schema<Document> = v.object({
+const DocumentSchema: Raw<Document> = v.object({
   collection: IdSchema,
   id: IdSchema,
   data: JsonObjectSchema,
@@ -32,50 +37,53 @@ export const DocumentSchema: Schema<Document> = v.object({
 
 const opTarget = { collection: IdSchema, id: IdSchema, ifRevision: v.exactOptional(CountSchema) };
 
-export const OpSchema: Schema<Op> = v.variant("op", [
+const OpSchema: Raw<Op> = v.variant("op", [
   v.object({ op: v.literal("put"), data: JsonObjectSchema, ...opTarget }),
   v.object({ op: v.literal("delete"), ...opTarget }),
 ]);
 
-export const ChangeSchema: Schema<Change> = v.object({
-  collection: IdSchema,
-  id: IdSchema,
-  revision: CountSchema,
-  document: v.nullable(DocumentSchema),
-});
-
-export const CommitSchema: Schema<Commit> = v.object({
+const CommitSchema: Raw<Commit> = v.object({
   seq: CountSchema,
   opId: UuidSchema,
   at: TimestampSchema,
   by: ActorSchema,
-  changes: v.array(ChangeSchema),
+  changes: v.array(
+    v.object({ collection: IdSchema, id: IdSchema, revision: CountSchema, document: v.nullable(DocumentSchema) }),
+  ),
 });
 
-export const StateCommittedParamsSchema: Schema<StateCommittedParams> = v.object({
-  scope: ScopeSchema,
-  commit: CommitSchema,
+export const CommittedSchema: Schema<Committed> = sealed(v.object({ scope: ScopeSchema, commit: CommitSchema }));
+
+const get = v.object({ scope: ScopeSchema, collection: IdSchema, id: IdSchema });
+const got = v.object({ document: v.nullable(DocumentSchema) });
+const list = v.intersect([v.object({ scope: ScopeSchema, collection: IdSchema }), PagingSchema]);
+const listed = v.object({
+  documents: v.array(DocumentSchema),
+  seq: CountSchema,
+  nextCursor: v.exactOptional(v.string()),
 });
+const commit = v.object({ scope: ScopeSchema, opId: UuidSchema, ops: v.array(OpSchema) });
+const committed = v.object({ commit: CommitSchema });
+const commits = v.object({ scope: ScopeSchema, since: CountSchema, limit: v.exactOptional(LimitSchema) });
+const followed = v.object({ commits: v.array(CommitSchema), seq: CountSchema });
 
 export const STATE_METHOD_SCHEMAS: ExchangeSchemas<StateMethods> = {
-  "agentpages/state/get": {
-    params: v.object({ scope: ScopeSchema, collection: IdSchema, id: IdSchema }),
-    result: v.object({ document: v.nullable(DocumentSchema) }),
-  },
-  "agentpages/state/list": {
-    params: v.intersect([v.object({ scope: ScopeSchema, collection: IdSchema }), PagingSchema]),
-    result: v.object({
-      documents: v.array(DocumentSchema),
-      seq: CountSchema,
-      nextCursor: v.exactOptional(v.string()),
-    }),
-  },
-  "agentpages/state/commit": {
-    params: v.object({ scope: ScopeSchema, opId: UuidSchema, ops: v.array(OpSchema) }),
-    result: v.object({ commit: CommitSchema }),
-  },
-  "agentpages/state/commits": {
-    params: v.object({ scope: ScopeSchema, since: CountSchema, limit: v.exactOptional(LimitSchema) }),
-    result: v.object({ commits: v.array(CommitSchema), seq: CountSchema }),
-  },
+  "agentpages/state/get": exchange(get, got),
+  "agentpages/state/list": exchange(list, listed),
+  "agentpages/state/commit": exchange(commit, committed),
+  "agentpages/state/commits": exchange(commits, followed),
+};
+
+export const STATE_TOOL_PARAMS: { readonly [T in keyof StateTools]: Raw<StateTools[T]["params"]> } = {
+  state_get: ofPage(get),
+  state_list: ofPage(list),
+  state_commit: ofPage(commit),
+  state_commits: ofPage(commits),
+};
+
+export const STATE_TOOL_SCHEMAS: ExchangeSchemas<StateTools> = {
+  state_get: exchange(STATE_TOOL_PARAMS.state_get, got),
+  state_list: exchange(STATE_TOOL_PARAMS.state_list, listed),
+  state_commit: exchange(STATE_TOOL_PARAMS.state_commit, committed),
+  state_commits: exchange(STATE_TOOL_PARAMS.state_commits, followed),
 };

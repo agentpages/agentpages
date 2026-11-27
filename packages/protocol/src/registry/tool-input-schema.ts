@@ -1,0 +1,31 @@
+import { toJsonSchema } from "@valibot/to-json-schema";
+import { COMMENTS_TOOL_PARAMS } from "../comments/schemas.js";
+import type { Raw } from "../common/schemas.js";
+import type { JsonObject } from "../common/types.js";
+import { FILES_TOOL_PARAMS } from "../files/schemas.js";
+import { PAGES_TOOL_PARAMS } from "../pages/schemas.js";
+import { RENDER_TOOL_PARAMS } from "../render/schemas.js";
+import { STATE_TOOL_PARAMS } from "../state/schemas.js";
+import { TYPES_TOOL_PARAMS } from "../types/schemas.js";
+import type { ToolName, Tools } from "./tools.js";
+
+const TOOL_PARAMS: { readonly [T in ToolName]: Raw<Tools[T]["params"]> } = {
+  ...STATE_TOOL_PARAMS,
+  ...FILES_TOOL_PARAMS,
+  ...PAGES_TOOL_PARAMS,
+  ...COMMENTS_TOOL_PARAMS,
+  ...RENDER_TOOL_PARAMS,
+  ...TYPES_TOOL_PARAMS,
+};
+
+/**
+ * The `inputSchema` of a tool, as JSON Schema 2020-12. It accepts every valid input. JSON objects the protocol does
+ * not interpret, and maps keyed by id, are plain objects in it: their content is checked by `TOOL_SCHEMAS` alone.
+ */
+export const toolInputSchema = (tool: ToolName): JsonObject => ({
+  ...toJsonSchema(TOOL_PARAMS[tool], {
+    target: "draft-2020-12",
+    errorMode: "ignore",
+    overrideAction: ({ valibotAction }) => (valibotAction.type === "raw_transform" ? { type: "object" } : undefined),
+  }),
+});

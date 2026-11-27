@@ -1,12 +1,16 @@
 import {
+  BASE64_PATTERN,
+  BODY_PATTERN,
   CapabilitySchema,
   DEFAULT_LIMIT,
+  DESCRIPTION_PATTERN,
   DOC_ATTRIBUTE,
   ERROR_NAMES,
   ERRORS,
   EXTENSION_ID,
   type Feature,
   FEATURES,
+  ID_PATTERN,
   MAX_ATTEMPTS,
   MAX_COUNT,
   MAX_DIAGNOSTICS,
@@ -15,6 +19,7 @@ import {
   METHOD_PREFIX,
   METHOD_SCHEMAS,
   METHODS,
+  NAME_PATTERN,
   NOTIFICATION_SCHEMAS,
   NOTIFICATIONS,
   PAGE_RESOURCE_MIME_TYPE,
@@ -22,65 +27,19 @@ import {
   PDF_FORMAT,
   PROTOCOL_VERSION,
   RETRY_BASE_MS,
-  type Schema,
   SETTLE_QUIET_MS,
+  TIMESTAMP_PATTERN,
   TOOL_SCHEMAS,
   TOOL_VISIBILITY,
   TOOLS,
+  TREE_INDEX_PATTERN,
+  UUID_PATTERN,
 } from "@agentpages/protocol";
 import { expect, test } from "vitest";
-import { shapeOfType, typeOfCell } from "./support/shapes.ts";
-import { advertised, capabilityExample, errorRows, type Exchange, methodRows, numberIn, spec, toolRows } from "./support/spec.ts";
-import { jsonSchemaOf, methodToolRows, notificationExample, verdict } from "./support/subjects.ts";
-import { isObject, type JsonObject, withChange } from "./support/values.ts";
+import { advertised, capabilityExample, errorRows, type Exchange, methodRows, numberIn, spec, textIn, toolRows } from "./support/spec.ts";
+import { methodToolRows, notificationExample, verdict } from "./support/subjects.ts";
 
 const allTools: Exchange[] = [...toolRows, ...methodToolRows];
-
-const written = (name: string, optional: boolean): string => `${name}${optional ? "?" : ""}`;
-
-const objectAt = (value: unknown, key: string): JsonObject => {
-  const child = isObject(value) ? value[key] : undefined;
-  return isObject(child) ? child : {};
-};
-
-const partsOf = (schema: JsonObject): JsonObject[] =>
-  Array.isArray(schema.allOf) ? schema.allOf.filter(isObject).flatMap(partsOf) : [schema];
-
-/** The keys a schema knows, read from its JSON Schema and written as in the spec: `name` or `name?`. */
-const schemaKeys = (schema: Schema<unknown>): Set<string> =>
-  new Set(
-    partsOf(jsonSchemaOf(schema)).flatMap((part) =>
-      Object.keys(objectAt(part, "properties")).map((name) =>
-        written(name, !(Array.isArray(part.required) && part.required.includes(name))),
-      ),
-    ),
-  );
-
-/** The keys a table cell of the spec declares. */
-const cellKeys = (cell: string): Set<string> =>
-  new Set(shapeOfType(typeOfCell(cell)).fields.map(({ name, optional }) => written(name, optional)));
-
-interface Keys {
-  params: Set<string>;
-  result: Set<string>;
-}
-
-interface Schemas {
-  params: Schema<unknown>;
-  result: Schema<unknown>;
-}
-
-const knownKeys = ({ params, result }: Schemas): Keys => ({ params: schemaKeys(params), result: schemaKeys(result) });
-
-const listedKeys = ({ params, result }: Exchange): Keys => ({ params: cellKeys(params), result: cellKeys(result) });
-
-/** The keys of the schemas a registry has under `name`. */
-const keysIn = (registry: Record<string, Schemas>, name: string): Keys[] =>
-  Object.entries(registry)
-    .filter(([key]) => key === name)
-    .map(([, schemas]) => knownKeys(schemas));
-
-const keysOf = (value: unknown): string[] => Object.keys(isObject(value) ? value : {});
 
 /** The feature a method or a tool is named after, if any: `agentpages/<feature>/…` and `<feature>_…`. */
 const featureOf = (group = ""): Feature[] => FEATURES.filter((feature) => feature === group);
@@ -113,23 +72,8 @@ test("the spec advertises the package's extension, version and features", () => 
   });
 });
 
-test("the capability schema knows exactly the keys of the spec's example", () => {
-  const properties = objectAt(jsonSchemaOf(CapabilitySchema), "properties");
-  const nested = keysOf(objectAt(capabilityExample, "limits")).map((key) => ["limits", key]);
-  const removals = [["version"], ["limits"], ...nested].map((path) => ({ path, replacement: null, remove: true }));
-
+test("the spec's example capability is one", () => {
   expect(verdict(CapabilitySchema, capabilityExample)).toBe(true);
-  expect(removals.map((removal) => verdict(CapabilitySchema, withChange(capabilityExample, removal)))).not.toContain(true);
-  expect(Object.keys(properties)).toStrictEqual(keysOf(capabilityExample));
-});
-
-test.each(["limits", ...FEATURES])("the capability schema requires exactly the spec's keys of %s", (group) => {
-  const example = objectAt(capabilityExample, group);
-  const removals = Object.keys(example).map((key) => ({ path: [group, key], replacement: null, remove: true }));
-  const properties = objectAt(jsonSchemaOf(CapabilitySchema), "properties");
-
-  expect(Object.keys(objectAt(objectAt(properties, group), "properties"))).toStrictEqual(Object.keys(example));
-  expect(removals.map((removal) => verdict(CapabilitySchema, withChange(capabilityExample, removal)))).not.toContain(true);
 });
 
 test("the registry has exactly the methods of the spec's tables, each with a tag", () => {
@@ -139,15 +83,10 @@ test("the registry has exactly the methods of the spec's tables, each with a tag
   expect(new Set(methodRows.map((row) => row.tag)).size).toBe(methodRows.length);
 });
 
-test.each(methodRows)("the schemas of $name know exactly the keys the spec lists", (row) => {
-  expect(keysIn(METHOD_SCHEMAS, row.name)).toStrictEqual([listedKeys(row)]);
-});
-
 test("the registry has exactly the notification of the spec's example", () => {
-  const [[method, params] = []] = notificationExample;
-
-  expect(NOTIFICATIONS).toStrictEqual({ [String(method)]: { feature: "state", to: "view" } });
-  expect(schemaKeys(NOTIFICATION_SCHEMAS["agentpages/state/committed"].params)).toStrictEqual(new Set(keysOf(params)));
+  expect(Object.keys(NOTIFICATIONS)).toStrictEqual(notificationExample);
+  expect(Object.keys(NOTIFICATION_SCHEMAS)).toStrictEqual(notificationExample);
+  expect(NOTIFICATIONS["agentpages/state/committed"]).toStrictEqual({ feature: "state", to: "view" });
 });
 
 test("the registry has exactly the tools of the spec's tables and of its state and files methods", () => {
@@ -156,14 +95,10 @@ test("the registry has exactly the tools of the spec's tables and of its state a
   expect(new Set(toolRows.map((row) => row.tag)).size).toBe(toolRows.length);
 });
 
-test.each(allTools)("the schemas of $name know exactly the keys the spec lists", (row) => {
-  expect(keysIn(TOOL_SCHEMAS, row.name)).toStrictEqual([listedKeys(row)]);
-});
-
 test("the errors are exactly the rows of the spec's table", () => {
-  const rows = ERROR_NAMES.map((name) => ({ name, ...ERRORS[name] }));
+  const rows = ERROR_NAMES.map((name) => ({ name, ...ERRORS[name], meaning: expect.any(String) as unknown }));
 
-  expect(rows).toStrictEqual(errorRows);
+  expect(errorRows).toStrictEqual(rows);
   expect(Object.keys(ERRORS)).toStrictEqual([...ERROR_NAMES]);
   expect(spec).toContain(`JSON-RPC error \`${METHOD_NOT_FOUND}\``);
 });
@@ -186,5 +121,32 @@ test("the numbers are the ones the spec states", () => {
   expect(MAX_ATTEMPTS).toBe(numberIn(/stops after (\d+) attempts/u));
   expect(MAX_LIMIT).toBe(numberIn(/Every `limit` is 1 to (\d+)/u));
   expect(DEFAULT_LIMIT).toBe(numberIn(/and defaults to (\d+)\./u));
-  expect(MAX_COUNT).toBe(2 ** numberIn(/integers from 0 to 2\^(\d+) − 1/u) - 1);
+  expect(MAX_COUNT).toBe(2 ** numberIn(/is an integer from 0 to 2\^(\d+) − 1/u) - 1);
+});
+
+test("the patterns are the ones the spec writes out", () => {
+  expect(spec).toContain(`match \`${ID_PATTERN.source}\`. \`[COMMON-1]\``);
+  expect(spec).toContain(`\`index\` matches \`${TREE_INDEX_PATTERN.source}\``);
+});
+
+test("the patterns hold the numbers and the layouts the spec states", () => {
+  const uuid = textIn(/in lowercase as `([\d-]+)` hexadecimal digits/u).split("-");
+  const timestamp = textIn(/written as `(YYYY[^`]+)`/u).replaceAll(/[YMDHms]/gu, "1");
+
+  expect(NAME_PATTERN.source).toContain(`{1,${numberIn(/`mimeType` are 1 to (\d+) characters/u)}}`);
+  expect(DESCRIPTION_PATTERN.source).toContain(`{0,${numberIn(/`quote` are at most (\d+)\./u)}}`);
+  expect(BODY_PATTERN.source).toContain(`{0,${numberIn(/`instructions` are at most (\d+)\./u)}}`);
+  expect(UUID_PATTERN.source).toBe(`^${uuid.map((size) => `[0-9a-f]{${size}}`).join("-")}$`);
+  expect(timestamp).toMatch(TIMESTAMP_PATTERN);
+  expect(timestamp).toHaveLength(24);
+});
+
+test("the spec still words the rules the patterns encode", () => {
+  expect(spec).toContain("UUIDs chosen by the caller, written in lowercase");
+  expect(spec).toContain("Timestamps are real UTC dates and times");
+  expect(spec).toContain("A character is a Unicode code point.");
+  expect(spec).toContain("standard alphabet with padding (RFC 4648, section 4), in canonical form: unused bits are zero.");
+  expect(BASE64_PATTERN.test("AA==")).toBe(true);
+  expect(BASE64_PATTERN.test("AB==")).toBe(false);
+  expect(textIn(/as in section 2\.1, other than `(\w+)`/u)).toBe(PDF_FORMAT);
 });

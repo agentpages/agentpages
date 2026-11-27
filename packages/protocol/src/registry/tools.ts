@@ -1,36 +1,15 @@
 import type { CommentsTools } from "../comments/tools.js";
-import { type Feature, METHOD_PREFIX } from "../extension/constants.js";
+import type { Feature } from "../extension/constants.js";
+import type { ToolsOf } from "../extension/names.js";
 import type { FilesMethods } from "../files/methods.js";
 import type { PagesTools } from "../pages/tools.js";
 import type { RenderTools } from "../render/tools.js";
 import type { StateMethods } from "../state/methods.js";
 import type { TypesTools } from "../types/tools.js";
-import type { Methods, Mutates } from "./methods.js";
-
-/** The view methods a Store also exposes as tools. */
-export type StoreMethodName = keyof StateMethods | keyof FilesMethods;
-
-export type Underscored<Path extends string> = Path extends `${infer Head}/${infer Tail}`
-  ? `${Head}_${Underscored<Tail>}`
-  : Path;
-
-export type ToolNameOf<M extends string> = M extends `${typeof METHOD_PREFIX}${infer Path}` ? Underscored<Path> : never;
-
-/** The tool name of a view method: drop `agentpages/`, then replace `/` with `_`. */
-export function toolName<M extends StoreMethodName>(method: M): ToolNameOf<M>;
-export function toolName(method: string): string {
-  return method.slice(METHOD_PREFIX.length).replaceAll("/", "_");
-}
-
-export type MethodTools = {
-  [M in StoreMethodName as ToolNameOf<M>]: {
-    params: Methods[M]["params"] & { pageId: string };
-    result: Methods[M]["result"];
-  };
-};
+import type { Mutates } from "./methods.js";
 
 /** Every tool of a Store. */
-export interface Tools extends MethodTools, PagesTools, CommentsTools, RenderTools, TypesTools {}
+export interface Tools extends ToolsOf<StateMethods>, ToolsOf<FilesMethods>, PagesTools, CommentsTools, RenderTools, TypesTools {}
 
 export type ToolName = keyof Tools;
 

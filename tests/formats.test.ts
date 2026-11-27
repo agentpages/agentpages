@@ -5,6 +5,7 @@ import {
   DESCRIPTION_PATTERN,
   ID_PATTERN,
   NAME_PATTERN,
+  PDF_FORMAT,
   type Schema,
   TIMESTAMP_PATTERN,
   TREE_INDEX_PATTERN,
@@ -13,10 +14,11 @@ import {
 } from "@agentpages/protocol";
 import * as fc from "fast-check";
 import { expect, test } from "vitest";
-import { type Rule, RULES } from "./support/rules.ts";
+import { RESERVED_FORMAT, type Rule, RULES } from "./support/rules.ts";
 import { capabilityExample } from "./support/spec.ts";
 import { subject, SUBJECTS, verdict } from "./support/subjects.ts";
-import { type Field, isObject, type Path, type Shape, withChange } from "./support/values.ts";
+import { isObject } from "./support/json.ts";
+import { type Field, type Path, type Shape, withChange } from "./support/values.ts";
 
 /** A field of a spec type that follows a rule, with valid values of the object around it. */
 interface Site {
@@ -74,12 +76,12 @@ test("[COMMON-2] a pageId and an opId are lowercase 8-4-4-4-12 hexadecimal UUIDs
   expect(fieldBreaking(RULES.uuid)).toBeNull();
 });
 
-test("[COMMON-3] timestamps are written as YYYY-MM-DDTHH:mm:ss.sssZ", () => {
-  expect(patternBreaking(TIMESTAMP_PATTERN, RULES.timestamp)).toBeNull();
+test("[COMMON-3] timestamps are real UTC dates and times written as YYYY-MM-DDTHH:mm:ss.sssZ", () => {
+  expect(patternBreaking(TIMESTAMP_PATTERN, RULES.clockReading)).toBeNull();
   expect(fieldBreaking(RULES.timestamp)).toBeNull();
 });
 
-test("[COMMON-6] counts and positions are integers from 0 to 2^53 - 1", () => {
+test("[COMMON-6] every number is an integer from 0 to 2^53 - 1", () => {
   expect(fieldBreaking(RULES.count)).toBeNull();
 });
 
@@ -98,7 +100,7 @@ test("[COMMON-7] body and instructions are at most 65536 characters", () => {
   expect(fieldBreaking(RULES.body)).toBeNull();
 });
 
-test("[COMMON-8] base64 uses the standard alphabet with padding", () => {
+test("[COMMON-8] base64 uses the standard alphabet with padding, in canonical form", () => {
   expect(patternBreaking(BASE64_PATTERN, RULES.base64)).toBeNull();
   expect(fieldBreaking(RULES.base64)).toBeNull();
 });
@@ -115,6 +117,8 @@ test("every limit is 1 to 100", () => {
 test("a key of exports is an id other than pdf", () => {
   const { schema, shape } = subject("TypeInfo");
   const format = { title: "Deck", mimeType: "application/zip", extension: "pptx" };
+
+  expect(RESERVED_FORMAT).toBe(PDF_FORMAT);
 
   fc.assert(
     fc.property(shape.valid, RULES.exportFormat.near.filter(isString), (type, key) => {
@@ -136,18 +140,12 @@ test("the version of a capability is major.minor", () => {
   );
 });
 
-const OPAQUE_FIELDS = [
-  ["Document", "data"],
-  ["TypeContent", "csp"],
-  ["TypeContent", "permissions"],
-] as const;
-
-test.each(OPAQUE_FIELDS)("the %s field %s is a JSON object, not null, a list or text", (name, field) => {
-  const { schema, shape } = subject(name);
+test.each(["csp", "permissions"])("the %s of a type is a JSON object, not null, a list or text", (field) => {
+  const { schema, shape } = subject("types_publish params");
 
   fc.assert(
     fc.property(shape.valid, fc.constantFrom<unknown>(null, [], [{}], "{}", 0, true, {}), (value, replacement) => {
-      const changed = withChange(value, { path: [field], replacement, remove: false });
+      const changed = withChange(value, { path: ["content", field], replacement, remove: false });
 
       expect(verdict(schema, changed)).toBe(isObject(replacement));
     }),

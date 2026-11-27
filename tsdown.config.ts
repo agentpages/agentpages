@@ -7,5 +7,4 @@ export default defineConfig({
   dts: true,
   fixedExtension: false,
   unbundle: true,
-  inputOptions: { optimization: { inlineConst: false } },
 });

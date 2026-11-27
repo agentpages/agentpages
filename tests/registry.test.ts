@@ -14,8 +14,9 @@ import { expect, test } from "vitest";
 import * as fc from "fast-check";
 import { RULES } from "./support/rules.ts";
 import { capabilityExample, methodRows, spec } from "./support/spec.ts";
-import { methodToolRows, subject, SUBJECTS, verdict } from "./support/subjects.ts";
-import { isObject, near, type Shape, withChange } from "./support/values.ts";
+import { methodToolRows, parsed, subject, SUBJECTS, verdict } from "./support/subjects.ts";
+import { isObject } from "./support/json.ts";
+import { near, type Shape, withChange } from "./support/values.ts";
 
 const STORE_METHODS = [
   "agentpages/state/get",
@@ -110,13 +111,21 @@ const withUnknownFields = (value: unknown, { shape, extra }: Unknowns): unknown 
     name,
     withUnknownFields(child, { shape: shapeUnder(chosen, name), extra }),
   ]);
-  return { ...Object.fromEntries(known), ...(chosen.kind === "object" ? extra : {}) };
+  return { ...Object.fromEntries(known), ...(chosen.kind === "object" && chosen.open !== true ? extra : {}) };
 };
 
 test.each(SUBJECTS)("[VER-1] fields the spec does not know never change whether $name is valid", ({ shape, schema }) => {
   fc.assert(
     fc.property(near(shape), unknownFields, (value, extra) => {
       expect(verdict(schema, withUnknownFields(value, { shape, extra }))).toBe(verdict(schema, value));
+    }),
+  );
+});
+
+test.each(SUBJECTS)("[VER-1] fields the spec does not know are left out of a validated $name", ({ shape, schema }) => {
+  fc.assert(
+    fc.property(shape.valid, unknownFields, (value, extra) => {
+      expect(parsed(schema, withUnknownFields(value, { shape, extra }))).toEqual(value);
     }),
   );
 });

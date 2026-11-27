@@ -44,11 +44,6 @@ export interface StateCommitsResult {
   seq: number;
 }
 
-export interface StateCommittedParams {
-  scope: Scope;
-  commit: Commit;
-}
-
 export interface StateMethods {
   "agentpages/state/get": { params: StateGetParams; result: StateGetResult };
   "agentpages/state/list": { params: StateListParams; result: StateListResult };

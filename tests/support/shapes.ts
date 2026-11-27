@@ -1,31 +1,23 @@
 import { parseSync, type TSSignature, type TSType, type TSTypeReference } from "oxc-parser";
 import { RULES, type RuleName } from "./rules.ts";
-import { ANYTHING, array, type Field, format, literal, object, record, type Shape, simple, union } from "./values.ts";
-import { typeBlocks } from "./spec.ts";
+import { ANYTHING, array, type Bounds, type Field, format, literal, object, record, type Shape, simple, union } from "./values.ts";
+import { numberIn, typeBlocks } from "./spec.ts";
 
-/** Section 2.1 of the spec: the rule a field follows, by its name. */
+/** Section 2.1 of the spec: the rule a field follows, by its name. Every number is a count unless named here. */
 const FIELD_RULES: Record<string, RuleName> = {
   collection: "id",
   id: "id",
+  parent: "id",
   typeId: "id",
   fileId: "id",
   threadId: "id",
+  format: "id",
+  requestId: "id",
   pageId: "uuid",
   opId: "uuid",
   updatedAt: "timestamp",
   createdAt: "timestamp",
   at: "timestamp",
-  seq: "count",
-  since: "count",
-  revision: "count",
-  ifRevision: "count",
-  version: "count",
-  baseVersion: "count",
-  typeVersion: "count",
-  size: "count",
-  "viewport.width": "count",
-  "viewport.height": "count",
-  y: "count",
   title: "name",
   name: "name",
   mimeType: "name",
@@ -36,10 +28,17 @@ const FIELD_RULES: Record<string, RuleName> = {
   blob: "base64",
   limit: "limit",
   index: "treeIndex",
+  "Capability.version": "version",
 };
 
 /** The keys of these maps are ids. A key of `exports` is also not `pdf`. */
 const KEY_RULES: Record<string, RuleName> = { collections: "id", exports: "exportFormat" };
+
+/** Sections 5.4 and 5.5: a thread has at least one entry, a render at most so many diagnostics. */
+const LIST_BOUNDS: Record<string, Bounds> = {
+  entries: { min: 1, max: Infinity },
+  diagnostics: { min: 0, max: numberIn(/At most (\d+) diagnostics are returned/u) },
+};
 
 /** Fields the tables use in shorthand and no `ts` block declares. */
 const UNDECLARED_FIELDS: Record<string, string> = {
@@ -50,13 +49,11 @@ const UNDECLARED_FIELDS: Record<string, string> = {
   baseVersion: "number",
   threadId: "string",
   fileId: "string",
-  commit: "Commit",
   format: "string",
 };
 
 const KEYWORDS: Record<string, string> = {
   TSStringKeyword: "string",
-  TSNumberKeyword: "number",
   TSBooleanKeyword: "boolean",
   TSNullKeyword: "null",
   TSUnknownKeyword: "unknown",
@@ -89,8 +86,14 @@ parseSync("spec.ts", typeBlocks).program.body.forEach((statement) => {
 
 export const declaredNames: string[] = [...declarations.keys()];
 
-const ruled = (shape: Shape, rule: RuleName | undefined): Shape =>
-  rule !== undefined && shape.kind === RULES[rule].base ? format(rule) : shape;
+function ruled(shape: Shape, rule: RuleName | undefined): Shape {
+  if (rule === undefined) return shape;
+  if (shape.options !== undefined) return union(shape.options.map((option) => ruled(option, rule)));
+  return shape.kind === RULES[rule].base ? format(rule) : shape;
+}
+
+const bounded = (shape: Shape, bounds: Bounds | undefined): Shape =>
+  bounds !== undefined && shape.item !== undefined ? array(shape.item, bounds) : shape;
 
 const keyed = (shape: Shape, rule: RuleName | undefined): Shape =>
   rule !== undefined && shape.kind === "record" && shape.item !== undefined ? record(shape.item, RULES[rule]) : shape;
@@ -99,12 +102,16 @@ const fieldOf = (member: TSSignature, parent: string): Field[] => {
   if (member.type !== "TSPropertySignature" || member.key.type !== "Identifier") return [];
   if (member.typeAnnotation === null) throw new Error("A field without a type.");
   const { name } = member.key;
-  const shape = keyed(shapeOf(member.typeAnnotation.typeAnnotation, name), KEY_RULES[name]);
+  const declared = shapeOf(member.typeAnnotation.typeAnnotation, name);
+  const shape = bounded(keyed(declared, KEY_RULES[name]), LIST_BOUNDS[name]);
   return [{ name, optional: member.optional, shape: ruled(shape, FIELD_RULES[`${parent}.${name}`] ?? FIELD_RULES[name]) }];
 };
 
 const objectOf = (members: TSSignature[], parent: string): Shape =>
-  object(members.flatMap((member) => fieldOf(member, parent)));
+  object(
+    members.flatMap((member) => fieldOf(member, parent)),
+    members.some((member) => member.type === "TSIndexSignature"),
+  );
 
 const literalValue = (node: TSType | undefined): unknown =>
   node?.type === "TSLiteralType" && node.literal.type === "Literal" ? node.literal.value : undefined;
@@ -136,12 +143,13 @@ const compositeOf = (node: TSType, parent: string): Shape => {
 };
 
 function shapeOf(node: TSType, parent: string): Shape {
+  if (node.type === "TSNumberKeyword") return format("count");
   return simple(KEYWORDS[node.type] ?? "") ?? compositeOf(node, parent);
 }
 
 /** The shape of a type written in the spec, such as `Document` or `{ file: FileInfo }`. */
-export const shapeOfType = (type: string): Shape => {
+export const shapeOfType = (type: string, name = ""): Shape => {
   const [statement] = parseSync("cell.ts", `type Cell = ${type};`).program.body;
   if (statement?.type !== "TSTypeAliasDeclaration") throw new Error(`Not a type: ${type}`);
-  return shapeOf(statement.typeAnnotation, "");
+  return shapeOf(statement.typeAnnotation, name);
 };

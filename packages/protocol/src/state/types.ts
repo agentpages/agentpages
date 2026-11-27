@@ -29,3 +29,8 @@ export interface Commit {
   by: Actor;
   changes: Change[];
 }
+
+export interface Committed {
+  scope: Scope;
+  commit: Commit;
+}

@@ -4,8 +4,6 @@
 
 ```ts
 
-import * as v from 'valibot';
-
 // @public (undocumented)
 export type Actor = {
     kind: "viewer";
@@ -16,10 +14,7 @@ export type Actor = {
     kind: "agent";
 };
 
-// @public (undocumented)
-export const ActorSchema: Schema<Actor>;
-
-// @public (undocumented)
+// @public
 export const BASE64_PATTERN: RegExp;
 
 // @public
@@ -58,9 +53,6 @@ export interface Change {
     // (undocumented)
     revision: number;
 }
-
-// @public (undocumented)
-export const ChangeSchema: Schema<Change>;
 
 // @public (undocumented)
 export interface CommentsListParams {
@@ -146,10 +138,18 @@ export interface CommitCheck {
 }
 
 // @public
+export const commitLimitProblem: (input: CommitCheck) => Problem | undefined;
+
+// @public
 export const commitProblem: (check: CommitCheck) => Problem | undefined;
 
 // @public (undocumented)
-export const CommitSchema: Schema<Commit>;
+export interface Committed {
+    // (undocumented)
+    commit: Commit;
+    // (undocumented)
+    scope: Scope;
+}
 
 // @public (undocumented)
 export const DEFAULT_LIMIT = 100;
@@ -185,9 +185,6 @@ export type Diagnostic = {
     error: string;
 };
 
-// @public (undocumented)
-export const DiagnosticSchema: Schema<Diagnostic>;
-
 // @public
 export const DOC_ATTRIBUTE = "data-agentpages-doc";
 
@@ -208,9 +205,6 @@ interface Document_2 {
 }
 export { Document_2 as Document }
 
-// @public (undocumented)
-export const DocumentSchema: Schema<Document_2>;
-
 // @public
 export type Empty = Record<string, never>;
 
@@ -225,9 +219,6 @@ export interface Entry {
     // (undocumented)
     id: string;
 }
-
-// @public (undocumented)
-export const EntrySchema: Schema<Entry>;
 
 // @public (undocumented)
 export const ERROR_NAMES: readonly ["NotFound", "Conflict", "Unauthenticated", "Forbidden", "LimitExceeded", "Unavailable", "RateLimited", "ResyncRequired", "InvalidParams", "Internal"];
@@ -245,9 +236,6 @@ export interface ErrorData {
     // (undocumented)
     retryAfterMs?: number;
 }
-
-// @public (undocumented)
-export const ErrorDataSchema: Schema<ErrorData>;
 
 // @public (undocumented)
 export type ErrorName = (typeof ERROR_NAMES)[number];
@@ -346,9 +334,6 @@ export interface FileInfo {
     // (undocumented)
     updatedBy: Actor;
 }
-
-// @public (undocumented)
-export const FileInfoSchema: Schema<FileInfo>;
 
 // @public
 export const fileProblem: (input: {
@@ -476,10 +461,15 @@ export const invalidParams: (input: {
 export const isFeature: (value: string) => value is Feature;
 
 // @public (undocumented)
-export type Issue = v.BaseIssue<unknown>;
+export interface Issue {
+    // (undocumented)
+    readonly message: string;
+    // (undocumented)
+    readonly path?: readonly PropertyKey[];
+}
 
 // @public (undocumented)
-export type Issues = [Issue, ...Issue[]];
+export type Issues = readonly [Issue, ...Issue[]];
 
 // @public
 export type JsonObject = Record<string, unknown>;
@@ -493,9 +483,6 @@ export interface JsonRpcError {
     // (undocumented)
     message: string;
 }
-
-// @public (undocumented)
-export const JsonRpcErrorSchema: Schema<JsonRpcError>;
 
 // @public
 export type JsonSchema = JsonObject;
@@ -590,14 +577,6 @@ export const METHODS: { readonly [M in MethodName]: MethodInfo<M>; };
 export interface Methods extends StateMethods, IdentityMethods, FilesMethods, ViewMethods {}
 
 // @public (undocumented)
-export type MethodTools = { [M in StoreMethodName as ToolNameOf<M>]: {
-        params: Methods[M]["params"] & {
-            pageId: string;
-        };
-        result: Methods[M]["result"];
-    }; };
-
-// @public (undocumented)
 export type Mutates<Params> = Params extends {
     opId: string;
 } ? true : false;
@@ -628,7 +607,7 @@ export const NOTIFICATIONS: { readonly [N in NotificationName]: Route; };
 export interface Notifications {
     // (undocumented)
     "agentpages/state/committed": {
-        params: StateCommittedParams;
+        params: Committed;
     };
 }
 
@@ -647,9 +626,6 @@ export type Op = {
 };
 
 // @public (undocumented)
-export const OpSchema: Schema<Op>;
-
-// @public (undocumented)
 export const PAGE_RESOURCE_MIME_TYPE = "text/html;profile=mcp-app";
 
 // @public (undocumented)
@@ -663,9 +639,6 @@ export type PageContent = {
     typeId: string;
     typeVersion: number;
 };
-
-// @public (undocumented)
-export const PageContentSchema: Schema<PageContent>;
 
 // @public (undocumented)
 export interface PageInfo {
@@ -684,9 +657,6 @@ export interface PageInfo {
     // (undocumented)
     version: number;
 }
-
-// @public (undocumented)
-export const PageInfoSchema: Schema<PageInfo>;
 
 // @public
 export const pageResourceUri: (input: {
@@ -849,9 +819,6 @@ export interface Place {
     text?: string;
 }
 
-// @public (undocumented)
-export const PlaceSchema: Schema<Place>;
-
 // @public
 export interface Problem {
     // (undocumented)
@@ -881,9 +848,6 @@ export interface RenderInput {
         height: number;
     };
 }
-
-// @public (undocumented)
-export const RenderInputSchema: Schema<RenderInput>;
 
 // @public (undocumented)
 export interface RenderLimits {
@@ -918,9 +882,6 @@ export interface RenderResult {
 }
 
 // @public (undocumented)
-export const RenderResultSchema: Schema<RenderResult>;
-
-// @public (undocumented)
 export interface RenderTools {
     // (undocumented)
     pages_export: {
@@ -945,14 +906,26 @@ export interface Route {
     readonly to: "host" | "view";
 }
 
-// @public (undocumented)
-export type Schema<T> = v.GenericSchema<unknown, T>;
+// @public
+export interface Schema<T> {
+    // (undocumented)
+    readonly "~standard": {
+        readonly version: 1;
+        readonly vendor: "agentpages";
+        readonly validate: (input: unknown) => {
+            readonly value: T;
+        } | {
+            readonly issues: Issues;
+        };
+        readonly types?: {
+            readonly input: unknown;
+            readonly output: T;
+        };
+    };
+}
 
 // @public (undocumented)
 export type Scope = "page" | "viewer";
-
-// @public (undocumented)
-export const ScopeSchema: Schema<Scope>;
 
 // @public
 export const SETTLE_QUIET_MS = 500;
@@ -989,14 +962,6 @@ export interface StateCommitsResult {
     commits: Commit[];
     // (undocumented)
     seq: number;
-}
-
-// @public (undocumented)
-export interface StateCommittedParams {
-    // (undocumented)
-    commit: Commit;
-    // (undocumented)
-    scope: Scope;
 }
 
 // @public (undocumented)
@@ -1071,9 +1036,6 @@ export interface StateMethods {
     };
 }
 
-// @public
-export type StoreMethodName = keyof StateMethods | keyof FilesMethods;
-
 // @public (undocumented)
 export type Target = {
     kind: "viewport";
@@ -1085,9 +1047,6 @@ export type Target = {
     collection: string;
     id: string;
 };
-
-// @public (undocumented)
-export const TargetSchema: Schema<Target>;
 
 // @public (undocumented)
 export interface Thread {
@@ -1105,10 +1064,7 @@ export interface Thread {
     version: number;
 }
 
-// @public (undocumented)
-export const ThreadSchema: Schema<Thread>;
-
-// @public (undocumented)
+// @public
 export const TIMESTAMP_PATTERN: RegExp;
 
 // @public (undocumented)
@@ -1140,11 +1096,14 @@ export interface ToolInfo<T extends ToolName> {
     readonly requires: readonly Feature[];
 }
 
+// @public
+export const toolInputSchema: (tool: ToolName) => JsonObject;
+
 // @public (undocumented)
 export type ToolName = keyof Tools;
 
 // @public
-export function toolName<M extends StoreMethodName>(method: M): ToolNameOf<M>;
+export function toolName<M extends string>(method: M): ToolNameOf<M>;
 
 // @public (undocumented)
 export type ToolNameOf<M extends string> = M extends `${typeof METHOD_PREFIX}${infer Path}` ? Underscored<Path> : never;
@@ -1153,7 +1112,15 @@ export type ToolNameOf<M extends string> = M extends `${typeof METHOD_PREFIX}${i
 export const TOOLS: { readonly [T in ToolName]: ToolInfo<T>; };
 
 // @public
-export interface Tools extends MethodTools, PagesTools, CommentsTools, RenderTools, TypesTools {}
+export interface Tools extends ToolsOf<StateMethods>, ToolsOf<FilesMethods>, PagesTools, CommentsTools, RenderTools, TypesTools {}
+
+// @public
+export type ToolsOf<M> = { [K in keyof M & string as ToolNameOf<K>]: M[K] extends Exchange ? {
+        params: M[K]["params"] & {
+            pageId: string;
+        };
+        result: M[K]["result"];
+    } : never; };
 
 // @public (undocumented)
 export const toToolError: (failed: Failure) => ToolError;
@@ -1171,7 +1138,7 @@ export interface TreeNode {
     parent: string | null;
 }
 
-// @public (undocumented)
+// @public
 export const TreeNodeSchema: Schema<TreeNode>;
 
 // @public (undocumented)
@@ -1183,9 +1150,6 @@ export interface TypeContent {
     // (undocumented)
     permissions?: McpUiPermissions;
 }
-
-// @public (undocumented)
-export const TypeContentSchema: Schema<TypeContent>;
 
 // @public (undocumented)
 export interface TypeInfo {
@@ -1307,9 +1271,6 @@ export interface Viewer {
     // (undocumented)
     name?: string;
 }
-
-// @public (undocumented)
-export const ViewerSchema: Schema<Viewer>;
 
 // @public (undocumented)
 export interface ViewExportParams {

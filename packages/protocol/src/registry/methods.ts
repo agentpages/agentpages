@@ -1,7 +1,8 @@
 import type { Feature } from "../extension/constants.js";
 import type { FilesMethods } from "../files/methods.js";
 import type { IdentityMethods } from "../identity/methods.js";
-import type { StateCommittedParams, StateMethods } from "../state/methods.js";
+import type { StateMethods } from "../state/methods.js";
+import type { Committed } from "../state/types.js";
 import type { ViewMethods } from "../view/methods.js";
 
 /** Every request of the view extension, in either direction. */
@@ -10,7 +11,7 @@ export interface Methods extends StateMethods, IdentityMethods, FilesMethods, Vi
 export type MethodName = keyof Methods;
 
 export interface Notifications {
-  "agentpages/state/committed": { params: StateCommittedParams };
+  "agentpages/state/committed": { params: Committed };
 }
 
 export type NotificationName = keyof Notifications;
