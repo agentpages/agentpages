@@ -1,9 +1,9 @@
 import type { Scope } from "@agentpages/protocol";
 import { NEED, type Need } from "../access/permits.js";
 import type { Principal } from "../access/principal.js";
-import { rememberedPrefix } from "../pages/keys.js";
+import { rememberedBy } from "../pages/keys.js";
 import type { Page } from "../pages/records.js";
-import { ok, type Outcome, refuse, type Schemas, type Target } from "../pipeline/index.js";
+import { ok, type Outcome, refuse, type Remembered, type Schemas, type Target } from "../pipeline/index.js";
 import type { Key } from "@agentpages/storage";
 import { pageScope, viewerScope } from "./keys.js";
 
@@ -41,7 +41,7 @@ const within = ({ page, scope, principal }: Asked): Outcome<Within> => {
 };
 
 /** Where the page of a scope keeps the requests it remembers. */
-export const remembered = (_: unknown, { page }: Within): Key => rememberedPrefix(page.info.pageId);
+export const remembered = (_: unknown, { page }: Within): Remembered => rememberedBy(page.info.pageId);
 
 /** What reading a scope needs of its page. */
 export const toRead = (): Need => NEED.read;

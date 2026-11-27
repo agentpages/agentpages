@@ -2,7 +2,7 @@ import { htmlProblem, type PageInfo, type PagesPublishParams, TOOL_SCHEMAS } fro
 import { type Handler, mutation, ok, parsed, refuse } from "../pipeline/index.js";
 import type { Agent } from "../access/principal.js";
 import { typeVersionKey } from "../types/keys.js";
-import { contentKey, rememberedPrefix, versionKey } from "./keys.js";
+import { contentKey, rememberedBy, versionKey } from "./keys.js";
 import { currentContent, type Page, savePage, unpublished } from "./records.js";
 import { publishablePage } from "./target.js";
 
@@ -20,7 +20,7 @@ const htmlOf = ({ html = "" }: Content): string => html;
 
 export const pagesPublish: Handler<PagesPublishParams, PageInfo, Agent> = mutation<PagesPublishParams, Page | null, PageInfo>(TOOL_SCHEMAS.pages_publish, {
   target: publishablePage(({ content }) => (content.kind === "type" ? [typeVersionKey(content)] : [])),
-  remembers: ({ pageId }) => rememberedPrefix(pageId),
+  remembers: ({ pageId }) => rememberedBy(pageId),
   limits: ({ content }, { limits }) => htmlProblem({ html: htmlOf(content), limits }),
   run: async ({ params, principal, target, at, deps: { baseUrl, ids } }, tx) => {
     const { pageId, baseVersion } = params;

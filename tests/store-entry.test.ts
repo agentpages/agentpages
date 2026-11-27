@@ -1,5 +1,6 @@
 import { type Answer, METHOD_NOT_FOUND, PROTOCOL_VERSION, TOOL_SCHEMAS } from "@agentpages/protocol";
 import { expect, test } from "vitest";
+import { savedRows } from "./support/results.ts";
 import { ADVERTISED, ask, BASE_URL, call, committed, declaring, errorOf, failureOf, HOST_REQUEST, HTML, inTurn, op, open, PAGE, publishing, put, resultOf, saved, uuid, world, type World } from "./support/store.ts";
 
 const { limits } = ADVERTISED;
@@ -219,7 +220,7 @@ test("[HOST-4] a url of another origin names no page, even where it holds a page
 test("[PAGES-15] deleting a page that never existed does not use up its pageId", async () => {
   const target = world();
   const deleted = await call(target, ["pages_delete", { opId: op(9), pageId: PAGE }]);
-  const stored = await saved(target.storage);
+  const stored = await savedRows(target.storage);
   const answer = await call(target, published(0));
 
   expect(deleted).toStrictEqual({ kind: "result", result: {} });
@@ -233,7 +234,7 @@ test("[PAGES-6] pages_delete leaves nothing of the page but the record that it i
   await call(target, ["pages_set_access", { opId: op(7), pageId: PAGE, access: "link-write" }]);
   await call(target, ["pages_delete", { opId: op(8), pageId: PAGE }]);
 
-  expect(await saved(target.storage)).toStrictEqual([
+  expect(await savedRows(target.storage)).toStrictEqual([
     [`gone/${PAGE}`, {}],
     [expect.stringContaining(op(8)), expect.objectContaining({ result: {} })],
   ]);

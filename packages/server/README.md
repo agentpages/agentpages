@@ -51,13 +51,19 @@ An operation declares its target, the access it needs and its checks, and brings
 
 A storage that fails, or a rate limiter whose promise rejects, makes the answer `Unavailable`. A stored record that is not what the Store saved, such as a page without an owner, is a defect. Anything else that is thrown is a defect: the answer is `Internal`, and the log record names the cause.
 
+## Sweep
+
+`sweep(limit)` deletes what is past its retention: the requests the Store remembers, `requestTimeoutMs` after `opRetentionSeconds`, and the commits of its logs, `requestTimeoutMs` after `commitRetentionSeconds`. Nothing else expires. No request triggers it and it is not a tool: the deployment calls it on a timer. It clears at most `limit` of each of the two kinds, the oldest first, and resolves with how many it cleared: 0 means nothing is past retention now. A `limit` that is not a positive safe integer throws a `RangeError`. Any number of processes may call it at any time. When it rejects, the storage failed: call it again.
+
+With every remembered request and every commit, the Store writes a note of when, in the same transaction, under a key that sorts by time. A sweep scans the oldest notes without a lock. Then, for each page or type, in one transaction under its lock, it reads the notes again with their rows, and deletes each note that is still there, with its row when the row was written when the note says. A request that was remembered again under the same `opId` was written at another time, and stays. The notes of a deleted page stay until a sweep deletes them. `state/commits` answers `ResyncRequired` when a commit is missing among those it would return.
+
 ## Where things are
 
 | Folder | What it holds |
 |---|---|
 | `ports` | The interfaces above |
 | `access` | `Principal`, the access table, and who a log record names |
-| `pipeline` | The steps of a request, shared by every operation |
+| `pipeline` | The steps of a request, shared by every operation, and the sweep |
 | `pages`, `types`, `state`, `identity` | The operations, and the keys and records of what they store |
 | `trees` | What a commit does to the trees of its scope: the cascade of a delete within its limit, the climb from every document a put places, and the rows of the children |
 | `ops` | The table of operations, and `createStore` |

@@ -3,7 +3,7 @@ import { type Context, type Handler, mutation, ok, type Outcome } from "../pipel
 import { NEED } from "../access/permits.js";
 import type { Agent } from "../access/principal.js";
 import type { Tx } from "@agentpages/storage";
-import { rememberedPrefix } from "./keys.js";
+import { rememberedBy } from "./keys.js";
 import { type Page, savePage } from "./records.js";
 import { existingPage } from "./target.js";
 import { urlOf } from "./url.js";
@@ -26,6 +26,6 @@ const setAccess = (context: Sharing, tx: Tx): Promise<Outcome<PageInfo>> => {
 
 export const pagesSetAccess: Handler<PagesSetAccessParams, PageInfo, Agent> = mutation(TOOL_SCHEMAS.pages_set_access, {
   target: existingPage(NEED.owner),
-  remembers: ({ pageId }) => rememberedPrefix(pageId),
+  remembers: ({ pageId }) => rememberedBy(pageId),
   run: setAccess,
 });

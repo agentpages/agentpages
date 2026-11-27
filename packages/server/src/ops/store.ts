@@ -11,7 +11,7 @@ import {
 import { actorsUnder } from "../access/actor.js";
 import type { Agent, Visitor } from "../access/principal.js";
 import type { Ports } from "../ports/ports.js";
-import type { Handler, Shown } from "../pipeline/index.js";
+import { type Handler, type Shown, sweep } from "../pipeline/index.js";
 import { checksWith } from "../types/checks.js";
 import { HOST_HANDLERS, methodsOf, toolsOf } from "./operations.js";
 
@@ -62,6 +62,12 @@ export interface Store {
   host(request: HostCall): Promise<Answer>;
   /** Answers a method a view calls on its host. A method of a feature the Store does not advertise is unknown. */
   view(request: ViewCall): Promise<Answer>;
+  /**
+   * Clears up to `limit` remembered requests and up to `limit` commits that are past their retention, and resolves
+   * with how many it cleared: 0 means nothing is past retention now. Any number of processes may call it at any time.
+   * It throws when `limit` is not a positive safe integer. A rejection means the storage failed: call it again.
+   */
+  sweep(limit: number): Promise<number>;
 }
 
 /** Handlers by the name a request asks for them under. A name of `Object.prototype` is not one of them. */
@@ -85,6 +91,11 @@ const advertised = (config: StoreConfig): Capability => {
   return checked.value;
 };
 
+const positive = (limit: number): number => {
+  if (!Number.isSafeInteger(limit) || limit < 1) throw new RangeError("limit must be a positive safe integer.");
+  return limit;
+};
+
 /**
  * A Store over the given ports. All it knows is in `ports.storage`: in memory it keeps only schemas it compiled. It
  * throws when `config` is not valid.
@@ -106,5 +117,6 @@ export const createStore = (ports: Ports, config: StoreConfig): Store => {
       operations.get(operation)?.answer({ deps, method: operation, input, principal, requestId }) ?? unknownMethod(),
     view: ({ method, params, url, principal, requestId }) =>
       methods.get(method)?.(url).answer({ deps, method, input: params, principal, requestId }) ?? unknownMethod(),
+    sweep: (limit) => sweep(deps, positive(limit)),
   };
 };

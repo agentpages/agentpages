@@ -1,5 +1,5 @@
 import type { PageInfo } from "@agentpages/protocol";
-import { counted, segment } from "../pipeline/index.js";
+import { counted, type Remembered, segment } from "../pipeline/index.js";
 import type { Key } from "@agentpages/storage";
 
 export interface VersionOf {
@@ -21,7 +21,8 @@ export const versionKey = ({ pageId, version }: VersionOf): Key => `${versionsPr
 /** What a version was published with. */
 export const contentKey = ({ pageId, version }: VersionOf): Key => `${pagePrefix(pageId)}c/${counted(version)}`;
 
-export const rememberedPrefix = (pageId: string): Key => `${pagePrefix(pageId)}op/`;
+/** Where a page keeps the requests it remembers. */
+export const rememberedBy = (pageId: string): Remembered => ({ prefix: `${pagePrefix(pageId)}op/`, lock: metaKey(pageId) });
 
 /** Kept for ever, so that a deleted `pageId` is never used again. */
 export const goneKey = (pageId: string): Key => `gone/${pageId}`;

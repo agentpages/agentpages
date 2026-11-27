@@ -1,4 +1,4 @@
-import { counted } from "../pipeline/index.js";
+import { counted, type Remembered } from "../pipeline/index.js";
 import type { Key } from "@agentpages/storage";
 
 /** The current version of every type, by `typeId`. */
@@ -16,4 +16,5 @@ export const typeVersionKey = ({ typeId, typeVersion }: { typeId: string; typeVe
 /** The type with every collection any of its versions declared. */
 export const declaredKey = (typeId: string): Key => `${typePrefix(typeId)}declared`;
 
-export const rememberedPrefix = (typeId: string): Key => `${typePrefix(typeId)}op/`;
+/** Where a type keeps the requests it remembers. */
+export const rememberedBy = (typeId: string): Remembered => ({ prefix: `${typePrefix(typeId)}op/`, lock: typeKey(typeId) });

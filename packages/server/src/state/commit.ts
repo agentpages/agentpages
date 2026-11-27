@@ -22,9 +22,10 @@ interface Making {
 
 const made = async (tx: Tx, { context, whole }: Making): Promise<Outcome<StateCommitResult>> => {
   const { params, principal, target, at, deps } = context;
-  const by = await deps.actors.actorOf({ principal, pageId: target.page.info.pageId });
+  const { pageId } = target.page.info;
+  const by = await deps.actors.actorOf({ principal, pageId });
   const commit = applied(whole.plan, { opId: params.opId, at, by });
-  saveCommit(tx, { whole, commit });
+  saveCommit(tx, { whole, commit, pageId });
   return ok({ commit });
 };
 

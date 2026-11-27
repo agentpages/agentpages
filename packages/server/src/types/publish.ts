@@ -10,7 +10,7 @@ import {
 import { type Context, type Deps, type Handler, mutation, ok, type Outcome, parsed, refuse } from "../pipeline/index.js";
 import type { Agent } from "../access/principal.js";
 import type { Tx } from "@agentpages/storage";
-import { declaredKey, rememberedPrefix, typeKey, typeVersionKey } from "./keys.js";
+import { declaredKey, rememberedBy, typeKey, typeVersionKey } from "./keys.js";
 import { publishableType, type Type } from "./target.js";
 
 type Publishing = Context<TypesPublishParams, Type | null, Agent>;
@@ -68,7 +68,7 @@ const publish = async (context: Publishing, tx: Tx): Promise<Outcome<TypeInfo>> 
 
 export const typesPublish: Handler<TypesPublishParams, TypeInfo, Agent> = mutation(TOOL_SCHEMAS.types_publish, {
   target: publishableType(),
-  remembers: ({ typeId }) => rememberedPrefix(typeId),
+  remembers: ({ typeId }) => rememberedBy(typeId),
   malformed: invalidSchema,
   limits: ({ collections, content }, { limits }) =>
     htmlProblem({ html: content.html, limits }) ??

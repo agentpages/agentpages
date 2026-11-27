@@ -142,6 +142,7 @@ export interface Store {
     call(request: ToolCall): Promise<Answer>;
     readonly capability: Capability;
     host(request: HostCall): Promise<Answer>;
+    sweep(limit: number): Promise<number>;
     readonly tools: readonly string[];
     view(request: ViewCall): Promise<Answer>;
 }
