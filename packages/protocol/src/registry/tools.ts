@@ -13,6 +13,8 @@ export interface Tools extends ToolsOf<StateMethods>, ToolsOf<FilesMethods>, Pag
 
 export type ToolName = keyof Tools;
 
+export const isToolName = (name: string): name is ToolName => Object.hasOwn(TOOLS, name);
+
 export interface ToolInfo<T extends ToolName> {
   /** The Store lists the tool exactly when it advertises all of these. */
   readonly requires: readonly Feature[];

@@ -7,7 +7,7 @@ import {
   JsonObjectSchema,
   LimitSchema,
   ofPage,
-  PagingSchema,
+  pagingEntries,
   type Raw,
   TimestampSchema,
   UuidSchema,
@@ -54,24 +54,24 @@ const CommitSchema: Raw<Commit> = v.object({
 
 export const CommittedSchema: Schema<Committed> = sealed(v.object({ scope: ScopeSchema, commit: CommitSchema }));
 
-const get = v.object({ scope: ScopeSchema, collection: IdSchema, id: IdSchema });
+const get = { scope: ScopeSchema, collection: IdSchema, id: IdSchema };
 const got = v.object({ document: v.nullable(DocumentSchema) });
-const list = v.intersect([v.object({ scope: ScopeSchema, collection: IdSchema }), PagingSchema]);
+const list = { scope: ScopeSchema, collection: IdSchema, ...pagingEntries };
 const listed = v.object({
   documents: v.array(DocumentSchema),
   seq: CountSchema,
   nextCursor: v.exactOptional(v.string()),
 });
-const commit = v.object({ scope: ScopeSchema, opId: UuidSchema, ops: v.array(OpSchema) });
+const commit = { scope: ScopeSchema, opId: UuidSchema, ops: v.array(OpSchema) };
 const committed = v.object({ commit: CommitSchema });
-const commits = v.object({ scope: ScopeSchema, since: CountSchema, limit: v.exactOptional(LimitSchema) });
+const commits = { scope: ScopeSchema, since: CountSchema, limit: v.exactOptional(LimitSchema) };
 const followed = v.object({ commits: v.array(CommitSchema), seq: CountSchema });
 
 export const STATE_METHOD_SCHEMAS: ExchangeSchemas<StateMethods> = {
-  "agentpages/state/get": exchange(get, got),
-  "agentpages/state/list": exchange(list, listed),
-  "agentpages/state/commit": exchange(commit, committed),
-  "agentpages/state/commits": exchange(commits, followed),
+  "agentpages/state/get": exchange(v.object(get), got),
+  "agentpages/state/list": exchange(v.object(list), listed),
+  "agentpages/state/commit": exchange(v.object(commit), committed),
+  "agentpages/state/commits": exchange(v.object(commits), followed),
 };
 
 export const STATE_TOOL_PARAMS: { readonly [T in keyof StateTools]: Raw<StateTools[T]["params"]> } = {

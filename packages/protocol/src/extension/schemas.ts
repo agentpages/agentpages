@@ -17,6 +17,7 @@ const hostEntries = {
     opRetentionSeconds: CountSchema,
     commitRetentionSeconds: CountSchema,
     maxThreadEntries: CountSchema,
+    maxRequestBytes: CountSchema,
   }),
   state: v.exactOptional(
     v.object({

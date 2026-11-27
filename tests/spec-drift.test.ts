@@ -27,6 +27,7 @@ import {
   NOTIFICATION_SCHEMAS,
   NOTIFICATIONS,
   PAGE_RESOURCE_MIME_TYPE,
+  PAGE_RESOURCE_URI_TEMPLATE,
   pageResourceUri,
   PDF_FORMAT,
   PING,
@@ -135,6 +136,7 @@ test("the constants are the ones the spec states", () => {
   expect(spec).toContain(`With \`format: "${PDF_FORMAT}"\``);
   expect(spec).toContain(`MIME type \`${PAGE_RESOURCE_MIME_TYPE}\``);
   expect(pageResourceUri({ pageId: "{pageId}", version: 7 })).toBe(resource?.replace("{version}", "7"));
+  expect(PAGE_RESOURCE_URI_TEMPLATE).toBe(resource);
   expect(spec).toContain(`\`_meta.ui.visibility: ${JSON.stringify(TOOL_VISIBILITY)}\``);
   expect(spec).toContain(`JSON-RPC ${JSONRPC_VERSION} over`);
   expect(spec).toContain(`send \`protocolVersion\` \`${MCP_APPS_VERSION}\``);

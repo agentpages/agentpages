@@ -9,6 +9,7 @@ export interface Limits {
   opRetentionSeconds: number;
   commitRetentionSeconds: number;
   maxThreadEntries: number;
+  maxRequestBytes: number;
 }
 
 export interface StateLimits {

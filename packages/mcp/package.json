@@ -1,7 +1,7 @@
 {
   "name": "@agentpages/mcp",
   "version": "0.0.0",
-  "description": "MCP server exposing publish, read and comment tools",
+  "description": "The MCP server of a Store",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -25,6 +25,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@agentpages/server": "workspace:^"
+    "@agentpages/protocol": "workspace:^",
+    "@agentpages/server": "workspace:^",
+    "@modelcontextprotocol/server": "^2.4.0"
   }
 }

@@ -17,7 +17,7 @@ const answer = await store.call({ tool: "pages_publish", input, principal: { kin
 
 `call` answers a tool call of an agent. `host` answers an operation a host runs for a viewer, and `view` a method a view calls on its host, both under the `requestId` the host chose. An `Answer` is a result, a failure of the spec, or `unknown-method` for what the Store does not have. `createStore` throws when its capability is not one of section 3 of the spec, its `baseUrl` is not a URL, or its `actorKey` is shorter than 32 bytes. `capability` is what the Store advertises, and `tools` the tools it lists. All the Store knows is in the storage. In memory it keeps only the 1024 compiled schemas it used last.
 
-This package has the pages tools, the types tools, `pages_open`, the comments tools and host operations, `pages_heads`, the state tools and methods with their trees, `identity/get`, and the files tools and methods. The tools and methods of a feature exist exactly when the capability has the feature. Comments are no feature: every Store has them. Rendering is not built yet: its tools are listed and answer `unknown-method`.
+This package has the pages tools, the types tools, `pages_open`, the comments tools and host operations, `pages_heads`, the state tools and methods with their trees, `identity/get`, and the files tools and methods. The tools and methods of a feature exist exactly when the capability has the feature. Comments are no feature: every Store has them. Rendering is not built yet: the capability of a Store takes no `render`, so its tools are never listed. `createStore` also throws when `maxRequestBytes` is below `maxHtmlBytes` or below the base64 length of `maxFileBytes`.
 
 ## Ports
 

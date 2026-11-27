@@ -34,15 +34,26 @@ export const expectationOf = (issue: v.BaseIssue<unknown>): string => issue.expe
 const isJsonObject = (input: unknown): input is JsonObject =>
   typeof input === "object" && input !== null && !Array.isArray(input);
 
-/** A JSON object, passed on exactly as it came. */
-export const JsonObjectSchema: Raw<JsonObject> = v.pipe(
-  v.unknown(),
-  v.rawTransform<unknown, JsonObject>(({ dataset, addIssue, NEVER }) => {
-    if (isJsonObject(dataset.value)) return dataset.value;
-    addIssue({ expected: "a JSON object" });
-    return NEVER;
-  }),
-);
+const NOT_AN_ARRAY = "a JSON object";
+
+/** A JSON object, passed on exactly as it came. What is neither an object nor an array is told to be `expected`. */
+const jsonObject = (expected: string): Raw<JsonObject> =>
+  v.pipe(
+    v.unknown(),
+    v.rawTransform<unknown, JsonObject>(({ dataset, addIssue, NEVER }) => {
+      if (isJsonObject(dataset.value)) return dataset.value;
+      addIssue({ expected: Array.isArray(dataset.value) ? NOT_AN_ARRAY : expected });
+      return NEVER;
+    }),
+  );
+
+export const JsonObjectSchema: Raw<JsonObject> = jsonObject(NOT_AN_ARRAY);
+
+/**
+ * A JSON object that refuses what is no object in the words of `v.object`. It is the first check of params that
+ * start with a field which is not required.
+ */
+export const NoArraySchema: Raw<JsonObject> = jsonObject("Object");
 
 /** The issues of one entry of an object, each placed under the entry's key. */
 const underKey = ({ name, item }: Entry, schema: Raw<unknown>): v.BaseIssue<unknown>[] =>
@@ -110,13 +121,17 @@ export const LimitSchema: Raw<number> = v.pipe(v.number(), v.integer(), v.minVal
 
 export const EmptySchema: Raw<Empty> = v.pipe(JsonObjectSchema, v.object({}));
 
-export const PagingSchema: Raw<Paging> = v.pipe(
-  JsonObjectSchema,
-  v.object({ cursor: v.exactOptional(v.pipe(v.string(), v.regex(CURSOR_PATTERN))), limit: v.exactOptional(LimitSchema) }),
-);
+export const pagingEntries: { cursor: Optional<string>; limit: Optional<number> } = {
+  cursor: v.exactOptional(v.pipe(v.string(), v.regex(CURSOR_PATTERN))),
+  limit: v.exactOptional(LimitSchema),
+};
 
-export const PageIdSchema: Raw<{ pageId: string }> = v.object({ pageId: UuidSchema });
+export const PagingSchema: Raw<Paging> = v.pipe(JsonObjectSchema, v.object(pagingEntries));
 
-/** The params of a view method as a Store tool takes them. */
-export const ofPage = <Params>(params: Raw<Params>): Raw<Params & { pageId: string }> =>
-  v.intersect([params, PageIdSchema]);
+/**
+ * The params of a view method as a Store tool takes them: one object of the method's entries and `pageId`, so that
+ * its JSON Schema is a single object, as an MCP `inputSchema` must be.
+ */
+export const ofPage = <Entries extends v.ObjectEntries>(
+  entries: Entries,
+): v.ObjectSchema<Entries & { pageId: Raw<string> }, undefined> => v.object({ ...entries, pageId: UuidSchema });

@@ -21,6 +21,9 @@ export type Answer = Settled | {
 };
 
 // @public
+export const base64Length: (bytes: number) => number;
+
+// @public
 export const base64Size: (blob: string) => number;
 
 // @public
@@ -622,6 +625,9 @@ export interface Issue {
 // @public (undocumented)
 export type Issues = readonly [Issue, ...Issue[]];
 
+// @public (undocumented)
+export const isToolName: (name: string) => name is ToolName;
+
 // @public
 export type JsonObject = Record<string, unknown>;
 
@@ -704,6 +710,8 @@ export interface Limits {
     exportTimeoutMs: number;
     // (undocumented)
     maxHtmlBytes: number;
+    // (undocumented)
+    maxRequestBytes: number;
     // (undocumented)
     maxSchemaBytes: number;
     // (undocumented)
@@ -857,6 +865,9 @@ export interface Opened {
 // @public (undocumented)
 export const PAGE_RESOURCE_MIME_TYPE = "text/html;profile=mcp-app";
 
+// @public
+export const PAGE_RESOURCE_URI_TEMPLATE = "ui://agentpages/{pageId}/{version}";
+
 // @public (undocumented)
 export type PageContent = {
     kind: "html";
@@ -888,10 +899,10 @@ export interface PageInfo {
 }
 
 // @public
-export const pageResourceUri: (input: {
-    pageId: string;
-    version: number;
-}) => string;
+export const pageOfResourceUri: (uri: string) => PageVersion | undefined;
+
+// @public
+export const pageResourceUri: (input: PageVersion) => string;
 
 // @public (undocumented)
 export interface PagesDeleteParams {
@@ -1022,6 +1033,14 @@ export interface PagesVersionsResult {
         version: number;
         createdAt: string;
     }[];
+}
+
+// @public (undocumented)
+export interface PageVersion {
+    // (undocumented)
+    pageId: string;
+    // (undocumented)
+    version: number;
 }
 
 // @public (undocumented)
@@ -1406,6 +1425,9 @@ export const toBase64: (bytes: Uint8Array) => string;
 // @public (undocumented)
 export const toJsonRpcError: (input: Failure) => JsonRpcError;
 
+// @public
+export const TOOL_DESCRIPTIONS: { readonly [T in ToolName]: string; };
+
 // @public (undocumented)
 export const TOOL_SCHEMAS: ExchangeSchemas<Tools>;
 
@@ -1433,7 +1455,13 @@ export interface ToolInfo<T extends ToolName> {
 }
 
 // @public
-export const toolInputSchema: (tool: ToolName) => JsonObject;
+export interface ToolInputSchema extends JsonObject {
+    // (undocumented)
+    type: "object";
+}
+
+// @public
+export const toolInputSchema: (tool: ToolName) => ToolInputSchema;
 
 // @public (undocumented)
 export type ToolName = keyof Tools;

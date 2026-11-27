@@ -1,11 +1,15 @@
 import {
   type Answer,
+  base64Length,
   type Capability,
   CapabilitySchema,
   hasFeature,
+  type HostCapability,
   type HostRequest,
+  isToolName,
   METHOD_NOT_FOUND,
   PROTOCOL_VERSION,
+  type ToolName,
   TOOLS,
   validate,
   type ViewRequest,
@@ -18,8 +22,8 @@ import { checksWith } from "../types/checks.js";
 import { HOST_HANDLERS, methodsOf, toolsOf } from "./operations.js";
 
 export interface StoreConfig {
-  /** The limits and the features the Store advertises. */
-  capability: Omit<Capability, "version">;
+  /** The limits and the features the Store advertises. It has no `render`: a Store does not render yet. */
+  capability: Omit<HostCapability, "version">;
   /** What every page `url` starts with: a URL, such as `https://pages.example/p/`. */
   baseUrl: string;
   /**
@@ -47,7 +51,7 @@ export interface Store {
   /** What the Store advertises under the extension identifier. */
   readonly capability: Capability;
   /** The tools the Store lists: those whose features it advertises. */
-  readonly tools: readonly string[];
+  readonly tools: readonly ToolName[];
   /** Answers a tool call of an agent. */
   call(request: ToolCall): Promise<Answer>;
   /** Answers an operation a host runs for a viewer. */
@@ -67,10 +71,16 @@ const byName = <H>(handlers: Record<string, H>): Map<string, H> => new Map(Objec
 
 const unknownMethod = (): Promise<Answer> => Promise.resolve({ kind: "unknown-method", code: METHOD_NOT_FOUND });
 
-const listed = (capability: Capability): string[] =>
-  Object.entries(TOOLS)
-    .filter(([, { requires }]) => requires.every((feature) => hasFeature(capability, feature)))
-    .map(([tool]) => tool);
+const lists =
+  (capability: Capability) =>
+  (tool: string): tool is ToolName =>
+    isToolName(tool) && TOOLS[tool].requires.every((feature) => hasFeature(capability, feature));
+
+const listed = (capability: Capability): ToolName[] => Object.keys(TOOLS).filter(lists(capability));
+
+/** The bytes of the largest single field a request can carry: an html, or a file as base64. */
+const largestField = ({ limits, files }: Capability): number =>
+  Math.max(limits.maxHtmlBytes, base64Length(files?.maxFileBytes ?? 0));
 
 /** What the Store advertises, once it is known to be a capability of section 3 of the spec that a Store can keep. */
 const advertised = (config: StoreConfig): Capability => {
@@ -79,6 +89,9 @@ const advertised = (config: StoreConfig): Capability => {
   const { opRetentionSeconds, commitRetentionSeconds } = checked.value.limits;
   if (commitRetentionSeconds < opRetentionSeconds) {
     throw new RangeError("commitRetentionSeconds must be at least opRetentionSeconds.");
+  }
+  if (checked.value.limits.maxRequestBytes < largestField(checked.value)) {
+    throw new RangeError("maxRequestBytes must be at least maxHtmlBytes and the base64 length of maxFileBytes.");
   }
   return checked.value;
 };

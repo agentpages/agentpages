@@ -41,6 +41,7 @@ export type * from "./pages/types.js";
 export * from "./registry/host-operations.js";
 export * from "./registry/method-schemas.js";
 export * from "./registry/methods.js";
+export * from "./registry/tool-descriptions.js";
 export * from "./registry/tool-input-schema.js";
 export * from "./registry/tool-schemas.js";
 export * from "./registry/tools.js";

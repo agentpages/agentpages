@@ -7,6 +7,7 @@
 import { Answer } from '@agentpages/protocol';
 import { Capability } from '@agentpages/protocol';
 import { Clock } from '@agentpages/storage';
+import { HostCapability } from '@agentpages/protocol';
 import { HostRequest } from '@agentpages/protocol';
 import { Issue } from '@agentpages/protocol';
 import { JsonSchema } from '@agentpages/protocol';
@@ -14,6 +15,7 @@ import { LogRecord } from '@agentpages/protocol';
 import { PageInfo } from '@agentpages/protocol';
 import { Problem } from '@agentpages/protocol';
 import { Storage as Storage_2 } from '@agentpages/storage';
+import { ToolName } from '@agentpages/protocol';
 import { ViewRequest } from '@agentpages/protocol';
 
 // @public
@@ -136,7 +138,7 @@ export interface Store {
     readonly capability: Capability;
     host(request: HostCall): Promise<Answer>;
     sweep(limit: number): Promise<number>;
-    readonly tools: readonly string[];
+    readonly tools: readonly ToolName[];
     view(request: ViewCall): Promise<Answer>;
 }
 
@@ -144,7 +146,7 @@ export interface Store {
 export interface StoreConfig {
     actorKey: string;
     baseUrl: string;
-    capability: Omit<Capability, "version">;
+    capability: Omit<HostCapability, "version">;
 }
 
 // @public (undocumented)
