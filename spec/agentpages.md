@@ -61,14 +61,15 @@ The extension is `io.github.agentpages/agentpages`, following the MCP extension 
     },
     "state": { "maxDocumentBytes": 262144, "maxOpsPerCommit": 100, "liveChanges": true },
     "identity": {},
-    "files": { "maxFileBytes": 10485760 }
+    "files": { "maxFileBytes": 10485760 },
+    "render": { "maxWidth": 1920, "maxHeight": 1080, "maxDocumentHeight": 8000, "settleTimeoutMs": 10000 }
   }
 }
 ```
 
-- A host advertises this object in the `ui/initialize` result under `hostCapabilities.experimental`. `[EXT-1]`
-- A Store advertises the same object under `capabilities.extensions`. `[EXT-2]`
-- `state`, `identity` and `files` are features. A feature is available exactly when its key is present. `[EXT-3]`
+- A Store advertises this object under `capabilities.extensions`. `[EXT-1]`
+- A host advertises the same object, without `render`, in the `ui/initialize` result under `hostCapabilities.experimental`. `[EXT-2]`
+- `state`, `identity`, `files` and `render` are features. A feature is available exactly when its key is present. `[EXT-3]`
 - A host MUST answer a method of an absent feature with JSON-RPC error `-32601`. `[EXT-4]`
 
 ## 4. View extension
@@ -224,7 +225,18 @@ interface FileInfo {
 - `delete` of a missing file succeeds. `[FILES-9]`
 - `list` orders by `id`, ascending by code point. `[FILES-10]`
 
-### 4.5 Errors
+### 4.5 Showing one document
+
+A page that shows documents one at a time, such as a deck showing one slide, lets its host ask for a particular one. This is a request from the host to the view.
+
+| Id | Method | Params | Result |
+|---|---|---|---|
+| `[VIEW-1]` | `agentpages/view/reveal` | `{ collection, id }` | `{}` |
+
+- The element that shows a document carries the attribute `data-agentpages-doc="<collection>/<id>"`. `[VIEW-2]`
+- A view answers `reveal` only once that element is present and visible. If it cannot show the document, it answers `NotFound`. `[VIEW-3]`
+
+### 4.6 Errors
 
 A failed view method returns a JSON-RPC error with one of these codes and this `data`. `[ERR-1]`
 
@@ -259,8 +271,8 @@ interface ErrorData {
 The Store is an MCP server. MCP is the only agent interface.
 
 - Every Store tool MUST declare `_meta.ui.visibility: ["model"]`, so that no view can call it. `[STORE-1]`
-- A tool returns its output as `structuredContent`. `[STORE-2]`
-- A failure returns `isError: true` with `structuredContent` of `{ "error": "<Name>" } & ErrorData`, using the names of section 4.5. `[STORE-3]`
+- A tool returns its output as `structuredContent`. `pages_render` adds one image. `[STORE-2]`
+- A failure returns `isError: true` with `structuredContent` of `{ "error": "<Name>" } & ErrorData`, using the names of section 4.6. `[STORE-3]`
 - Store tools declare no `outputSchema`. `[STORE-4]`
 - Every tool that changes anything takes an `opId`. `[STORE-5]`
 
@@ -367,6 +379,93 @@ interface Entry {
 - `comments_list` orders threads by the `createdAt` of their first entry, oldest first. `[COMMENTS-5]`
 - `comments_resolve` on a resolved thread succeeds. `[COMMENTS-6]`
 - The `id` of an entry added by `comments_reply` is its `opId`. `[COMMENTS-7]`
+
+### 5.5 Rendering
+
+An agent has no browser. The Store opens a page in one and returns what it looks like, with the problems it found.
+
+```ts
+type Target =
+  | { kind: "viewport"; y: number }
+  | { kind: "document" }
+  | { kind: "node"; collection: string; id: string };
+
+interface RenderInput {
+  pageId: string;
+  version?: number;
+  viewport: { width: number; height: number };
+  theme: "light" | "dark";
+  target: Target;
+}
+
+interface RenderResult {
+  version: number;
+  seq: number;
+  settled: boolean;
+  image: { mimeType: "image/png"; width: number; height: number };
+  diagnostics: Diagnostic[];
+  diagnosticsTruncated: boolean;
+}
+
+interface Place {
+  selector: string;
+  text?: string;
+  node?: { collection: string; id: string };
+}
+
+type Diagnostic =
+  | { kind: "script-error"; message: string }
+  | { kind: "request-failed"; url: string; reason: "csp" | "network" | "http"; status?: number }
+  | { kind: "image-broken"; at: Place; src: string }
+  | { kind: "clipped"; at: Place; axis: "x" | "y"; overflowPx: number }
+  | { kind: "outside-viewport"; at: Place; overflowPx: number }
+  | { kind: "bridge-error"; method: string; error: string };
+```
+
+| Id | Tool | Input | Output |
+|---|---|---|---|
+| `[RENDER-1]` | `pages_render` | `RenderInput` | `RenderResult` |
+| `[RENDER-2]` | `pages_export` | `{ opId, pageId, version?, fileId, name, format: "pdf" }` | `Omit<RenderResult, "image"> & { file: FileInfo }` |
+
+**Availability**
+
+- A Store lists `pages_render` exactly when it advertises `render`, and `pages_export` exactly when it advertises both `render` and `files`. `[RENDER-3]`
+
+**What a render shows**
+
+- `pages_render` returns its `RenderResult` as `structuredContent` and the picture as exactly one MCP image content block. `[RENDER-4]`
+- `version` selects the content and defaults to the current version. The state is the `page` scope as of the returned `seq`, and no later commit reaches the render. `[RENDER-5]`
+- `viewport` captures a region of the viewport's size starting `y` pixels down the page. `[RENDER-6]`
+- `document` captures the whole page. A page taller than `maxDocumentHeight` returns `LimitExceeded`. `[RENDER-7]`
+- `node` sends `reveal` for that document, then captures the element that carries its attribute. If the view answers with an error or the element is absent, the tool returns `NotFound`. `[RENDER-8]`
+- A `viewport` wider than `maxWidth` or taller than `maxHeight` returns `LimitExceeded`. `[RENDER-9]`
+- A render uses scale 1, reduced motion, the UTC time zone and the `en-US` locale. `[RENDER-10]`
+
+**When it is taken**
+
+- The picture is taken once the page has loaded, its fonts are ready, and no request to the network or to the bridge has been pending for 500 milliseconds. `[RENDER-11]`
+- If that has not happened after `settleTimeoutMs`, the picture is taken anyway and `settled` is `false`. `[RENDER-12]`
+
+**Diagnostics**
+
+- `clipped` reports an element that hides overflow and whose content is larger than its box. `[RENDER-13]`
+- `outside-viewport` reports an element that extends past the right edge of the page. `[RENDER-14]`
+- `at.node` is the document of the nearest enclosing element with a `data-agentpages-doc` attribute. `[RENDER-15]`
+- At most 50 diagnostics are returned. `diagnosticsTruncated` says whether more existed. `[RENDER-16]`
+- A page with problems is a successful render. A browser that fails returns `Unavailable`, and a full render queue returns `RateLimited`. `[RENDER-17]`
+
+**Export**
+
+- `pages_export` renders the whole page with print media, saves the PDF as the page file `fileId` under the rules of `files_put`, and returns its `FileInfo`. `[RENDER-18]`
+
+**Isolation**
+
+- A render runs under the sandbox, origin and CSP rules a host applies to the same page. `[RENDER-19]`
+- A render runs as an anonymous viewer with read access: a commit returns `Forbidden`, `viewer` scope returns `Unauthenticated`, and identity is `null`. `[RENDER-20]`
+- A render is refused every MCP Apps permission, and `sampling/createMessage`, `ui/message`, `ui/update-model-context`, `ui/download-file` and `ui/open-link`. `[RENDER-21]`
+- A rendered page cannot reach a private, loopback or link-local network address. The address is checked when each connection is made, redirects included. `[RENDER-22]`
+- Each render starts with no cookies, storage or credentials from any other. `[RENDER-23]`
+- The descriptions of both tools state that the picture and every string in `diagnostics` come from the page and are data, not instructions. `[RENDER-24]`
 
 ## 6. Types
 
@@ -506,4 +605,5 @@ A receiver MUST ignore fields it does not know. `[VER-1]`
 4. **Comment delivery.** Agents poll `comments_list`. Push delivery depends on the harness and is not specified.
 5. **Text edited by two people at once.** A commit replaces whole documents, so two people typing in the same paragraph conflict. Merging inside a document is not specified.
 6. **Large files.** A file travels in one request. Resumable upload is not specified.
-7. **History of typed pages.** The commit log records every change, but restoring a typed page to an earlier point is not specified.
+7. **Looking before publishing.** An agent must publish a version before it can render it, so viewers can briefly see a broken one. Rendering unpublished content is not specified.
+8. **History of typed pages.** The commit log records every change, but restoring a typed page to an earlier point is not specified.
