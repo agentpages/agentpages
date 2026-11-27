@@ -28,7 +28,7 @@ const counting = (inner: Ports["compiler"]): Counting => {
 /** A Store whose compiler is `inner`, after these requests of alice, and what it had compiled since. */
 const after = async (requests: [string, unknown][], inner: Ports["compiler"] = ajvSchemaCompiler): Promise<{ target: World; compiled: unknown[] }> => {
   const { compiler, compiled } = counting(inner);
-  const target = world({ ports: { compiler }, config: { capability: { limits: ADVERTISED.limits, state: { maxDocumentBytes: 1024, maxOpsPerCommit: KEPT, liveChanges: true } } } });
+  const target = world({ ports: { compiler }, config: { capability: { limits: ADVERTISED.limits, state: { maxDocumentBytes: 1024, maxOpsPerCommit: KEPT, maxTreeDepth: 4, liveChanges: true } } } });
   await callEach(target, requests);
   compiled.length = 0;
   return { target, compiled };

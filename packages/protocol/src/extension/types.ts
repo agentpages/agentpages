@@ -13,6 +13,7 @@ export interface Limits {
 export interface StateLimits {
   maxDocumentBytes: number;
   maxOpsPerCommit: number;
+  maxTreeDepth: number;
   liveChanges: boolean;
 }
 

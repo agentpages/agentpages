@@ -42,7 +42,7 @@ Because the Store is the single owner of data, a write through a view is visible
 - A `pageId` and an `opId` are UUIDs chosen by the caller, written in lowercase as `8-4-4-4-12` hexadecimal digits. `[COMMON-2]`
 - Timestamps are real UTC dates and times, written as `YYYY-MM-DDTHH:mm:ss.sssZ`. `[COMMON-3]`
 - Every `limit` is 1 to 100 and defaults to 100. A method that takes `cursor?` returns `nextCursor` exactly when more items exist. A `cursor` is opaque: the caller sends back a `nextCursor` unchanged, with the same other parameters. `[COMMON-4]`
-- A request is checked in this order, and the first check that fails decides the error: it is well formed (`InvalidParams`); the page or type it names exists, unless the request creates it (`NotFound`); the caller has access (`Forbidden`); the viewer is signed in where that is required (`Unauthenticated`); it is within the limits (`LimitExceeded`). An `InvalidParams` that depends on what the Store holds is decided after the limits and before `Conflict`. `[COMMON-5]`
+- A request is checked in this order, and the first check that fails decides the error: it is well formed (`InvalidParams`); the page or type it names exists, unless the request creates it (`NotFound`); the caller has access (`Forbidden`); the viewer is signed in where that is required (`Unauthenticated`); it is within the limits (`LimitExceeded`). An `InvalidParams` that depends on what the Store holds is decided after the limits and before `Conflict`. A limit that depends on what the Store holds is decided after that `InvalidParams` and before `Conflict`. `[COMMON-5]`
 - Every number in a request, a result or an advertised capability is an integer from 0 to 2^53 − 1. `[COMMON-6]`
 - `title`, `name` and `mimeType` are 1 to 255 characters. `description` and `quote` are at most 1024. `body` and `instructions` are at most 65536. A character is a Unicode code point. `[COMMON-7]`
 - Base64 uses the standard alphabet with padding (RFC 4648, section 4), in canonical form: unused bits are zero. `[COMMON-8]`
@@ -65,7 +65,7 @@ The extension is `io.github.agentpages/agentpages`, following the MCP extension 
       "opRetentionSeconds": 86400,
       "commitRetentionSeconds": 604800
     },
-    "state": { "maxDocumentBytes": 262144, "maxOpsPerCommit": 100, "liveChanges": true },
+    "state": { "maxDocumentBytes": 262144, "maxOpsPerCommit": 100, "maxTreeDepth": 64, "liveChanges": true },
     "identity": {},
     "files": { "maxFileBytes": 10485760 },
     "render": { "maxWidth": 1920, "maxHeight": 1080, "maxDocumentHeight": 8000, "settleTimeoutMs": 10000 }
@@ -187,9 +187,12 @@ interface TreeNode {
 - Exactly the documents with `parent: null` are roots. `parent` names a document of the same collection. `[TREE-1]`
 - `index` matches `^[0-9A-Za-z]*[1-9A-Za-z]$`. Any other value returns `InvalidParams`. `[TREE-2]`
 - Siblings are ordered by `index`, ascending by code point, then by `id`. `[TREE-3]`
-- A commit that would leave a tree document with a missing parent, or would create a cycle, returns `Conflict`. `[TREE-4]`
-- Deleting a tree document also deletes all its descendants in the same commit. Each is a `Change`. `[TREE-5]`
-- Tree rules are checked once, after all the ops of a commit, and only for the documents that commit changes. `[TREE-6]`
+- A put places a tree document when it creates it or changes its `parent`. A commit that would leave a tree document it puts with a missing parent, or one it places as its own ancestor, returns `Conflict`. `[TREE-4]`
+- Deleting a tree document also deletes all its descendants in the same commit. Each is a `Change`. Descendants are those in the state after all the ops, so a document the commit moves out of a deleted document stays, and one it puts under a deleted document has a missing parent. `[TREE-5]`
+- `changes` are in op order. A delete is followed by its descendants, depth first, a parent before its children, siblings by `id`. A descendant the commit has its own op on keeps the place of that op. `[TREE-7]`
+- A commit whose changes, descendants included, number more than `maxOpsPerCommit` returns `LimitExceeded`. `[TREE-8]`
+- A commit that would leave a tree document it places with more than `maxTreeDepth` ancestors returns `LimitExceeded`. Other documents are not checked, so the descendants of a moved document can be deeper. `[TREE-9]`
+- Tree rules are checked once, after all the ops of a commit, and only for the documents that commit changes. The limit on changes is decided before the limit on depth. An `ifRevision` `Conflict` is decided before a tree one. Within a rule, the first op in order decides. `[TREE-6]`
 
 A client moves a node by putting it with a new `parent` or `index`. To insert between two siblings, it picks an `index` that sorts between theirs; because no `index` ends in `0`, one always exists. A client SHOULD end a new `index` with a few random characters so that two clients inserting at the same place do not pick the same one. If two siblings do share an `index`, a client inserting between them gives one of them a new `index` in the same commit.
 
@@ -556,7 +559,7 @@ interface TypeContent {
 - In the `page` scope of a typed page, a commit that puts a document into a collection the type does not declare, or whose `data` does not match that collection's `schema`, returns `InvalidParams`. The type version is the one the page names when the commit arrives. `[TYPES-9]`
 - A page moves to a newer type version only by publishing a new page version that names it. `[TYPES-10]`
 - Documents already stored are not checked again when a page moves to another type version. `[TYPES-11]`
-- A collection is a tree in every version of a type or in none. `types_publish` that changes this returns `InvalidParams`. `[TYPES-12]`
+- A collection is a tree in every version of a type or in none. `types_publish` that changes this returns `InvalidParams`. A version that leaves the collection out does not change it: its documents stay a tree. `[TYPES-12]`
 - A key of `exports` is an id, as in section 2.1, other than `pdf`. Any other key returns `InvalidParams`. `[TYPES-13]`
 - A `schema` that is not valid JSON Schema 2020-12, or that refers to anything outside itself, returns `InvalidParams`. `[TYPES-14]`
 - A `schema` larger than `maxSchemaBytes`, as UTF-8 JSON without whitespace, returns `LimitExceeded`. `[TYPES-15]`

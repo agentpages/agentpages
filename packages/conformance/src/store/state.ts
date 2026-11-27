@@ -1,9 +1,11 @@
 import { STATE_ACCESS_CASES } from "./access.js";
+import { BOUND_CASES } from "./bounds.js";
 import { COMMIT_CASES } from "./commit.js";
 import { type Cases, having, inPagesOfTwo, inTurn, ofLength, pageId, text, tick, timeOf, times } from "./kit.js";
 import { MODEL_CASES } from "./model.js";
 import { REPEAT_CASES } from "./repeats.js";
 import { SCOPE_CASES } from "./scopes.js";
+import { TREE_CASES } from "./trees.js";
 import { TYPED_CASES } from "./typed.js";
 import { type ActingCases, after, COMMIT, COMMITS, committing, doc, listing, onBoth, onlyIf, put, remove, seqsAfter, STATE_GET, STATE_LIST, stored, type Surface, within } from "./surface.js";
 
@@ -182,6 +184,8 @@ export const STATE_CASES: Cases = {
   ...SCOPE_CASES,
   ...MODEL_CASES,
   ...TYPED_CASES,
+  ...TREE_CASES,
+  ...BOUND_CASES,
   ...STATE_ACCESS_CASES,
   ...REPEAT_CASES,
 };

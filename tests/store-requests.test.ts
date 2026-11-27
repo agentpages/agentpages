@@ -2,7 +2,7 @@ import { type Answer, ID_PATTERN, LogRecordSchema, type PageInfo, TOOL_SCHEMAS, 
 import type { Ports, RateRequest } from "@agentpages/server";
 import type { Storage, Value } from "@agentpages/storage";
 import { expect, test } from "vitest";
-import { ALICE, BASE_URL, BOB, call, committed, declaring, errorOf, failureOf, HOST_REQUEST, HTML, op, open, PAGE, PUBLISHED, publishing, put, readingAs, resultOf, saved, START, uuid, viewerId, world, type World } from "./support/store.ts";
+import { ALICE, BASE_URL, BOB, call, committed, declaring, errorOf, failureOf, HOST_REQUEST, HTML, op, open, PAGE, PUBLISHED, publishing, put, transactingAs, resultOf, saved, START, uuid, viewerId, world, type World } from "./support/store.ts";
 
 const publish = async (target: World): Promise<PageInfo> =>
   resultOf(TOOL_SCHEMAS.pages_publish.result, await call(target, PUBLISHED));
@@ -174,7 +174,7 @@ interface Damage {
 const damaging = (storage: Storage, { under, damaged }: Damage): Storage => {
   const spoiled = (key: string | undefined, stored: Value | undefined): Value | undefined =>
     stored !== undefined && key?.includes(under) === true ? damaged : stored;
-  return readingAs(storage, (tx) => ({
+  return transactingAs(storage, (tx) => ({
     get: async (key) => spoiled(key, await tx.get(key)),
     getMany: async (keys) => (await tx.getMany(keys)).map((stored, index) => spoiled(keys[index], stored)),
     scan: async (range) => (await tx.scan(range)).map(([key, stored]) => [key, spoiled(key, stored) ?? stored]),

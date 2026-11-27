@@ -1,6 +1,6 @@
 import type { Op } from "@agentpages/protocol";
 import { countIn } from "../pipeline/index.js";
-import type { Key, Reader } from "@agentpages/storage";
+import type { Key, Reader, Value } from "@agentpages/storage";
 import { documentKey, headKey, revisionKey } from "./keys.js";
 
 /** The `seq` of the last commit of a scope, which is 0 before its first. */
@@ -10,8 +10,12 @@ export const seqOf = async (tx: Reader, scope: Key): Promise<number> => countIn(
 export interface Pending {
   op: Op;
   revision: number;
-  exists: boolean;
+  /** Its document as it is stored. Nothing when there is none. */
+  stored: Value | undefined;
 }
+
+/** Section 4.1 of the spec: every put is a change, and so is the delete of a document that exists. */
+export const isChange = ({ op, stored }: Pending): boolean => op.op === "put" || stored !== undefined;
 
 /** A scope as a commit finds it. */
 export interface Before {
@@ -29,7 +33,7 @@ export const readBefore = async (tx: Reader, { scope, ops }: { scope: Key; ops: 
     pending: ops.map((op, index) => ({
       op,
       revision: countIn(rows[index], "revision"),
-      exists: rows[ops.length + index] !== undefined,
+      stored: rows[ops.length + index],
     })),
   };
 };
