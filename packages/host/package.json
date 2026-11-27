@@ -1,0 +1,30 @@
+{
+  "name": "@agentpages/host",
+  "version": "0.0.0",
+  "description": "Framework-free host runtime that embeds and talks to pages",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kuki1029/agentpages.git",
+    "directory": "packages/host"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@agentpages/protocol": "workspace:^"
+  }
+}

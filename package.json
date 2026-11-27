@@ -1,0 +1,48 @@
+{
+  "name": "agentpages",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint . --max-warnings 0",
+    "test": "vitest run",
+    "lint:packages": "pnpm -r exec publint --strict && pnpm -r exec attw --pack . --profile esm-only",
+    "lint:deps": "depcruise packages --config .dependency-cruiser.cjs",
+    "lint:unused": "knip",
+    "size": "size-limit",
+    "check": "pnpm build && pnpm typecheck && pnpm lint && pnpm test && pnpm lint:packages && pnpm lint:deps && pnpm lint:unused && pnpm size",
+    "changeset": "changeset",
+    "release": "pnpm build && changeset publish"
+  },
+  "size-limit": [
+    {
+      "path": "packages/client/dist/index.js",
+      "limit": "5 kB"
+    },
+    {
+      "path": "packages/host/dist/index.js",
+      "limit": "10 kB"
+    }
+  ],
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@changesets/cli": "^3.0.3",
+    "@eslint/js": "^10.0.1",
+    "@size-limit/file": "^14.3.0",
+    "dependency-cruiser": "^18.9.0",
+    "eslint": "^10.15.0",
+    "knip": "^6.48.0",
+    "publint": "^0.3.25",
+    "size-limit": "^14.3.0",
+    "tsdown": "^0.23.7",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.74.0",
+    "vitest": "^5.1.2"
+  }
+}
